@@ -174,3 +174,118 @@ describe('DepositTransaction Type Tests', () => {
     });
   });
 });
+
+describe('WithdrawalTransaction Type Tests', () => {
+  describe('WithdrawalTransaction interface', () => {
+    it('should have type discriminator set to "withdrawal"', () => {
+      const withdrawal: WithdrawalTransaction = {
+        type: 'withdrawal',
+        id: 'withdrawal-123',
+        status: 'pending_external',
+      };
+
+      expectTypeOf(withdrawal.type).toEqualTypeOf<'withdrawal'>();
+    });
+
+    it('should require id and status fields', () => {
+      const withdrawal: WithdrawalTransaction = {
+        type: 'withdrawal',
+        id: 'withdrawal-123',
+        status: 'pending_external',
+      };
+
+      expectTypeOf(withdrawal.id).toMatchTypeOf<string>();
+      expectTypeOf(withdrawal.status).toMatchTypeOf<
+        | 'incomplete'
+        | 'pending_user_transfer_start'
+        | 'pending_user_transfer_complete'
+        | 'pending_external'
+        | 'pending_anchor'
+        | 'pending_stellar'
+        | 'completed'
+        | 'failed'
+        | 'error'
+        | 'expired'
+      >();
+    });
+
+    it('should extend BaseTransactionResponse', () => {
+      const withdrawal: WithdrawalTransaction = {
+        type: 'withdrawal',
+        id: 'withdrawal-123',
+        status: 'completed',
+        amount_out: {
+          amount: '100.00',
+          asset: 'USD',
+        },
+      };
+
+      expectTypeOf(withdrawal).toMatchTypeOf<BaseTransactionResponse>();
+    });
+  });
+
+  describe('Sep24TransactionResponse compatibility', () => {
+    it('should be assignable to Sep24TransactionResponse for withdrawals', () => {
+      const withdrawalTx: WithdrawalTransaction = {
+        type: 'withdrawal',
+        id: 'wd-1',
+        status: 'pending_user_transfer_complete',
+      };
+
+      const txResponse: Sep24TransactionResponse = withdrawalTx;
+      expectTypeOf(txResponse).toMatchTypeOf<Sep24TransactionResponse>();
+    });
+
+    it('should narrow from Sep24TransactionResponse to WithdrawalTransaction', () => {
+      const transaction: Sep24TransactionResponse = {
+        type: 'withdrawal',
+        id: 'wd-1',
+        status: 'completed',
+      };
+
+      if (transaction.type === 'withdrawal') {
+        expectTypeOf(transaction).toEqualTypeOf<WithdrawalTransaction>();
+      }
+    });
+  });
+
+  describe('Type guard for withdrawals', () => {
+    it('isWithdrawalTransaction should narrow correctly', () => {
+      const transaction: Sep24TransactionResponse = {
+        type: 'withdrawal',
+        id: 'wd-1',
+        status: 'pending_stellar',
+      };
+
+      if (isWithdrawalTransaction(transaction)) {
+        expectTypeOf(transaction).toEqualTypeOf<WithdrawalTransaction>();
+      }
+    });
+  });
+
+  describe('Field compatibility for withdrawals', () => {
+    it('should support all optional BaseTransactionResponse fields', () => {
+      const withdrawal: WithdrawalTransaction = {
+        type: 'withdrawal',
+        id: 'wd-1',
+        status: 'completed',
+        more_info_url: 'https://example.com/info',
+        amount_out: {
+          amount: '100.00',
+          asset: 'USD',
+        },
+        amount_fee: {
+          amount: '1.00',
+          asset: 'USD',
+        },
+        started_at: 1000000,
+        completed_at: 2000000,
+        message: 'Withdrawal processed',
+      };
+
+      expectTypeOf(withdrawal.type).toEqualTypeOf<'withdrawal'>();
+      expectTypeOf(withdrawal.id).toEqualTypeOf<string>();
+      expectTypeOf(withdrawal.status).toMatchTypeOf<string>();
+    });
+  });
+});
