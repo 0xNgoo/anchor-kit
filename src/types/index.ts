@@ -7,3 +7,5 @@ export type { TransactionStatus } from './transaction-status.ts';
 
 export * from './sep24';
 export * from './foundation';
+export type { KycData } from './kyc-data.ts';
+export type { Customer } from './customer.ts';
