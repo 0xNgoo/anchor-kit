@@ -14,6 +14,7 @@ export const TRANSACTION_STATUSES = [
   'pending_external',
   'pending_trust',
   'pending_user',
+  'pending_stellar',
   'completed',
   'refunded',
   'expired',
