@@ -1,5 +1,5 @@
 /**
- * Type tests for SEP-24 Transactions
+ * Type tests for DepositTransaction
  * Verifies discriminated union narrowing and type compatibility
  */
 
@@ -22,6 +22,7 @@ import type {
   KycLevel,
 } from '../src/types';
 import { isDepositTransaction, isWithdrawalTransaction } from '../src/types/sep24';
+import type { TransactionStatus } from '../src/types';
 
 describe('DepositTransaction Type Tests', () => {
   describe('DepositTransaction interface', () => {
@@ -43,18 +44,7 @@ describe('DepositTransaction Type Tests', () => {
       };
 
       expectTypeOf(deposit.id).toMatchTypeOf<string>();
-      expectTypeOf(deposit.status).toMatchTypeOf<
-        | 'incomplete'
-        | 'pending_user_transfer_start'
-        | 'pending_user_transfer_complete'
-        | 'pending_external'
-        | 'pending_anchor'
-        | 'pending_stellar'
-        | 'completed'
-        | 'failed'
-        | 'error'
-        | 'expired'
-      >();
+      expectTypeOf(deposit.status).toMatchTypeOf<TransactionStatus>();
     });
 
     it('should extend BaseTransactionResponse', () => {
@@ -144,7 +134,7 @@ describe('DepositTransaction Type Tests', () => {
       const transactions: Sep24TransactionResponse[] = [
         { type: 'deposit', id: 'dep-1', status: 'completed' },
         { type: 'withdrawal', id: 'wd-1', status: 'pending_external' },
-        { type: 'deposit', id: 'dep-2', status: 'failed' },
+        { type: 'deposit', id: 'dep-2', status: 'error' },
       ];
 
       const deposits = transactions.filter(isDepositTransaction);
@@ -206,18 +196,7 @@ describe('WithdrawalTransaction Type Tests', () => {
       };
 
       expectTypeOf(withdrawal.id).toMatchTypeOf<string>();
-      expectTypeOf(withdrawal.status).toMatchTypeOf<
-        | 'incomplete'
-        | 'pending_user_transfer_start'
-        | 'pending_user_transfer_complete'
-        | 'pending_external'
-        | 'pending_anchor'
-        | 'pending_stellar'
-        | 'completed'
-        | 'failed'
-        | 'error'
-        | 'expired'
-      >();
+      expectTypeOf(withdrawal.status).toMatchTypeOf<TransactionStatus>();
     });
 
     it('should extend BaseTransactionResponse', () => {

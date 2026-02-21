@@ -16,7 +16,8 @@
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
     "types": [
-      "@types/bun" // add Bun global
+      "@types/bun", // add Bun global
+      "vitest/globals" // add Vitest global types for test files
     ],
     "baseUrl": ".",
     "paths": {

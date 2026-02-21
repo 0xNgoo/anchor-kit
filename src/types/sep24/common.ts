@@ -4,20 +4,7 @@
  * @see https://developers.stellar.org/docs/learn/fundamentals/stellar-ecosystem-proposals/sep-0024
  */
 
-/**
- * Transaction status according to SEP-24
- */
-export type TransactionStatus =
-  | 'incomplete'
-  | 'pending_user_transfer_start'
-  | 'pending_user_transfer_complete'
-  | 'pending_external'
-  | 'pending_anchor'
-  | 'pending_stellar'
-  | 'completed'
-  | 'failed'
-  | 'error'
-  | 'expired';
+import type { TransactionStatus } from '../transaction-status.ts';
 
 /**
  * Base transaction response type
@@ -30,7 +17,7 @@ export interface BaseTransactionResponse {
   /** Current status of the transaction */
   status: TransactionStatus;
 
-  /** ISO 8601 datetime when transaction was created */
+  /** A URL the user can visit to see more information about a transaction */
   more_info_url?: string;
 
   /** Amount being transferred */
@@ -84,11 +71,3 @@ export interface BaseTransactionResponse {
     }>;
   };
 }
-
-/**
- * Unified transaction response type that includes all transaction types
- * Used as the return type for transaction queries
- */
-export type Sep24TransactionResponse = BaseTransactionResponse & {
-  type: 'deposit' | 'withdrawal';
-};
