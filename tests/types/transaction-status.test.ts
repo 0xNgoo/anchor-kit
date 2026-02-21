@@ -1,4 +1,4 @@
-import { TRANSACTION_STATUSES, type TransactionStatus } from '@/types/index.ts';
+import { TRANSACTION_STATUSES, type TransactionStatus } from '@/types/index';
 
 describe('TransactionStatus', () => {
   // -- runtime checks on the status array --
