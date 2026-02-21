@@ -1,4 +1,4 @@
-import type { AnchorKitConfig } from '../types/config.ts';
+import type { AnchorKitConfig, Asset } from '../types/config.ts';
 import { ConfigurationError } from './errors.ts';
 
 /**
@@ -24,6 +24,17 @@ export class AnchorConfig {
    */
   public getConfig(): AnchorKitConfig {
     return this.config;
+  }
+
+  /**
+   * Lookup an asset by its code from the configured assets.
+   * The lookup is case-sensitive.
+   *
+   * @param code - The exact asset code to look up (e.g., 'USDC').
+   * @returns The matching Asset object, or undefined if not found.
+   */
+  public getAsset(code: string): Asset | undefined {
+    return this.config.assets?.assets?.find((asset) => asset.code === code);
   }
 
   /**

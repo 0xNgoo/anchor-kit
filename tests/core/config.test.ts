@@ -37,6 +37,28 @@ describe('AnchorConfig', () => {
     });
   });
 
+  describe('getAsset()', () => {
+    it('should return the matching asset', () => {
+      const config = new AnchorConfig(validBaseConfig);
+      const asset = config.getAsset('USDC');
+      expect(asset).toBeDefined();
+      expect(asset?.code).toBe('USDC');
+      expect(asset?.issuer).toBe('GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5');
+    });
+
+    it('should return undefined when case does not match', () => {
+      const config = new AnchorConfig(validBaseConfig);
+      const asset = config.getAsset('usdc');
+      expect(asset).toBeUndefined();
+    });
+
+    it('should return undefined when the asset is missing', () => {
+      const config = new AnchorConfig(validBaseConfig);
+      const asset = config.getAsset('UNKNOWN');
+      expect(asset).toBeUndefined();
+    });
+  });
+
   describe('validate()', () => {
     it('should pass for a valid configuration', () => {
       const config = new AnchorConfig(validBaseConfig);
