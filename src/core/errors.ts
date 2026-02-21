@@ -20,7 +20,7 @@ export class AnchorKitError extends Error {
     return {
       error: this.errorCode,
       message: this.message,
-      ...(process.env.NODE_ENV === 'development' && { context: this.context }),
+      ...(typeof process !== 'undefined' && process.env?.NODE_ENV === 'development' && { context: this.context }),
     };
   }
 }
