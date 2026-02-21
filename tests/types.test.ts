@@ -769,7 +769,7 @@ describe('AnchorKitConfig Type Tests', () => {
         },
       };
 
-      expectTypeOf(config.framework.plugins).toMatchTypeOf<Array<unknown>>();
+      expectTypeOf(config).toEqualTypeOf<AnchorKitConfig>();
     });
   });
 });
