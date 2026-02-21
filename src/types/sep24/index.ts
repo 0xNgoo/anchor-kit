@@ -13,5 +13,9 @@ export { isWithdrawalTransaction } from './withdrawals';
 
 import type { DepositTransaction } from './deposits';
 import type { WithdrawalTransaction } from './withdrawals';
+import type { TransactionNotFoundError } from '../foundation';
 
-export type Sep24TransactionResponse = DepositTransaction | WithdrawalTransaction;
+export type Sep24TransactionResponse =
+  | DepositTransaction
+  | WithdrawalTransaction
+  | TransactionNotFoundError;

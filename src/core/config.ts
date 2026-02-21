@@ -132,7 +132,9 @@ export class AnchorConfig {
    */
   private isValidUrl(urlString: string): boolean {
     try {
-      const url = new URL(urlString);
+      const UrlCtor = (globalThis as any).URL;
+      if (typeof UrlCtor !== 'function') return false;
+      const url = new UrlCtor(urlString);
       return url.protocol === 'http:' || url.protocol === 'https:';
     } catch {
       return false;
@@ -153,7 +155,9 @@ export class AnchorConfig {
 
     // In case it's another valid URI
     try {
-      new URL(urlString);
+      const UrlCtor = (globalThis as any).URL;
+      if (typeof UrlCtor !== 'function') throw new Error('URL not available');
+      new UrlCtor(urlString);
       return true;
     } catch {
       return false;

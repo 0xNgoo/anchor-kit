@@ -53,3 +53,15 @@ export interface KycData {
 }
 
 export type { KycData as CustomerKycData };
+
+/**
+ * Error returned when a transaction cannot be found or accessed.
+ * Included in SEP-24 transaction responses as an error branch.
+ */
+export interface TransactionNotFoundError {
+  /** Discriminator to allow narrowing on error responses */
+  type: 'error';
+
+  /** Human readable error message */
+  error: string;
+}
