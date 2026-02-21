@@ -89,7 +89,7 @@ export class AnchorConfig {
 
     // Validate database URL loosely (could be a connection string or file path)
     if (!this.isValidDatabaseUrl(framework.database.url)) {
-      throw new ConfigurationError(`Invalid database URL format: ${framework.database.url}`);
+throw new ConfigurationError('Invalid database URL format');
     }
 
     // Validate specific URLs if they are provided
