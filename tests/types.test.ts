@@ -9,7 +9,18 @@ import type {
   Sep24TransactionResponse,
   WithdrawalTransaction,
   BaseTransactionResponse,
-} from '../src/types/sep24';
+  AnchorKitConfig,
+  NetworkConfig,
+  ServerConfig,
+  AssetsConfig,
+  Asset,
+  KycConfig,
+  OperationalConfig,
+  MetadataConfig,
+  FrameworkConfig,
+  StellarNetwork,
+  KycLevel,
+} from '../src/types';
 import { isDepositTransaction, isWithdrawalTransaction } from '../src/types/sep24';
 import type { TransactionStatus } from '../src/types';
 
@@ -265,6 +276,500 @@ describe('WithdrawalTransaction Type Tests', () => {
       expectTypeOf(withdrawal.type).toEqualTypeOf<'withdrawal'>();
       expectTypeOf(withdrawal.id).toEqualTypeOf<string>();
       expectTypeOf(withdrawal.status).toMatchTypeOf<string>();
+    });
+  });
+});
+
+describe('AnchorKitConfig Type Tests', () => {
+  describe('Required fields enforcement', () => {
+    it('should require network config', () => {
+      const config: AnchorKitConfig = {
+        network: {
+          network: 'testnet',
+        },
+        server: {
+          host: 'localhost',
+          port: 3000,
+        },
+        security: {
+          sep10SigningKey: 'test-key',
+          interactiveJwtSecret: 'test-secret',
+          distributionAccountSecret: 'test-dist-secret',
+        },
+        assets: {
+          assets: [
+            {
+              code: 'USDC',
+              issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            },
+          ],
+        },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://user:pass@localhost/db',
+          },
+        },
+      };
+
+      expectTypeOf(config.network.network).toEqualTypeOf<StellarNetwork>();
+    });
+
+    it('should require server config', () => {
+      const config: AnchorKitConfig = {
+        network: { network: 'testnet' },
+        server: { port: 3000 },
+        security: {
+          sep10SigningKey: 'key',
+          interactiveJwtSecret: 'secret',
+          distributionAccountSecret: 'dist-secret',
+        },
+        assets: {
+          assets: [
+            {
+              code: 'USDC',
+              issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            },
+          ],
+        },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://localhost/db',
+          },
+        },
+      };
+
+      expectTypeOf(config.server).toMatchTypeOf<ServerConfig>();
+    });
+
+    it('should require security config with three secret fields', () => {
+      const config: AnchorKitConfig = {
+        network: { network: 'testnet' },
+        server: {},
+        security: {
+          sep10SigningKey: 'key',
+          interactiveJwtSecret: 'jwt-secret',
+          distributionAccountSecret: 'dist-secret',
+        },
+        assets: {
+          assets: [
+            {
+              code: 'USDC',
+              issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            },
+          ],
+        },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://localhost/db',
+          },
+        },
+      };
+
+      expectTypeOf(config.security.sep10SigningKey).toEqualTypeOf<string>();
+      expectTypeOf(config.security.interactiveJwtSecret).toEqualTypeOf<string>();
+      expectTypeOf(config.security.distributionAccountSecret).toEqualTypeOf<string>();
+    });
+
+    it('should require assets config with at least one asset', () => {
+      const config: AnchorKitConfig = {
+        network: { network: 'testnet' },
+        server: {},
+        security: {
+          sep10SigningKey: 'key',
+          interactiveJwtSecret: 'secret',
+          distributionAccountSecret: 'dist-secret',
+        },
+        assets: {
+          assets: [
+            {
+              code: 'USDC',
+              issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+              name: 'USD Coin',
+              deposits_enabled: true,
+              withdrawals_enabled: true,
+            },
+          ],
+        },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://localhost/db',
+          },
+        },
+      };
+
+      expectTypeOf(config.assets.assets).toMatchTypeOf<Asset[]>();
+      expectTypeOf(config.assets.assets[0]).toMatchTypeOf<Asset>();
+    });
+
+    it('should require framework config with database', () => {
+      const config: AnchorKitConfig = {
+        network: { network: 'public' },
+        server: {},
+        security: {
+          sep10SigningKey: 'key',
+          interactiveJwtSecret: 'secret',
+          distributionAccountSecret: 'dist-secret',
+        },
+        assets: { assets: [] },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://localhost/db',
+            schema: 'anchor_schema',
+          },
+        },
+      };
+
+      expectTypeOf(config.framework.database.provider).toEqualTypeOf<
+        'postgres' | 'sqlite' | 'mysql'
+      >();
+      expectTypeOf(config.framework.database.url).toEqualTypeOf<string>();
+    });
+  });
+
+  describe('Optional fields handling', () => {
+    it('should accept valid KYC config', () => {
+      const kycConfig: KycConfig = {
+        level: 'strict',
+        requireDocuments: true,
+        requireName: true,
+        requireAddress: true,
+        requireEmail: true,
+        minAge: 18,
+        maxAge: 120,
+      };
+
+      expectTypeOf(kycConfig.level).toEqualTypeOf<KycLevel | undefined>();
+      expectTypeOf(kycConfig.requireDocuments).toEqualTypeOf<boolean | undefined>();
+    });
+
+    it('should accept valid operational config', () => {
+      const operationalConfig: OperationalConfig = {
+        name: 'My Anchor',
+        website: 'https://myanchor.example.com',
+        supportEmail: 'support@myanchor.com',
+        webhooksEnabled: true,
+        corsEnabled: true,
+      };
+
+      expectTypeOf(operationalConfig.name).toMatchTypeOf<string | undefined>();
+      expectTypeOf(operationalConfig.webhooksEnabled).toMatchTypeOf<boolean | undefined>();
+    });
+
+    it('should accept valid metadata config', () => {
+      const metadataConfig: MetadataConfig = {
+        tomlUrl: 'https://myanchor.example.com/.well-known/stellar.toml',
+        protocols: {
+          sep10: true,
+          sep24: true,
+        },
+        features: {
+          supportsInteractiveDeposits: true,
+        },
+      };
+
+      expectTypeOf(metadataConfig.tomlUrl).toMatchTypeOf<string | undefined>();
+      expectTypeOf(metadataConfig.protocols).toMatchTypeOf<unknown>();
+    });
+  });
+
+  describe('Network config validation', () => {
+    it('should validate StellarNetwork types', () => {
+      const networks: StellarNetwork[] = ['public', 'testnet', 'futurenet'];
+
+      networks.forEach((network) => {
+        expectTypeOf(network).toEqualTypeOf<StellarNetwork>();
+      });
+    });
+
+    it('should support optional Horizon URL', () => {
+      const networkConfig: NetworkConfig = {
+        network: 'testnet',
+        horizonUrl: 'https://horizon-testnet.stellar.org',
+        networkPassphrase: 'Test SDF Network ; September 2015',
+      };
+
+      expectTypeOf(networkConfig.horizonUrl).toMatchTypeOf<string | undefined>();
+      expectTypeOf(networkConfig.networkPassphrase).toMatchTypeOf<string | undefined>();
+    });
+  });
+
+  describe('Server config validation', () => {
+    it('should support partial server config', () => {
+      const serverConfig: ServerConfig = {
+        debug: true,
+        port: 3000,
+      };
+
+      expectTypeOf(serverConfig.host).toMatchTypeOf<string | undefined>();
+      expectTypeOf(serverConfig.debug).toMatchTypeOf<boolean | undefined>();
+      expectTypeOf(serverConfig.port).toMatchTypeOf<number | undefined>();
+    });
+
+    it('should support server timeouts and CORS', () => {
+      const serverConfig: ServerConfig = {
+        host: '0.0.0.0',
+        port: 8080,
+        corsOrigins: ['https://example.com', 'https://app.example.com'],
+        requestTimeout: 60000,
+        interactiveDomain: 'https://interactive.example.com',
+      };
+
+      expectTypeOf(serverConfig.corsOrigins).toMatchTypeOf<string[] | undefined>();
+      expectTypeOf(serverConfig.requestTimeout).toMatchTypeOf<number | undefined>();
+    });
+  });
+
+  describe('Assets config validation', () => {
+    it('should support multiple assets', () => {
+      const assetsConfig: AssetsConfig = {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: true,
+          },
+          {
+            code: 'USDT',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            withdrawals_enabled: true,
+          },
+        ],
+        defaultCurrency: 'USD',
+        assetMapping: {
+          NGN: 'USDC',
+          ZAR: 'USDT',
+        },
+      };
+
+      expectTypeOf(assetsConfig.assets).toEqualTypeOf<Asset[]>();
+      expectTypeOf(assetsConfig.defaultCurrency).toMatchTypeOf<string | undefined>();
+      expectTypeOf(assetsConfig.assetMapping).toMatchTypeOf<Record<string, string> | undefined>();
+    });
+
+    it('should validate asset amounts', () => {
+      const asset: Asset = {
+        code: 'USDC',
+        issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+        min_amount: 10,
+        max_amount: 5000,
+      };
+
+      expectTypeOf(asset.min_amount).toMatchTypeOf<number | undefined>();
+      expectTypeOf(asset.max_amount).toMatchTypeOf<number | undefined>();
+    });
+  });
+
+  describe('Framework config validation', () => {
+    it('should support different database providers', () => {
+      const postgresConfig: FrameworkConfig = {
+        database: {
+          provider: 'postgres',
+          url: 'postgresql://localhost/db',
+          schema: 'public',
+        },
+      };
+
+      const sqliteConfig: FrameworkConfig = {
+        database: {
+          provider: 'sqlite',
+          url: 'file:./data.db',
+        },
+      };
+
+      const mysqlConfig: FrameworkConfig = {
+        database: {
+          provider: 'mysql',
+          url: 'mysql://user:pass@localhost/db',
+        },
+      };
+
+      expectTypeOf(postgresConfig.database.provider).toEqualTypeOf<
+        'postgres' | 'sqlite' | 'mysql'
+      >();
+      expectTypeOf(sqliteConfig.database.provider).toEqualTypeOf<'postgres' | 'sqlite' | 'mysql'>();
+      expectTypeOf(mysqlConfig.database.provider).toEqualTypeOf<'postgres' | 'sqlite' | 'mysql'>();
+    });
+
+    it('should support logging configuration', () => {
+      const frameworkConfig: FrameworkConfig = {
+        database: {
+          provider: 'postgres',
+          url: 'postgresql://localhost/db',
+        },
+        logging: {
+          level: 'debug',
+          format: 'json',
+          file: './logs/anchor.log',
+        },
+      };
+
+      expectTypeOf(frameworkConfig.logging).toMatchTypeOf<unknown>();
+      expectTypeOf(frameworkConfig.logging?.level).toMatchTypeOf<string | undefined>();
+    });
+
+    it('should support monitoring configuration', () => {
+      const frameworkConfig: FrameworkConfig = {
+        database: {
+          provider: 'postgres',
+          url: 'postgresql://localhost/db',
+        },
+        monitoring: {
+          sentryDsn: 'https://key@sentry.io/9999999',
+          metricsEnabled: true,
+        },
+      };
+
+      expectTypeOf(frameworkConfig.monitoring).toMatchTypeOf<unknown>();
+    });
+  });
+
+  describe('Complete valid config shapes', () => {
+    it('should accept minimal valid config', () => {
+      const config: AnchorKitConfig = {
+        network: {
+          network: 'testnet',
+        },
+        server: {},
+        security: {
+          sep10SigningKey: 'test-key',
+          interactiveJwtSecret: 'test-secret',
+          distributionAccountSecret: 'test-dist-secret',
+        },
+        assets: {
+          assets: [
+            {
+              code: 'USDC',
+              issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            },
+          ],
+        },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://localhost/db',
+          },
+        },
+      };
+
+      expectTypeOf(config).toEqualTypeOf<AnchorKitConfig>();
+    });
+
+    it('should accept fully populated config', () => {
+      const config: AnchorKitConfig = {
+        network: {
+          network: 'public',
+          horizonUrl: 'https://horizon.stellar.org',
+          networkPassphrase: 'Public Global Stellar Network ; September 2015',
+        },
+        server: {
+          host: '0.0.0.0',
+          port: 3000,
+          debug: false,
+          interactiveDomain: 'https://anchor.example.com',
+          corsOrigins: ['https://app.example.com'],
+          requestTimeout: 30000,
+        },
+        security: {
+          sep10SigningKey: 'SBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+          interactiveJwtSecret: 'super-secret-jwt-key',
+          distributionAccountSecret:
+            'SBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+          challengeExpirationSeconds: 300,
+          enableClientAttribution: true,
+          webhookSecret: 'webhook-secret-key',
+          verifyWebhookSignatures: true,
+        },
+        assets: {
+          assets: [
+            {
+              code: 'USDC',
+              issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+              name: 'USD Coin',
+              deposits_enabled: true,
+              withdrawals_enabled: true,
+              min_amount: 1,
+              max_amount: 100000,
+            },
+          ],
+          defaultCurrency: 'USD',
+        },
+        kyc: {
+          level: 'strict',
+          requireDocuments: true,
+          requireName: true,
+          requireAddress: true,
+          requireEmail: true,
+          minAge: 18,
+        },
+        operational: {
+          name: 'Example Anchor',
+          website: 'https://anchor.example.com',
+          supportEmail: 'support@anchor.example.com',
+          webhooksEnabled: true,
+          corsEnabled: true,
+        },
+        metadata: {
+          tomlUrl: 'https://anchor.example.com/.well-known/stellar.toml',
+          protocols: {
+            sep10: true,
+            sep24: true,
+          },
+        },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://user:pass@localhost/anchor_db',
+            schema: 'anchor',
+          },
+          logging: {
+            level: 'info',
+            format: 'json',
+          },
+          monitoring: {
+            metricsEnabled: true,
+          },
+        },
+      };
+
+      expectTypeOf(config).toEqualTypeOf<AnchorKitConfig>();
+    });
+  });
+
+  describe('Config extensibility', () => {
+    it('should allow plugins in framework config', () => {
+      const config: AnchorKitConfig = {
+        network: { network: 'testnet' },
+        server: {},
+        security: {
+          sep10SigningKey: 'key',
+          interactiveJwtSecret: 'secret',
+          distributionAccountSecret: 'dist-secret',
+        },
+        assets: { assets: [] },
+        framework: {
+          database: {
+            provider: 'postgres',
+            url: 'postgresql://localhost/db',
+          },
+          plugins: [
+            {
+              id: 'sep24',
+              config: { interactiveDomain: 'https://interactive.example.com' },
+            },
+            {
+              id: 'flutterwave-rail',
+              config: { secretKey: process.env.FLW_SECRET_KEY },
+            },
+          ],
+        },
+      };
+
+      expectTypeOf(config).toEqualTypeOf<AnchorKitConfig>();
     });
   });
 });
