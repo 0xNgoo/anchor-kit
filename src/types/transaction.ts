@@ -169,10 +169,10 @@ export interface Transaction {
   // Timestamp Fields
   // ============================================
 
-  /** Unix timestamp when transaction was initiated */
+  /** Unix timestamp (in milliseconds) when transaction was initiated */
   started_at?: number;
 
-  /** Unix timestamp when transaction completed */
+  /** Unix timestamp (in milliseconds) when transaction completed */
   completed_at?: number;
 
   // ============================================
