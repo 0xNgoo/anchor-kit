@@ -310,7 +310,7 @@ describe('Transaction', () => {
 
       expect(completed.status).toBe('completed');
       expect(completed.stellar?.transaction_id).toBeDefined();
-      expect(completed.completed_at).toBegreaterThan(completed.started_at!);
+      expect(completed.completed_at).toBeGreaterThan(completed.started_at!);
     });
   });
 
