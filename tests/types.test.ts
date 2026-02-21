@@ -8,6 +8,7 @@ import type {
   DepositTransaction,
   Sep24TransactionResponse,
   WithdrawalTransaction,
+  TransactionNotFoundError,
   BaseTransactionResponse,
   AnchorKitConfig,
   NetworkConfig,
@@ -96,12 +97,28 @@ describe('DepositTransaction Type Tests', () => {
       const testUnion = (tx: Sep24TransactionResponse) => {
         if (tx.type === 'deposit') {
           expectTypeOf(tx).toEqualTypeOf<DepositTransaction>();
-        } else {
+        } else if (tx.type === 'withdrawal') {
           expectTypeOf(tx).toEqualTypeOf<WithdrawalTransaction>();
+        } else {
+          expectTypeOf(tx).toEqualTypeOf<TransactionNotFoundError>();
         }
       };
 
       testUnion(transaction);
+    });
+
+    it('should support an error branch in Sep24TransactionResponse', () => {
+      const errorTx: Sep24TransactionResponse = {
+        type: 'error',
+        error: 'transaction not found',
+      };
+
+      const tx: Sep24TransactionResponse = errorTx;
+      expectTypeOf(tx).toMatchTypeOf<Sep24TransactionResponse>();
+
+      if (tx.type === 'error') {
+        expectTypeOf(tx).toEqualTypeOf<TransactionNotFoundError>();
+      }
     });
   });
 
@@ -763,7 +780,7 @@ describe('AnchorKitConfig Type Tests', () => {
             },
             {
               id: 'flutterwave-rail',
-              config: { secretKey: process.env.FLW_SECRET_KEY },
+              config: { secretKey: (globalThis as any).process?.env?.FLW_SECRET_KEY },
             },
           ],
         },
