@@ -95,7 +95,7 @@ throw new ConfigurationError('Invalid database URL format');
     // Validate specific URLs if they are provided
     if (server.interactiveDomain && !this.isValidUrl(server.interactiveDomain)) {
       throw new ConfigurationError(
-        `Invalid URL format for server.interactiveDomain: ${server.interactiveDomain}`,
+        'Invalid URL format for server.interactiveDomain',
       );
     }
 
