@@ -45,7 +45,8 @@ export class AnchorConfig {
    * @returns An array of required KYC field names.
    */
   public getKycRequiredFields(code: string): string[] {
-    return this.config.kycRequired?.[code] || [];
+    const fields = this.config.kycRequired?.[code];
+    return Array.isArray(fields) ? fields : [];
   }
 
   /**
