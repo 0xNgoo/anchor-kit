@@ -20,4 +20,7 @@ export type {
 
 export * from './config';
 export * from './sep24';
-export * from './foundation';
+export type { KycStatus } from './foundation';
+export type { PostalAddress } from './foundation';
+export type { IdentityDocument } from './foundation';
+export type { KycData, KycData as CustomerKycData } from './foundation';
