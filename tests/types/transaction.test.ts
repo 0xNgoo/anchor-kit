@@ -242,11 +242,12 @@ describe('Transaction', () => {
 
     it('handles deposits at different status stages', () => {
       // Stage 1: User starts the flow
+      const startTime = Date.now();
       const incomplete: Transaction = {
         id: 'dep-001',
         status: 'incomplete',
         kind: 'deposit',
-        started_at: Date.now(),
+        started_at: startTime,
         interactive: {
           url: 'https://anchor.example.com/webapp/deposit?transaction_id=dep-001',
         },
@@ -298,7 +299,7 @@ describe('Transaction', () => {
       const completed: Transaction = {
         ...pendingExternal,
         status: 'completed',
-        completed_at: Date.now() + 1,
+        completed_at: startTime + 1000, // 1 second after start
         stellar: {
           transaction_id: 'a7d1e8c9b0f1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6',
           account_id: 'GBRPYHIL2CI3WHZDTOOQFC6EB4RRCZCTS5D27ECGM4AQUREYUVMY63JP',
