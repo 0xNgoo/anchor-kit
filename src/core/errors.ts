@@ -29,6 +29,8 @@ export class ConfigurationError extends AnchorKitError {
 }
 
 export class TransactionStateError extends AnchorKitError {
+  public readonly statusCode = 400;
+  public readonly errorCode = 'INVALID_STATE_TRANSITION';
   public currentStatus?: string;
   public attemptedStatus?: string;
 
@@ -39,7 +41,7 @@ export class TransactionStateError extends AnchorKitError {
     context?: Record<string, unknown>,
   ) {
     const meta = { ...context, currentStatus, attemptedStatus } as Record<string, unknown>;
-    super(message, 400, 'INVALID_STATE_TRANSITION', meta);
+    super(message, meta);
     this.currentStatus = currentStatus;
     this.attemptedStatus = attemptedStatus;
   }
