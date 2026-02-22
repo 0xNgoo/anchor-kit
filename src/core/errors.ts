@@ -31,3 +31,20 @@ export class ConfigurationError extends AnchorKitError {
     super(message, 500, 'INVALID_CONFIG', context);
   }
 }
+
+export class TransactionStateError extends AnchorKitError {
+  public currentStatus?: string;
+  public attemptedStatus?: string;
+
+  constructor(
+    message: string,
+    currentStatus?: string,
+    attemptedStatus?: string,
+    context?: Record<string, unknown>,
+  ) {
+    const meta = { ...context, currentStatus, attemptedStatus } as Record<string, unknown>;
+    super(message, 400, 'INVALID_STATE_TRANSITION', meta);
+    this.currentStatus = currentStatus;
+    this.attemptedStatus = attemptedStatus;
+  }
+}
