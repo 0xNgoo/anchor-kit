@@ -3,13 +3,15 @@
  * Verifies discriminated union narrowing and type compatibility
  */
 
-import { describe, it, expectTypeOf } from 'vitest';
+import { describe, it, expectTypeOf, expect } from 'vitest';
 import type {
   DepositTransaction,
   Sep24TransactionResponse,
   WithdrawalTransaction,
   TransactionNotFoundError,
   BaseTransactionResponse,
+} from '../src/types/sep24';
+import {
   AnchorKitConfig,
   NetworkConfig,
   ServerConfig,
@@ -22,7 +24,11 @@ import type {
   StellarNetwork,
   KycLevel,
 } from '../src/types';
-import { isDepositTransaction, isWithdrawalTransaction } from '../src/types/sep24';
+import {
+  isDepositTransaction,
+  isWithdrawalTransaction,
+  isTransactionNotFoundError,
+} from '../src/types/sep24';
 import { AnchorConfig } from '../src/core/config.ts';
 import type { TransactionStatus } from '../src/types';
 
@@ -110,14 +116,14 @@ describe('DepositTransaction Type Tests', () => {
 
     it('should support an error branch in Sep24TransactionResponse', () => {
       const errorTx: Sep24TransactionResponse = {
-        type: 'error',
+        type: 'not_found',
         error: 'transaction not found',
       };
 
       const tx: Sep24TransactionResponse = errorTx;
       expectTypeOf(tx).toMatchTypeOf<Sep24TransactionResponse>();
 
-      if (tx.type === 'error') {
+      if (tx.type === 'not_found') {
         expectTypeOf(tx).toEqualTypeOf<TransactionNotFoundError>();
       }
     });
@@ -294,6 +300,143 @@ describe('WithdrawalTransaction Type Tests', () => {
       expectTypeOf(withdrawal.type).toEqualTypeOf<'withdrawal'>();
       expectTypeOf(withdrawal.id).toEqualTypeOf<string>();
       expectTypeOf(withdrawal.status).toMatchTypeOf<string>();
+    });
+  });
+});
+
+describe('TransactionNotFoundError Type Tests', () => {
+  describe('TransactionNotFoundError interface', () => {
+    it('should have type discriminator set to "not_found"', () => {
+      const error: TransactionNotFoundError = {
+        type: 'not_found',
+        error: 'Transaction not found',
+      };
+
+      expectTypeOf(error.type).toEqualTypeOf<'not_found'>();
+    });
+
+    it('should require type and error fields', () => {
+      const error: TransactionNotFoundError = {
+        type: 'not_found',
+        error: 'Transaction with id "txn-999" not found',
+      };
+
+      expectTypeOf(error.type).toEqualTypeOf<'not_found'>();
+      expectTypeOf(error.error).toEqualTypeOf<string>();
+    });
+  });
+
+  describe('Sep24TransactionResponse compatibility', () => {
+    it('should be assignable to Sep24TransactionResponse for errors', () => {
+      const errorResponse: TransactionNotFoundError = {
+        type: 'not_found',
+        error: 'Transaction not found',
+      };
+
+      const txResponse: Sep24TransactionResponse = errorResponse;
+      expectTypeOf(txResponse).toMatchTypeOf<Sep24TransactionResponse>();
+    });
+
+    it('should narrow from Sep24TransactionResponse to TransactionNotFoundError', () => {
+      const transaction: Sep24TransactionResponse = {
+        type: 'not_found',
+        error: 'Transaction not found',
+      };
+
+      if (transaction.type === 'not_found') {
+        expectTypeOf(transaction).toEqualTypeOf<TransactionNotFoundError>();
+      }
+    });
+  });
+
+  describe('Type guard for error responses', () => {
+    it('isTransactionNotFoundError should narrow correctly', () => {
+      const response: Sep24TransactionResponse = {
+        type: 'not_found',
+        error: 'Transaction does not exist',
+      };
+
+      if (isTransactionNotFoundError(response)) {
+        expectTypeOf(response).toEqualTypeOf<TransactionNotFoundError>();
+      }
+    });
+  });
+
+  describe('Discriminated union with all branches', () => {
+    it('should support discriminated union with all three transaction types', () => {
+      const responses: Sep24TransactionResponse[] = [
+        {
+          type: 'deposit',
+          id: 'dep-1',
+          status: 'completed',
+        },
+        {
+          type: 'withdrawal',
+          id: 'wd-1',
+          status: 'pending_external',
+        },
+        {
+          type: 'not_found',
+          error: 'Transaction not found',
+        },
+      ];
+
+      const testUnion = (response: Sep24TransactionResponse) => {
+        if (response.type === 'deposit') {
+          expectTypeOf(response).toEqualTypeOf<DepositTransaction>();
+        } else if (response.type === 'withdrawal') {
+          expectTypeOf(response).toEqualTypeOf<WithdrawalTransaction>();
+        } else {
+          expectTypeOf(response).toEqualTypeOf<TransactionNotFoundError>();
+        }
+      };
+
+      responses.forEach(testUnion);
+    });
+
+    it('should use type guards for runtime filtering of all branches', () => {
+      const responses: Sep24TransactionResponse[] = [
+        { type: 'deposit', id: 'dep-1', status: 'completed' },
+        { type: 'not_found', error: 'Not found' },
+        { type: 'withdrawal', id: 'wd-1', status: 'pending_external' },
+        { type: 'not_found', error: 'Another not found' },
+      ];
+
+      const deposits = responses.filter(isDepositTransaction);
+      const withdrawals = responses.filter(isWithdrawalTransaction);
+      const notFounds = responses.filter(isTransactionNotFoundError);
+
+      expectTypeOf(deposits).toMatchTypeOf<DepositTransaction[]>();
+      expectTypeOf(withdrawals).toMatchTypeOf<WithdrawalTransaction[]>();
+      expectTypeOf(notFounds).toMatchTypeOf<TransactionNotFoundError[]>();
+
+      // Verify runtime filtering works as expected
+      expect(deposits.length).toBe(1);
+      expect(withdrawals.length).toBe(1);
+      expect(notFounds.length).toBe(2);
+    });
+
+    it('should allow exhaustive switch on response type', () => {
+      const response = {
+        type: 'not_found',
+        error: 'Transaction not found',
+      } as Sep24TransactionResponse;
+
+      let result: string;
+      switch (response.type) {
+        case 'deposit':
+          result = `Deposit ${response.id}`;
+          break;
+        case 'withdrawal':
+          result = `Withdrawal ${response.id}`;
+          break;
+        case 'not_found':
+          result = `Error: ${response.error}`;
+          break;
+      }
+
+      expect(result).toBe('Error: Transaction not found');
+      expectTypeOf(result).toEqualTypeOf<string>();
     });
   });
 });

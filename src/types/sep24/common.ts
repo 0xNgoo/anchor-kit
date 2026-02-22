@@ -71,3 +71,51 @@ export interface BaseTransactionResponse {
     }>;
   };
 }
+
+/**
+ * TransactionNotFoundError represents the response when a transaction is not found
+ *
+ * This type is used in the Sep24TransactionResponse union to handle cases where
+ * a requested transaction does not exist.
+ *
+ * @example
+ * ```typescript
+ * const response: Sep24TransactionResponse = getTransaction(id);
+ * if (response.type === 'not_found') {
+ *   console.log('Transaction not found:', response.error);
+ * }
+ * ```
+ */
+export interface TransactionNotFoundError {
+  /** Discriminator field indicating this is a not found error response */
+  type: 'not_found';
+  /** Error message describing the not found error */
+  error: string;
+}
+
+/**
+ * Type guard to narrow a generic Sep24TransactionResponse to TransactionNotFoundError
+ *
+ * @param response - Response to check
+ * @returns True if the response is a transaction not found error
+ *
+ * @example
+ * ```typescript
+ * const response = await getTransaction(id);
+ * if (isTransactionNotFoundError(response)) {
+ *   console.log('Error:', response.error);
+ * }
+ * ```
+ */
+export function isTransactionNotFoundError(
+  response: unknown,
+): response is TransactionNotFoundError {
+  return (
+    typeof response === 'object' &&
+    response !== null &&
+    'type' in response &&
+    response.type === 'not_found' &&
+    'error' in response &&
+    typeof (response as Record<string, unknown>).error === 'string'
+  );
+}

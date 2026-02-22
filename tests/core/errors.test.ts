@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { AnchorKitError } from '../../src/core/errors';
+import { TransactionStateError } from '../../src/core';
 
 // Test subclass since AnchorKitError is abstract
 class TestError extends AnchorKitError {
@@ -63,5 +64,26 @@ describe('AnchorKitError', () => {
         context: { debugInfo: 'stuff' },
       });
     });
+  });
+});
+
+describe('TransactionStateError', () => {
+  it('maps statusCode and errorCode and exposes transition metadata', () => {
+    const err = new TransactionStateError('invalid transition', 'pending', 'completed', {
+      reason: 'test',
+    });
+
+    expect(err).toBeInstanceOf(TransactionStateError);
+    expect(err.statusCode).toBe(400);
+    expect(err.errorCode).toBe('INVALID_STATE_TRANSITION');
+    expect(err.currentStatus).toBe('pending');
+    expect(err.attemptedStatus).toBe('completed');
+    expect(err.context).toEqual(
+      expect.objectContaining({
+        currentStatus: 'pending',
+        attemptedStatus: 'completed',
+        reason: 'test',
+      }),
+    );
   });
 });
