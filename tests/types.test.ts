@@ -23,6 +23,7 @@ import type {
   KycLevel,
 } from '../src/types';
 import { isDepositTransaction, isWithdrawalTransaction } from '../src/types/sep24';
+import { AnchorConfig } from '../src/core/config.ts';
 import type { TransactionStatus } from '../src/types';
 
 describe('DepositTransaction Type Tests', () => {
@@ -787,6 +788,15 @@ describe('AnchorKitConfig Type Tests', () => {
       };
 
       expectTypeOf(config).toEqualTypeOf<AnchorKitConfig>();
+    });
+  });
+
+  describe('AnchorConfig.get() Type Tests', () => {
+    it('should return strongly typed sections by key', () => {
+      // Type-only assertions: avoid calling methods at runtime.
+      expectTypeOf<AnchorConfig['get']>().toMatchTypeOf<
+        <K extends keyof AnchorKitConfig>(key: K) => AnchorKitConfig[K]
+      >();
     });
   });
 });
