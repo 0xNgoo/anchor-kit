@@ -39,7 +39,9 @@ export class AnchorConfig {
       };
     }
 
-    const operationalInput = input.operational as Partial<AnchorKitConfig['operational']> | undefined;
+    const operationalInput = input.operational as
+      | Partial<AnchorKitConfig['operational']>
+      | undefined;
     const operational = {
       name: operationalInput?.name,
       website: operationalInput?.website,
