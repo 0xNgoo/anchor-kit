@@ -23,11 +23,13 @@ Implements the unified `Transaction` interface from the Types foundation module 
 ## How to test?
 
 ### Compile-time type checking:
+
 ```bash
 npm run typecheck
 ```
 
 ### Run the comprehensive type tests:
+
 ```bash
 npm test -- tests/types/transaction.test.ts
 ```
@@ -51,17 +53,14 @@ npm test -- tests/types/transaction.test.ts
   - Follows existing patterns from `src/types/customer.ts` and `src/types/sep24/`
   - Consistent with project's TypeScript conventions
   - Proper JSDoc documentation with examples
-  
 - [x] I have added tests for my changes.
   - 717 lines of comprehensive tests in `tests/types/transaction.test.ts`
   - 50+ test cases covering all interfaces and field combinations
   - Tests for compile-time validation and runtime type safety
-  
 - [x] I have updated the documentation accordingly.
   - Added detailed JSDoc comments to all interfaces
   - Included `@example` blocks showing real-world usage patterns
   - Documented Amount field using Decimal string representation
-  
 - [ ] I have run `bun run test` and `bun run lint` locally.
   - Type checking passes (`tsc --noEmit`)
   - Tests compile without errors

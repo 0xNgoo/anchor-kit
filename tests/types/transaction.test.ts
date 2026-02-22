@@ -44,10 +44,10 @@ describe('Transaction', () => {
     });
 
     it('rejects invalid kind at compile time', () => {
-      // @ts-expect-error — kind must be 'deposit' or 'withdrawal'
       const bad: Transaction = {
         id: 'txn-001',
         status: 'completed',
+        // @ts-expect-error — kind must be 'deposit' or 'withdrawal'
         kind: 'invalid',
       };
 
@@ -242,11 +242,12 @@ describe('Transaction', () => {
 
     it('handles deposits at different status stages', () => {
       // Stage 1: User starts the flow
+      const startTime = Date.now();
       const incomplete: Transaction = {
         id: 'dep-001',
         status: 'incomplete',
         kind: 'deposit',
-        started_at: Date.now(),
+        started_at: startTime,
         interactive: {
           url: 'https://anchor.example.com/webapp/deposit?transaction_id=dep-001',
         },
@@ -298,10 +299,9 @@ describe('Transaction', () => {
       const completed: Transaction = {
         ...pendingExternal,
         status: 'completed',
-        completed_at: Date.now(),
+        completed_at: startTime + 1000, // 1 second after start
         stellar: {
-          transaction_id:
-            'a7d1e8c9b0f1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6',
+          transaction_id: 'a7d1e8c9b0f1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6',
           account_id: 'GBRPYHIL2CI3WHZDTOOQFC6EB4RRCZCTS5D27ECGM4AQUREYUVMY63JP',
           memo: 'dep-001',
           memo_type: 'id',
@@ -395,8 +395,7 @@ describe('Transaction', () => {
         status: 'pending_external',
         stellar: {
           ...initial.stellar!,
-          transaction_id:
-            'a7d1e8c9b0f1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6',
+          transaction_id: 'a7d1e8c9b0f1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6',
         },
       };
 
@@ -470,8 +469,7 @@ describe('Transaction', () => {
   describe('stellar-specific fields', () => {
     it('accepts StellarTransactionData with transaction_id and memo', () => {
       const stellar: StellarTransactionData = {
-        transaction_id:
-          'a7d1e8c9b0f1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6',
+        transaction_id: 'a7d1e8c9b0f1a2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6',
         memo: 'wit-001',
         memo_type: 'id',
         account_id: 'GBRPYHIL2CI3WHZDTOOQFC6EB4RRCZCTS5D27ECGM4AQUREYUVMY63JP',
@@ -483,12 +481,7 @@ describe('Transaction', () => {
     });
 
     it('supports different memo types', () => {
-      const memoTypes: Array<'text' | 'id' | 'hash' | 'return'> = [
-        'text',
-        'id',
-        'hash',
-        'return',
-      ];
+      const memoTypes: Array<'text' | 'id' | 'hash' | 'return'> = ['text', 'id', 'hash', 'return'];
 
       memoTypes.forEach((memoType) => {
         const tx: Transaction = {
@@ -680,9 +673,9 @@ describe('Transaction', () => {
 
   describe('compile-time validation', () => {
     it('rejects wrong status at compile time', () => {
-      // @ts-expect-error — status must be a valid TransactionStatus
       const bad: Transaction = {
         id: 'txn-001',
+        // @ts-expect-error — status must be a valid TransactionStatus
         status: 'invalid_status',
         kind: 'deposit',
       };
@@ -691,10 +684,10 @@ describe('Transaction', () => {
     });
 
     it('rejects wrong kind at compile time', () => {
-      // @ts-expect-error — kind must be 'deposit' or 'withdrawal'
       const bad: Transaction = {
         id: 'txn-001',
         status: 'completed',
+        // @ts-expect-error — kind must be 'deposit' or 'withdrawal'
         kind: 'transfer',
       };
 
@@ -702,11 +695,11 @@ describe('Transaction', () => {
     });
 
     it('rejects wrong Amount structure at compile time', () => {
-      // @ts-expect-error — Amount requires 'amount' and 'asset' fields
       const bad: Transaction = {
         id: 'txn-001',
         status: 'completed',
         kind: 'deposit',
+        // @ts-expect-error — Amount requires 'amount' and 'asset' fields
         amount_in: { sum: '100' },
       };
 
