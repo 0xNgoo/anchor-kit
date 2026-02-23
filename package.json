@@ -17,9 +17,12 @@
     "typecheck": "tsc --noEmit",
     "prepare": "husky install"
   },
-  "dependencies": {},
+  "dependencies": {
+    "big.js": "^7.0.1"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/big.js": "^6.2.2",
     "@types/bun": "latest",
     "@vitest/coverage-v8": "^4.0.18",
     "eslint": "^10.0.0",

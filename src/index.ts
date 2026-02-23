@@ -8,3 +8,4 @@
 // Export all types
 export * from './types';
 export * from './core/errors';
+export * as utils from './utils';
