@@ -127,7 +127,7 @@ export const StellarUtils = {
 
     const builder = new TransactionBuilder(sourceAccount, {
       // Removed 'as any'
-      fee: '100',
+      fee: params.fee ?? '100',
       networkPassphrase,
     })
       .addOperation(
