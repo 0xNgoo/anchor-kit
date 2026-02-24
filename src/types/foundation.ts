@@ -89,3 +89,30 @@ export interface KycData {
 }
 
 export type { KycData as CustomerKycData };
+
+/**
+ * Common error codes used across Stellar Ecosystem Proposals (SEPs).
+ */
+export type SepErrorCode =
+  | 'bad_request'
+  | 'transaction_not_found'
+  | 'customer_info_needed'
+  | 'verification_required'
+  | 'not_found'
+  | 'invalid_asset'
+  | 'unsupported_asset'
+  | 'invalid_request'
+  | 'forbidden'
+  | string;
+
+/**
+ * Error returned when a transaction cannot be found or accessed.
+ * Included in SEP-24 transaction responses as an error branch.
+ */
+export interface TransactionNotFoundError {
+  /** Discriminator to allow narrowing on error responses */
+  type: 'error';
+
+  /** Human readable error message */
+  error: string;
+}
