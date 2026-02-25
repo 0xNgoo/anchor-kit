@@ -12,7 +12,6 @@
     "test:coverage": "bun test --coverage",
     "demo": "npm run build && node scripts/demo.mjs",
     "demo:bun": "bun build src/index.ts --outdir dist --target bun && bun ./scripts/demo.mjs",
-    "demo": "npm run build && node scripts/demo.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
