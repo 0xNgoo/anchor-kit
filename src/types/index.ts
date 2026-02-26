@@ -1,8 +1,3 @@
-<<<<<<< chore/ci-demo-bun
-export { TRANSACTION_STATUSES } from './transaction-status';
-export type { TransactionStatus } from './transaction-status';
-=======
->>>>>>> main
 /**
  * Anchor-Kit Type Definitions
  * This is the main entry point for all type exports
