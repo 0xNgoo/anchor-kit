@@ -7,6 +7,7 @@ import {
   ValidationError,
   SepProtocolError,
   NetworkError,
+  CryptoError,
 } from '@/core/errors.ts';
 import { AnchorKitError } from '../../src/core/errors';
 
@@ -210,5 +211,19 @@ describe('NetworkError', () => {
       retry: true,
       httpStatusFromUpstream: undefined,
     });
+  });
+});
+
+describe('CryptoError', () => {
+  it('maps statusCode and errorCode', () => {
+    const err = new CryptoError('encryption failed');
+    expect(err.statusCode).toBe(500);
+    expect(err.errorCode).toBe('CRYPTO_ERROR');
+  });
+
+  it('correctly inherits from AnchorKitError', () => {
+    const err = new CryptoError('bad key');
+    expect(err).toBeInstanceOf(CryptoError);
+    expect(err).toBeInstanceOf(AnchorKitError);
   });
 });
