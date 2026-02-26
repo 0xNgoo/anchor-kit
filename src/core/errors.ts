@@ -111,11 +111,7 @@ export class NetworkError extends AnchorKitError {
   public readonly errorCode = 'NETWORK_ERROR';
   public httpStatusFromUpstream?: number;
 
-  constructor(
-    message: string,
-    httpStatusFromUpstream?: number,
-    context?: Record<string, unknown>,
-  ) {
+  constructor(message: string, httpStatusFromUpstream?: number, context?: Record<string, unknown>) {
     const meta = { ...context, httpStatusFromUpstream } as Record<string, unknown>;
     super(message, meta);
     this.httpStatusFromUpstream = httpStatusFromUpstream;
