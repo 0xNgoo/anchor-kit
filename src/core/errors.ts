@@ -117,3 +117,15 @@ export class NetworkError extends AnchorKitError {
     this.httpStatusFromUpstream = httpStatusFromUpstream;
   }
 }
+
+/**
+ * Error raised when a cryptographic operation fails (e.g. signing, encryption).
+ */
+export class CryptoError extends AnchorKitError {
+  public readonly statusCode = 500;
+  public readonly errorCode = 'CRYPTO_ERROR';
+
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, context);
+  }
+}
