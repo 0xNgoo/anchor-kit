@@ -1,7 +1,43 @@
 /**
  * Foundation types for unified spec
- * Includes KYC/customer related types used across SEPs
+ * Includes asset, KYC/customer related types used across SEPs
  */
+
+/**
+ * Asset represents a Stellar asset available on an anchor
+ * Used across multiple SEPs for consistent asset representation
+ */
+export interface Asset {
+  /**
+   * The 1-12 character asset code (e.g., USDC, EUR, NGA)
+   * Must match Stellar's asset code restrictions
+   */
+  code: string;
+
+  /**
+   * The public key (account ID) of the asset issuer on Stellar
+   * Used to uniquely identify the asset on the network
+   */
+  issuer: string;
+
+  /**
+   * Human-readable display name for the asset
+   * Shown to users in user interfaces (e.g., "US Dollar Coin", "Euro")
+   */
+  displayName?: string;
+
+  /**
+   * The name of the asset as it appears on the Stellar network
+   * May differ from displayName (e.g., code="EURC", nameOnNetwork="Euro Coin")
+   */
+  nameOnNetwork?: string;
+
+  /**
+   * Number of decimal places for the asset
+   * Indicates the smallest unit that can be transacted (e.g., 6 means 0.000001 is the smallest unit)
+   */
+  decimals?: number;
+}
 
 /** Allowed KYC status values as used in unified spec */
 export type KycStatus = 'not_provided' | 'pending' | 'approved' | 'rejected';
