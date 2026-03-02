@@ -37,12 +37,6 @@ npm run build
 npm test
 ```
 
-## Demo
-
-```bash
-npm run demo
-```
-
 ## Developer notes
 
 - `tsconfig.json` includes a `paths` alias mapping `@/*` -> `src/*`; tests resolve the alias using [vitest.config.ts](vitest.config.ts).
