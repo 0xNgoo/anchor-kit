@@ -1,6 +1,7 @@
 # Example Express Host App
 
 This example shows the intended MVP integration model:
+
 - Host app owns `listen()`
 - Anchor-Kit exposes route handlers via `getExpressRouter()`
 
