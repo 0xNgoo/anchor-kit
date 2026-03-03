@@ -6,6 +6,8 @@ import {
   ConfigurationError,
   ValidationError,
   SepProtocolError,
+  NetworkError,
+  CryptoError,
 } from '@/core/errors.ts';
 import { AnchorKitError } from '../../src/core/errors';
 
@@ -161,5 +163,67 @@ describe('RailError', () => {
     expect(err.statusCode).toBe(500);
     expect(err.errorCode).toBe('RAIL_ERROR');
     expect(err.railName).toBeUndefined();
+  });
+});
+
+describe('NetworkError', () => {
+  it('maps statusCode and errorCode correctly', () => {
+    const err = new NetworkError('service unreachable');
+
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(502);
+    expect(err.errorCode).toBe('NETWORK_ERROR');
+  });
+
+  it('supports optional httpStatusFromUpstream', () => {
+    const err = new NetworkError('upstream service error', 503);
+
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(502);
+    expect(err.errorCode).toBe('NETWORK_ERROR');
+    expect(err.httpStatusFromUpstream).toBe(503);
+    expect(err.context).toEqual({
+      httpStatusFromUpstream: 503,
+    });
+  });
+
+  it('preserves additional context alongside upstream status', () => {
+    const err = new NetworkError('timeout connecting to oracle', 504, { service: 'price-oracle' });
+
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(502);
+    expect(err.errorCode).toBe('NETWORK_ERROR');
+    expect(err.httpStatusFromUpstream).toBe(504);
+    expect(err.context).toEqual({
+      service: 'price-oracle',
+      httpStatusFromUpstream: 504,
+    });
+  });
+
+  it('handles missing optional httpStatusFromUpstream', () => {
+    const err = new NetworkError('connection refused', undefined, { retry: true });
+
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(502);
+    expect(err.errorCode).toBe('NETWORK_ERROR');
+    expect(err.httpStatusFromUpstream).toBeUndefined();
+    expect(err.context).toEqual({
+      retry: true,
+      httpStatusFromUpstream: undefined,
+    });
+  });
+});
+
+describe('CryptoError', () => {
+  it('maps statusCode and errorCode', () => {
+    const err = new CryptoError('encryption failed');
+    expect(err.statusCode).toBe(500);
+    expect(err.errorCode).toBe('CRYPTO_ERROR');
+  });
+
+  it('correctly inherits from AnchorKitError', () => {
+    const err = new CryptoError('bad key');
+    expect(err).toBeInstanceOf(CryptoError);
+    expect(err).toBeInstanceOf(AnchorKitError);
   });
 });

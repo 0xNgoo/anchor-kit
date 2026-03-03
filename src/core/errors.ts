@@ -102,3 +102,30 @@ export class RailError extends AnchorKitError {
     this.railName = railName;
   }
 }
+
+/**
+ * Error raised when a network request fails or upstream service is unreachable.
+ */
+export class NetworkError extends AnchorKitError {
+  public readonly statusCode = 502;
+  public readonly errorCode = 'NETWORK_ERROR';
+  public httpStatusFromUpstream?: number;
+
+  constructor(message: string, httpStatusFromUpstream?: number, context?: Record<string, unknown>) {
+    const meta = { ...context, httpStatusFromUpstream } as Record<string, unknown>;
+    super(message, meta);
+    this.httpStatusFromUpstream = httpStatusFromUpstream;
+  }
+}
+
+/**
+ * Error raised when a cryptographic operation fails (e.g. signing, encryption).
+ */
+export class CryptoError extends AnchorKitError {
+  public readonly statusCode = 500;
+  public readonly errorCode = 'CRYPTO_ERROR';
+
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, context);
+  }
+}
