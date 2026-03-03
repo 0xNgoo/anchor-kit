@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext", "dom"],
+    "lib": ["ESNext"],
     "module": "esnext",
     "target": "esnext",
     "moduleResolution": "bundler",
@@ -15,7 +15,10 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
-    "types": ["node", "vitest/globals"],
+    "types": [
+      "@types/bun", // add Bun global
+      "vitest/globals" // add Vitest global types for test files
+    ],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
