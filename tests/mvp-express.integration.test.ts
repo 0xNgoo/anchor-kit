@@ -9,6 +9,7 @@ import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
 
 interface TestResponse {
   status: number;
+  headers: Record<string, string>;
   body: Record<string, unknown>;
 }
 
@@ -58,7 +59,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
         },
         setHeader(name: string, value: string): void {
           responseHeaders[name.toLowerCase()] = value;
-          headersSent = true;
+          // In Node.js, headersSent becomes true when headers are flushed, not immediately on setHeader
         },
         end(payload?: string): void {
           const contentType = responseHeaders['content-type'] ?? '';
@@ -69,6 +70,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
               : {};
           resolve({
             status: statusCode,
+            headers: responseHeaders,
             body,
           });
         },
@@ -207,6 +209,7 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(tokenResponse.status).toBe(200);
+    expect(tokenResponse.headers['cache-control']).toBe('no-store');
     accessToken = String(tokenResponse.body.token ?? '');
     expect(accessToken.length).toBeGreaterThan(0);
   });

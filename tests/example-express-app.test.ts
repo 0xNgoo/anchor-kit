@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Express } from 'express';
 import { Readable } from 'node:stream';
 import { unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Keypair, Transaction } from '@stellar/stellar-sdk';
 import { createExampleApp } from '../example/express-app.ts';
@@ -20,6 +22,7 @@ interface InvokeOptions {
 
 interface InvokeResponse {
   status: number;
+  headers: Record<string, string>;
   body: Record<string, unknown>;
 }
 
@@ -63,6 +66,7 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
 
         resolve({
           status: statusCode,
+          headers: responseHeaders,
           body,
         });
       },
@@ -79,7 +83,7 @@ describe('example/express-app', () => {
   let dbPath = '';
 
   beforeAll(async () => {
-    dbPath = `/tmp/anchor-kit-example-test-${Date.now()}.sqlite`;
+    dbPath = join(tmpdir(), `anchor-kit-example-test-${Date.now()}.sqlite`);
     process.env.DATABASE_URL = `file:${dbPath}`;
     process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
     runtime = await createExampleApp();
@@ -125,6 +129,7 @@ describe('example/express-app', () => {
     });
 
     expect(tokenResponse.status).toBe(200);
+    expect(tokenResponse.headers['cache-control']).toBe('no-store');
     expect(typeof tokenResponse.body.token).toBe('string');
     expect(String(tokenResponse.body.token).length).toBeGreaterThan(0);
   });

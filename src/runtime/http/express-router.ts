@@ -411,6 +411,7 @@ export class AnchorExpressRouter {
         { expiresIn: 3600 },
       );
 
+      res.setHeader('cache-control', 'no-store');
       sendJson(res, 200, { token, expires_in: 3600 });
       return;
     }

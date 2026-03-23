@@ -746,6 +746,13 @@ export function createSqlDatabaseAdapter(
   return new SqlDatabaseAdapter(databaseConfig);
 }
 
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 export function makeSqliteDbUrlForTests(): string {
-  return `file:/tmp/anchor-kit-${randomUUID()}.sqlite`;
+  const dbPath = join(tmpdir(), `anchor-kit-${randomUUID()}.sqlite`);
+  // On Windows, the "file:" scheme before an absolute path (C:\...)
+  // usually requires a specific format, e.g. "file:///C:/..." but Bun sqlite "file:..." accepts standard paths.
+  // Wait, `toSqlitePath` just strips `file:`.
+  return `file:${dbPath}`;
 }
