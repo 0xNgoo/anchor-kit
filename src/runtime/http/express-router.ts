@@ -464,6 +464,7 @@ export class AnchorExpressRouter {
         sendJson(res, 400, {
           error: 'invalid_amount',
           message: `Amount exceeds the maximum allowed of ${selectedAsset.max_amount}`,
+          max_amount: selectedAsset.max_amount,
         });
         return;
       }

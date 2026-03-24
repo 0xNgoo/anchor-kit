@@ -318,6 +318,7 @@ describe('MVP Express-mounted integration', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_amount');
+    expect(response.body.max_amount).toBe(100);
   });
 
   it('5b) deposit at max_amount boundary is accepted', async () => {
