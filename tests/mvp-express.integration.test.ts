@@ -9,6 +9,7 @@ import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
 
 interface TestResponse {
   status: number;
+  headers: Record<string, string>;
   body: Record<string, unknown>;
 }
 
@@ -58,7 +59,6 @@ function createMountedInvoker(anchor: AnchorInstance) {
         },
         setHeader(name: string, value: string): void {
           responseHeaders[name.toLowerCase()] = value;
-          headersSent = true;
         },
         end(payload?: string): void {
           const contentType = responseHeaders['content-type'] ?? '';
@@ -69,6 +69,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
               : {};
           resolve({
             status: statusCode,
+            headers: responseHeaders,
             body,
           });
         },
@@ -192,6 +193,7 @@ describe('MVP Express-mounted integration', () => {
       headers: { 'x-forwarded-for': '10.0.0.1' },
     });
     expect(challengeResponse.status).toBe(200);
+    expect(challengeResponse.headers['cache-control']).toBe('no-store');
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     expect(challengeXdr.length).toBeGreaterThan(0);
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
@@ -319,5 +321,40 @@ describe('MVP Express-mounted integration', () => {
 
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
+  });
+
+  it('10) reused challenge rejection', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.3' },
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+    const signedChallengeXdr = challengeTx.toXDR();
+
+    // First exchange succeeds
+    const firstResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.3' },
+      body: { account, challenge: signedChallengeXdr },
+    });
+    expect(firstResponse.status).toBe(200);
+
+    // Second exchange with same challenge fails
+    const secondResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.3' },
+      body: { account, challenge: signedChallengeXdr },
+    });
+
+    expect(secondResponse.status).toBe(401);
+    expect(secondResponse.body.error).toBe('invalid_challenge');
+    expect(secondResponse.body.message).toBe('Challenge already used');
   });
 });
