@@ -32,6 +32,28 @@ interface InvokeResponse {
   body: Record<string, unknown>;
 }
 
+interface ExampleAppHarness {
+  runtime: ExampleAppRuntime;
+  cleanup: () => Promise<void>;
+}
+
+function setOptionalEnvVar(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
+
+function removeFileIfPresent(path: string): void {
+  try {
+    unlinkSync(path);
+  } catch {
+    // ignore cleanup errors
+  }
+}
+
 async function invokeExpress(app: Express, options: InvokeOptions): Promise<InvokeResponse> {
   const serializedBody = options.body ? JSON.stringify(options.body) : '';
 
@@ -81,23 +103,16 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
   });
 }
 
-async function createExampleAppHarness(
-  watchersEnabled?: string,
-): Promise<{ runtime: ExampleAppRuntime; cleanup: () => Promise<void> }> {
+async function createExampleAppHarness(watchersEnabled?: string): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
   const dbPath = `/tmp/anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`;
   const originalDatabaseUrl = process.env.DATABASE_URL;
   const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
   const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
 
-  process.env.DATABASE_URL = `file:${dbPath}`;
-  process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
-
-  if (watchersEnabled === undefined) {
-    delete process.env.WATCHERS_ENABLED;
-  } else {
-    process.env.WATCHERS_ENABLED = watchersEnabled;
-  }
+  setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
+  setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
+  setOptionalEnvVar('WATCHERS_ENABLED', watchersEnabled);
 
   const runtime = await createExampleApp();
 
@@ -106,36 +121,17 @@ async function createExampleAppHarness(
     cleanup: async () => {
       await runtime.shutdown();
 
-      if (originalDatabaseUrl === undefined) {
-        delete process.env.DATABASE_URL;
-      } else {
-        process.env.DATABASE_URL = originalDatabaseUrl;
-      }
-
-      if (originalSep10SigningKey === undefined) {
-        delete process.env.SEP10_SIGNING_KEY;
-      } else {
-        process.env.SEP10_SIGNING_KEY = originalSep10SigningKey;
-      }
-
-      if (originalWatchersEnabled === undefined) {
-        delete process.env.WATCHERS_ENABLED;
-      } else {
-        process.env.WATCHERS_ENABLED = originalWatchersEnabled;
-      }
-
-      try {
-        unlinkSync(dbPath);
-      } catch {
-        // ignore cleanup errors
-      }
+      setOptionalEnvVar('DATABASE_URL', originalDatabaseUrl);
+      setOptionalEnvVar('SEP10_SIGNING_KEY', originalSep10SigningKey);
+      setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
+      removeFileIfPresent(dbPath);
     },
   };
 }
 
 describe('example/express-app', () => {
   const clientKeypair = Keypair.random();
-  let harness: { runtime: ExampleAppRuntime; cleanup: () => Promise<void> };
+  let harness: ExampleAppHarness;
 
   beforeAll(async () => {
     harness = await createExampleAppHarness();
@@ -185,7 +181,7 @@ describe('example/express-app', () => {
 });
 
 describe('example/express-app WATCHERS_ENABLED', () => {
-  let harness: { runtime: ExampleAppRuntime; cleanup: () => Promise<void> };
+  let harness: ExampleAppHarness;
 
   beforeAll(async () => {
     harness = await createExampleAppHarness('false');
