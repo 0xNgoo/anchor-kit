@@ -6,9 +6,11 @@ import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { version } from '../package.json';
 
 interface TestResponse {
   status: number;
+  headers: Record<string, string>;
   body: Record<string, unknown>;
 }
 
@@ -58,7 +60,6 @@ function createMountedInvoker(anchor: AnchorInstance) {
         },
         setHeader(name: string, value: string): void {
           responseHeaders[name.toLowerCase()] = value;
-          headersSent = true;
         },
         end(payload?: string): void {
           const contentType = responseHeaders['content-type'] ?? '';
@@ -69,6 +70,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
               : {};
           resolve({
             status: statusCode,
+            headers: responseHeaders,
             body,
           });
         },
@@ -177,12 +179,14 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.status).toBe('ok');
   });
 
-  it('2) /info returns configured assets', async () => {
+  it('2) /info returns configured assets and package version', async () => {
     const response = await invoke({ path: '/info' });
     expect(response.status).toBe(200);
     const assets = response.body.assets;
     expect(Array.isArray(assets)).toBe(true);
     expect((assets as Array<Record<string, unknown>>)[0]?.code).toBe('USDC');
+    expect(response.body.version).toBe(version);
+    expect(response.body.version).not.toBe('mvp');
   });
 
   it('3) challenge -> token happy path', async () => {
@@ -192,6 +196,7 @@ describe('MVP Express-mounted integration', () => {
       headers: { 'x-forwarded-for': '10.0.0.1' },
     });
     expect(challengeResponse.status).toBe(200);
+    expect(challengeResponse.headers['cache-control']).toBe('no-store');
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     expect(challengeXdr.length).toBeGreaterThan(0);
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
@@ -209,6 +214,83 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.status).toBe(200);
     accessToken = String(tokenResponse.body.token ?? '');
     expect(accessToken.length).toBeGreaterThan(0);
+    // Verify default TTL is used when not configured
+    expect(tokenResponse.body.expires_in).toBe(3600);
+  });
+
+  it('3b) auth token with custom TTL returns correct expires_in', async () => {
+    // Create a new anchor instance with custom TTL using a separate database
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-custom',
+        distributionAccountSecret: 'distribution-test-secret',
+        webhookSecret: 'webhook-test-secret',
+        verifyWebhookSignatures: true,
+        challengeExpirationSeconds: 300,
+        authTokenLifetimeSeconds: 7200, // 2 hours
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: true,
+          },
+        ],
+      },
+      framework: {
+        database: {
+          provider: 'sqlite',
+          url: customDbUrl,
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+    const testAccount = clientKeypair.publicKey();
+
+    // Get auth challenge
+    const challengeResponse = await customInvoke({
+      path: `/auth/challenge?account=${testAccount}`,
+      headers: { 'x-forwarded-for': '10.0.0.1' },
+    });
+
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+
+    // Sign the challenge
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+    const signedChallengeXdr = challengeTx.toXDR();
+
+    // Get token with custom TTL
+    const tokenResponse = await customInvoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+      body: { account: testAccount, challenge: signedChallengeXdr },
+    });
+
+    expect(tokenResponse.status).toBe(200);
+    expect(tokenResponse.body.expires_in).toBe(7200);
+    expect(String(tokenResponse.body.token ?? '').length).toBeGreaterThan(0);
+
+    // Cleanup
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
   });
 
   it('4) unauthorized deposit interactive rejected', async () => {
@@ -335,5 +417,40 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge transaction is invalid');
+  });
+
+  it('11) reused challenge rejection', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.4' },
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+    const signedChallengeXdr = challengeTx.toXDR();
+
+    // First exchange succeeds
+    const firstResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.4' },
+      body: { account, challenge: signedChallengeXdr },
+    });
+    expect(firstResponse.status).toBe(200);
+
+    // Second exchange with same challenge fails
+    const secondResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.4' },
+      body: { account, challenge: signedChallengeXdr },
+    });
+
+    expect(secondResponse.status).toBe(401);
+    expect(secondResponse.body.error).toBe('invalid_challenge');
+    expect(secondResponse.body.message).toBe('Challenge already used');
   });
 });

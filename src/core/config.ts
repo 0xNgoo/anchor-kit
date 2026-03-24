@@ -1,5 +1,5 @@
-import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
 import { ConfigError } from '@/core/errors.ts';
+import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
 import { Networks } from '@stellar/stellar-sdk';
 
 /**
@@ -258,6 +258,10 @@ export class AnchorConfig {
       framework.http.maxBodyBytes < 1024
     ) {
       throw new ConfigError('framework.http.maxBodyBytes must be >= 1024');
+    }
+
+    if (security.authTokenLifetimeSeconds !== undefined && security.authTokenLifetimeSeconds <= 0) {
+      throw new ConfigError('security.authTokenLifetimeSeconds must be > 0');
     }
 
     if (framework.rateLimit) {
