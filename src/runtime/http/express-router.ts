@@ -305,6 +305,7 @@ export class AnchorExpressRouter {
         expiresAt,
       });
 
+      res.setHeader('Cache-Control', 'no-store');
       sendJson(res, 200, {
         challenge: challengeXdr,
         network_passphrase: this.networkPassphrase,
