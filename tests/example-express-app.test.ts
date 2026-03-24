@@ -23,6 +23,8 @@ interface InvokeResponse {
   body: Record<string, unknown>;
 }
 
+const DEFAULT_CHALLENGE_EXPIRATION_SECONDS = 300;
+
 async function invokeExpress(app: Express, options: InvokeOptions): Promise<InvokeResponse> {
   const serializedBody = options.body ? JSON.stringify(options.body) : '';
 
@@ -77,16 +79,41 @@ describe('example/express-app', () => {
   const clientKeypair = Keypair.random();
   let runtime: ExampleAppRuntime;
   let dbPath = '';
+  let originalDatabaseUrl: string | undefined;
+  let originalSep10SigningKey: string | undefined;
+  let originalChallengeExpirationSeconds: string | undefined;
 
   beforeAll(async () => {
+    originalDatabaseUrl = process.env.DATABASE_URL;
+    originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
+    originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
     dbPath = `/tmp/anchor-kit-example-test-${Date.now()}.sqlite`;
     process.env.DATABASE_URL = `file:${dbPath}`;
     process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
+    delete process.env.CHALLENGE_EXPIRATION_SECONDS;
     runtime = await createExampleApp();
   });
 
   afterAll(async () => {
     await runtime.shutdown();
+
+    if (originalDatabaseUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+
+    if (originalSep10SigningKey === undefined) {
+      delete process.env.SEP10_SIGNING_KEY;
+    } else {
+      process.env.SEP10_SIGNING_KEY = originalSep10SigningKey;
+    }
+
+    if (originalChallengeExpirationSeconds === undefined) {
+      delete process.env.CHALLENGE_EXPIRATION_SECONDS;
+    } else {
+      process.env.CHALLENGE_EXPIRATION_SECONDS = originalChallengeExpirationSeconds;
+    }
 
     try {
       unlinkSync(dbPath);
@@ -127,5 +154,89 @@ describe('example/express-app', () => {
     expect(tokenResponse.status).toBe(200);
     expect(typeof tokenResponse.body.token).toBe('string');
     expect(String(tokenResponse.body.token).length).toBeGreaterThan(0);
+  });
+
+  it('uses the default challenge expiration when the env var is absent', async () => {
+    const account = clientKeypair.publicKey();
+
+    const challengeResponse = await invokeExpress(runtime.app, {
+      path: `/anchor/auth/challenge?account=${account}`,
+    });
+
+    expect(challengeResponse.status).toBe(200);
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+
+    expect(Number(challengeTx.timeBounds.maxTime) - Number(challengeTx.timeBounds.minTime)).toBe(
+      DEFAULT_CHALLENGE_EXPIRATION_SECONDS,
+    );
+  });
+});
+
+describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
+  const sep10ServerKeypair = Keypair.random();
+  let runtime: ExampleAppRuntime;
+  let dbPath = '';
+  let originalDatabaseUrl: string | undefined;
+  let originalSep10SigningKey: string | undefined;
+  let originalChallengeExpirationSeconds: string | undefined;
+
+  beforeAll(async () => {
+    originalDatabaseUrl = process.env.DATABASE_URL;
+    originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
+    originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
+
+    dbPath = `/tmp/anchor-kit-example-expiration-test-${Date.now()}.sqlite`;
+    process.env.DATABASE_URL = `file:${dbPath}`;
+    process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
+    process.env.CHALLENGE_EXPIRATION_SECONDS = '45';
+    runtime = await createExampleApp();
+  });
+
+  afterAll(async () => {
+    await runtime.shutdown();
+
+    if (originalDatabaseUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = originalDatabaseUrl;
+    }
+
+    if (originalSep10SigningKey === undefined) {
+      delete process.env.SEP10_SIGNING_KEY;
+    } else {
+      process.env.SEP10_SIGNING_KEY = originalSep10SigningKey;
+    }
+
+    if (originalChallengeExpirationSeconds === undefined) {
+      delete process.env.CHALLENGE_EXPIRATION_SECONDS;
+    } else {
+      process.env.CHALLENGE_EXPIRATION_SECONDS = originalChallengeExpirationSeconds;
+    }
+
+    try {
+      unlinkSync(dbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
+  it('uses the configured challenge expiration from the environment', async () => {
+    const clientKeypair = Keypair.random();
+    const account = clientKeypair.publicKey();
+
+    const challengeResponse = await invokeExpress(runtime.app, {
+      path: `/anchor/auth/challenge?account=${account}`,
+    });
+
+    expect(challengeResponse.status).toBe(200);
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+
+    expect(Number(challengeTx.timeBounds.maxTime) - Number(challengeTx.timeBounds.minTime)).toBe(
+      45,
+    );
   });
 });
