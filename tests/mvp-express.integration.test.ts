@@ -337,7 +337,9 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.id).toBe(transactionId);
     expect(response.body.asset_code).toBe('USDC');
     expect(response.body.interactive_url).toBe(depositInteractiveUrl);
-    expect(response.body.interactive_url).toBe(`https://anchor.example.com/deposit/${transactionId}`);
+    expect(response.body.interactive_url).toBe(
+      `https://anchor.example.com/deposit/${transactionId}`,
+    );
   });
 
   it('7) webhook route stores event and invokes configured callback', async () => {
