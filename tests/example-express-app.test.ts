@@ -25,6 +25,11 @@ interface InvokeResponse {
 
 const DEFAULT_CHALLENGE_EXPIRATION_SECONDS = 300;
 
+interface ExampleAppHarness {
+  runtime: ExampleAppRuntime;
+  cleanup: () => Promise<void>;
+}
+
 async function invokeExpress(app: Express, options: InvokeOptions): Promise<InvokeResponse> {
   const serializedBody = options.body ? JSON.stringify(options.body) : '';
 
@@ -74,56 +79,72 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
   });
 }
 
-describe('example/express-app', () => {
+async function createExampleAppHarness(
+  options: { challengeExpirationSeconds?: string } = {},
+): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
+  const dbPath = `/tmp/anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
+  const originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
+
+  process.env.DATABASE_URL = `file:${dbPath}`;
+  process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
+
+  if (options.challengeExpirationSeconds === undefined) {
+    delete process.env.CHALLENGE_EXPIRATION_SECONDS;
+  } else {
+    process.env.CHALLENGE_EXPIRATION_SECONDS = options.challengeExpirationSeconds;
+  }
+
+  const runtime = await createExampleApp();
+
+  return {
+    runtime,
+    cleanup: async () => {
+      await runtime.shutdown();
+
+      if (originalDatabaseUrl === undefined) {
+        delete process.env.DATABASE_URL;
+      } else {
+        process.env.DATABASE_URL = originalDatabaseUrl;
+      }
+
+      if (originalSep10SigningKey === undefined) {
+        delete process.env.SEP10_SIGNING_KEY;
+      } else {
+        process.env.SEP10_SIGNING_KEY = originalSep10SigningKey;
+      }
+
+      if (originalChallengeExpirationSeconds === undefined) {
+        delete process.env.CHALLENGE_EXPIRATION_SECONDS;
+      } else {
+        process.env.CHALLENGE_EXPIRATION_SECONDS = originalChallengeExpirationSeconds;
+      }
+
+      try {
+        unlinkSync(dbPath);
+      } catch {
+        // ignore cleanup errors
+      }
+    },
+  };
+}
+
+describe('example/express-app', () => {
   const clientKeypair = Keypair.random();
-  let runtime: ExampleAppRuntime;
-  let dbPath = '';
-  let originalDatabaseUrl: string | undefined;
-  let originalSep10SigningKey: string | undefined;
-  let originalChallengeExpirationSeconds: string | undefined;
+  let harness: ExampleAppHarness;
 
   beforeAll(async () => {
-    originalDatabaseUrl = process.env.DATABASE_URL;
-    originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
-    originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
-    dbPath = `/tmp/anchor-kit-example-test-${Date.now()}.sqlite`;
-    process.env.DATABASE_URL = `file:${dbPath}`;
-    process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
-    delete process.env.CHALLENGE_EXPIRATION_SECONDS;
-    runtime = await createExampleApp();
+    harness = await createExampleAppHarness();
   });
 
   afterAll(async () => {
-    await runtime.shutdown();
-
-    if (originalDatabaseUrl === undefined) {
-      delete process.env.DATABASE_URL;
-    } else {
-      process.env.DATABASE_URL = originalDatabaseUrl;
-    }
-
-    if (originalSep10SigningKey === undefined) {
-      delete process.env.SEP10_SIGNING_KEY;
-    } else {
-      process.env.SEP10_SIGNING_KEY = originalSep10SigningKey;
-    }
-
-    if (originalChallengeExpirationSeconds === undefined) {
-      delete process.env.CHALLENGE_EXPIRATION_SECONDS;
-    } else {
-      process.env.CHALLENGE_EXPIRATION_SECONDS = originalChallengeExpirationSeconds;
-    }
-
-    try {
-      unlinkSync(dbPath);
-    } catch {
-      // ignore cleanup errors
-    }
+    await harness.cleanup();
   });
 
   it('mounts /anchor and serves /health', async () => {
-    const response = await invokeExpress(runtime.app, { path: '/anchor/health' });
+    const response = await invokeExpress(harness.runtime.app, { path: '/anchor/health' });
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'ok' });
   });
@@ -131,7 +152,7 @@ describe('example/express-app', () => {
   it('runs challenge -> token flow', async () => {
     const account = clientKeypair.publicKey();
 
-    const challengeResponse = await invokeExpress(runtime.app, {
+    const challengeResponse = await invokeExpress(harness.runtime.app, {
       path: `/anchor/auth/challenge?account=${account}`,
     });
     expect(challengeResponse.status).toBe(200);
@@ -141,7 +162,7 @@ describe('example/express-app', () => {
     challengeTx.sign(clientKeypair);
     const signedChallengeXdr = challengeTx.toXDR();
 
-    const tokenResponse = await invokeExpress(runtime.app, {
+    const tokenResponse = await invokeExpress(harness.runtime.app, {
       method: 'POST',
       path: '/anchor/auth/token',
       headers: { 'content-type': 'application/json' },
@@ -159,7 +180,7 @@ describe('example/express-app', () => {
   it('uses the default challenge expiration when the env var is absent', async () => {
     const account = clientKeypair.publicKey();
 
-    const challengeResponse = await invokeExpress(runtime.app, {
+    const challengeResponse = await invokeExpress(harness.runtime.app, {
       path: `/anchor/auth/challenge?account=${account}`,
     });
 
@@ -175,58 +196,21 @@ describe('example/express-app', () => {
 });
 
 describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
-  const sep10ServerKeypair = Keypair.random();
-  let runtime: ExampleAppRuntime;
-  let dbPath = '';
-  let originalDatabaseUrl: string | undefined;
-  let originalSep10SigningKey: string | undefined;
-  let originalChallengeExpirationSeconds: string | undefined;
+  let harness: ExampleAppHarness;
 
   beforeAll(async () => {
-    originalDatabaseUrl = process.env.DATABASE_URL;
-    originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
-    originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
-
-    dbPath = `/tmp/anchor-kit-example-expiration-test-${Date.now()}.sqlite`;
-    process.env.DATABASE_URL = `file:${dbPath}`;
-    process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
-    process.env.CHALLENGE_EXPIRATION_SECONDS = '45';
-    runtime = await createExampleApp();
+    harness = await createExampleAppHarness({ challengeExpirationSeconds: '45' });
   });
 
   afterAll(async () => {
-    await runtime.shutdown();
-
-    if (originalDatabaseUrl === undefined) {
-      delete process.env.DATABASE_URL;
-    } else {
-      process.env.DATABASE_URL = originalDatabaseUrl;
-    }
-
-    if (originalSep10SigningKey === undefined) {
-      delete process.env.SEP10_SIGNING_KEY;
-    } else {
-      process.env.SEP10_SIGNING_KEY = originalSep10SigningKey;
-    }
-
-    if (originalChallengeExpirationSeconds === undefined) {
-      delete process.env.CHALLENGE_EXPIRATION_SECONDS;
-    } else {
-      process.env.CHALLENGE_EXPIRATION_SECONDS = originalChallengeExpirationSeconds;
-    }
-
-    try {
-      unlinkSync(dbPath);
-    } catch {
-      // ignore cleanup errors
-    }
+    await harness.cleanup();
   });
 
   it('uses the configured challenge expiration from the environment', async () => {
     const clientKeypair = Keypair.random();
     const account = clientKeypair.publicKey();
 
-    const challengeResponse = await invokeExpress(runtime.app, {
+    const challengeResponse = await invokeExpress(harness.runtime.app, {
       path: `/anchor/auth/challenge?account=${account}`,
     });
 
