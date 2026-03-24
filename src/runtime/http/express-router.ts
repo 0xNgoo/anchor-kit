@@ -1,6 +1,7 @@
-import { createHash, randomUUID } from 'node:crypto';
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import jwt from 'jsonwebtoken';
+import type { AnchorConfig } from '@/core/config.ts';
+import { ValidationError } from '@/core/errors.ts';
+import { InMemoryRateLimiter, type RateLimitRule } from '@/runtime/http/rate-limiter.ts';
+import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts';
 import {
   Account,
   Keypair,
@@ -9,10 +10,9 @@ import {
   Transaction,
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
-import { ValidationError } from '@/core/errors.ts';
-import type { AnchorConfig } from '@/core/config.ts';
-import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts';
-import { InMemoryRateLimiter, type RateLimitRule } from '@/runtime/http/rate-limiter.ts';
+import jwt from 'jsonwebtoken';
+import { createHash, randomUUID } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type ExpressLikeMiddleware = (
   req: IncomingMessage,
@@ -401,6 +401,8 @@ export class AnchorExpressRouter {
 
       await this.database.markAuthChallengeConsumed(stored.id);
 
+      const tokenLifetime = this.config.get('security').authTokenLifetimeSeconds ?? 3600;
+
       const token = jwt.sign(
         {
           sub: account,
@@ -408,10 +410,10 @@ export class AnchorExpressRouter {
           typ: 'access_token',
         },
         this.config.get('security').interactiveJwtSecret,
-        { expiresIn: 3600 },
+        { expiresIn: tokenLifetime },
       );
 
-      sendJson(res, 200, { token, expires_in: 3600 });
+      sendJson(res, 200, { token, expires_in: tokenLifetime });
       return;
     }
 
