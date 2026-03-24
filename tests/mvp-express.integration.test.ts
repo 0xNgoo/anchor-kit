@@ -1,3 +1,4 @@
+import { version } from '../package.json';
 import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
 import { createAnchor, type AnchorInstance } from '@/index.ts';
 import { Keypair, Transaction } from '@stellar/stellar-sdk';
@@ -178,12 +179,14 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.status).toBe('ok');
   });
 
-  it('2) /info returns configured assets', async () => {
+  it('2) /info returns configured assets and package version', async () => {
     const response = await invoke({ path: '/info' });
     expect(response.status).toBe(200);
     const assets = response.body.assets;
     expect(Array.isArray(assets)).toBe(true);
     expect((assets as Array<Record<string, unknown>>)[0]?.code).toBe('USDC');
+    expect(response.body.version).toBe(version);
+    expect(response.body.version).not.toBe('mvp');
   });
 
   it('3) challenge -> token happy path', async () => {

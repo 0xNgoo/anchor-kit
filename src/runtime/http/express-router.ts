@@ -1,3 +1,4 @@
+import { version } from '../../../package.json';
 import type { AnchorConfig } from '@/core/config.ts';
 import { ValidationError } from '@/core/errors.ts';
 import { InMemoryRateLimiter, type RateLimitRule } from '@/runtime/http/rate-limiter.ts';
@@ -245,7 +246,7 @@ export class AnchorExpressRouter {
         name: fullConfig.operational?.name ?? 'Anchor-Kit Anchor',
         network: fullConfig.network.network,
         assets: fullConfig.assets.assets,
-        version: 'mvp',
+        version,
       });
       return;
     }
