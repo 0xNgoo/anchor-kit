@@ -546,6 +546,7 @@ export class AnchorExpressRouter {
         return;
       }
 
+      const interactiveDomain = this.config.get('server').interactiveDomain ?? 'http://localhost:3000';
       sendJson(res, 200, {
         id: transaction.id,
         kind: transaction.kind,
@@ -553,6 +554,7 @@ export class AnchorExpressRouter {
         amount: transaction.amount,
         asset_code: transaction.assetCode,
         account: transaction.account,
+        interactive_url: `${interactiveDomain}/deposit/${transaction.id}`,
         created_at: transaction.createdAt,
         updated_at: transaction.updatedAt,
       });

@@ -106,6 +106,7 @@ describe('MVP Express-mounted integration', () => {
   let invoke: (options: TestRequestOptions) => Promise<TestResponse>;
   let accessToken = '';
   let transactionId = '';
+  let depositInteractiveUrl = '';
 
   beforeAll(async () => {
     anchor = createAnchor({
@@ -318,11 +319,12 @@ describe('MVP Express-mounted integration', () => {
 
     expect(response.status).toBe(201);
     transactionId = String(response.body.id ?? '');
+    depositInteractiveUrl = String(response.body.interactive_url ?? '');
     expect(transactionId.length).toBeGreaterThan(0);
     expect(response.body.status).toBe('pending_user_transfer_start');
   });
 
-  it('6) transaction lookup fetches persisted data', async () => {
+  it('6) transaction lookup fetches persisted data and includes interactive_url', async () => {
     const response = await invoke({
       method: 'GET',
       path: `/transactions/${transactionId}`,
@@ -334,6 +336,8 @@ describe('MVP Express-mounted integration', () => {
     expect(response.status).toBe(200);
     expect(response.body.id).toBe(transactionId);
     expect(response.body.asset_code).toBe('USDC');
+    expect(response.body.interactive_url).toBe(depositInteractiveUrl);
+    expect(response.body.interactive_url).toBe(`https://anchor.example.com/deposit/${transactionId}`);
   });
 
   it('7) webhook route stores event and invokes configured callback', async () => {
