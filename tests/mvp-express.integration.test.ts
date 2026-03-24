@@ -1,11 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Readable } from 'node:stream';
+import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
+import { createAnchor, type AnchorInstance } from '@/index.ts';
+import { Keypair, Transaction } from '@stellar/stellar-sdk';
+import { createHmac } from 'node:crypto';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createHmac } from 'node:crypto';
-import { Keypair, Transaction } from '@stellar/stellar-sdk';
-import { createAnchor, type AnchorInstance } from '@/index.ts';
-import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
+import { Readable } from 'node:stream';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 interface TestResponse {
   status: number;
@@ -319,5 +319,21 @@ describe('MVP Express-mounted integration', () => {
 
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
+  });
+
+  it('10) malformed challenge XDR is rejected', async () => {
+    const account = clientKeypair.publicKey();
+    const invalidChallengeXdr = 'AAAAinvalid_xdr_string_that_is_not_a_valid_transaction';
+
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.3' },
+      body: { account, challenge: invalidChallengeXdr },
+    });
+
+    expect(tokenResponse.status).toBe(401);
+    expect(tokenResponse.body.error).toBe('invalid_challenge');
+    expect(tokenResponse.body.message).toBe('Challenge transaction is invalid');
   });
 });
