@@ -417,6 +417,52 @@ describe('MVP Express-mounted integration', () => {
     expect(webhookCallbackCount).toBe(1);
   });
 
+  it('8b) webhook route rejects requests with missing signature', async () => {
+    const payload = {
+      id: 'evt_no_sig',
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        // 'x-anchor-signature' is intentionally missing
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('webhook_error');
+    expect(response.body.message).toBe('Webhook processing failed');
+  });
+
+  it('8c) webhook route rejects requests with invalid signature', async () => {
+    const payload = {
+      id: 'evt_bad_sig',
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': 'definitely-not-a-valid-hmac-signature',
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('webhook_error');
+    expect(response.body.message).toBe('Webhook processing failed');
+  });
+
   it('9) queue worker/watcher processes at least one watch task', async () => {
     await new Promise((resolve) => setTimeout(resolve, 125));
     const processed = await anchor.getProcessedWatcherTaskCount();
