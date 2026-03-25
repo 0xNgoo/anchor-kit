@@ -398,7 +398,10 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body.received).toBe(true);
     expect(firstResponse.body.duplicate).toBe(false);
+    expect(firstResponse.body.event_id).toBe('evt_1');
+    expect(firstResponse.body.provider).toBe('generic');
     expect(webhookCallbackCount).toBe(1);
 
     const duplicateResponse = await invoke({
@@ -413,8 +416,40 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(duplicateResponse.status).toBe(200);
+    expect(duplicateResponse.body.received).toBe(true);
     expect(duplicateResponse.body.duplicate).toBe(true);
+    expect(duplicateResponse.body.event_id).toBe('evt_1');
+    expect(duplicateResponse.body.provider).toBe('generic');
     expect(webhookCallbackCount).toBe(1);
+  });
+
+  it('8b) webhook route uses default provider when no header provided', async () => {
+    const payload = {
+      id: 'evt_2',
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-anchor-signature': signature,
+        // No x-webhook-provider header
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(response.body.duplicate).toBe(false);
+    expect(response.body.event_id).toBe('evt_2');
+    expect(response.body.provider).toBe('generic'); // Should default to 'generic'
   });
 
   it('9) queue worker/watcher processes at least one watch task', async () => {
