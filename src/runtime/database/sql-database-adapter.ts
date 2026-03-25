@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { ConfigError } from '@/core/errors.ts';
 import type {
@@ -747,5 +749,5 @@ export function createSqlDatabaseAdapter(
 }
 
 export function makeSqliteDbUrlForTests(): string {
-  return `file:/tmp/anchor-kit-${randomUUID()}.sqlite`;
+  return `file:${join(tmpdir(), `anchor-kit-${randomUUID()}.sqlite`)}`;
 }

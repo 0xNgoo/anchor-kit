@@ -484,11 +484,10 @@ export class AnchorExpressRouter {
             return;
           }
 
-          sendJson(
-            res,
-            existing.statusCode,
-            JSON.parse(existing.responseBody) as Record<string, unknown>,
-          );
+          sendJson(res, existing.statusCode, {
+            ...(JSON.parse(existing.responseBody) as Record<string, unknown>),
+            idempotency_replay: true,
+          });
           return;
         }
       }
