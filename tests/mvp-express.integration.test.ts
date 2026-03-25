@@ -322,6 +322,22 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.max_amount).toBe(100);
   });
 
+  it('5c) deposit with unknown asset_code is rejected', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'XYZ', amount: '10' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_asset');
+    expect(response.body.id).toBeUndefined();
+  });
+
   it('5b) deposit at max_amount boundary is accepted', async () => {
     const response = await invoke({
       method: 'POST',
