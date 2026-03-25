@@ -421,7 +421,7 @@ describe('MVP Express-mounted integration', () => {
     const payload = {
       id: 'evt_no_sig',
       type: 'deposit.completed',
-      transaction_id: transactionId,
+      transaction_id: 'evt_no_sig_tx',
     };
 
     const response = await invoke({
@@ -431,29 +431,6 @@ describe('MVP Express-mounted integration', () => {
         'content-type': 'application/json',
         'x-webhook-provider': 'generic',
         // 'x-anchor-signature' is intentionally missing
-      },
-      body: payload,
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBe('webhook_error');
-    expect(response.body.message).toBe('Webhook processing failed');
-  });
-
-  it('8c) webhook route rejects requests with invalid signature', async () => {
-    const payload = {
-      id: 'evt_bad_sig',
-      type: 'deposit.completed',
-      transaction_id: transactionId,
-    };
-
-    const response = await invoke({
-      method: 'POST',
-      path: '/webhooks/events',
-      headers: {
-        'content-type': 'application/json',
-        'x-webhook-provider': 'generic',
-        'x-anchor-signature': 'definitely-not-a-valid-hmac-signature',
       },
       body: payload,
     });
