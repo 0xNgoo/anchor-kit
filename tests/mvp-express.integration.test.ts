@@ -375,6 +375,20 @@ describe('MVP Express-mounted integration', () => {
     );
   });
 
+  it('7b) transaction lookup returns 404 for non-existent ID', async () => {
+    const response = await invoke({
+      method: 'GET',
+      path: '/transactions/non-existent-id-99999',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe('not_found');
+    expect(response.body.message).toBe('Transaction not found');
+  });
+
   it('8) webhook route stores event and invokes configured callback', async () => {
     const payload = {
       id: 'evt_1',
