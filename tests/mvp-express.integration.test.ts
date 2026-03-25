@@ -385,8 +385,7 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(response.status).toBe(404);
-    expect(response.body.error).toBe('not_found');
-    expect(response.body.message).toBe('Transaction not found');
+    expect(response.body).toEqual({ error: 'not_found', message: 'Transaction not found' });
   });
 
   it('8) webhook route stores event and invokes configured callback', async () => {
