@@ -555,17 +555,25 @@ export class AnchorExpressRouter {
         return;
       }
 
-      sendJson(res, 200, {
+      const serverConfig = this.config.get('server');
+      const responseData: any = {
         id: transaction.id,
         kind: transaction.kind,
         status: transaction.status,
         amount: transaction.amount,
         asset_code: transaction.assetCode,
         account: transaction.account,
-        interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
+        interactive_url: `${serverConfig.interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
         created_at: transaction.createdAt,
         updated_at: transaction.updatedAt,
-      });
+      };
+
+      // Add more_info_url only when interactive domain is configured
+      if (serverConfig.interactiveDomain) {
+        responseData.more_info_url = `${serverConfig.interactiveDomain}/deposit/${transaction.id}`;
+      }
+
+      sendJson(res, 200, responseData);
       return;
     }
 
