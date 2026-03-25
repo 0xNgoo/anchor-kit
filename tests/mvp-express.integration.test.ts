@@ -417,6 +417,29 @@ describe('MVP Express-mounted integration', () => {
     expect(webhookCallbackCount).toBe(1);
   });
 
+  it('8b) rejects a request with an invalid signature', async () => {
+    const payload = {
+      id: 'evt_invalid_signature',
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': 'invalid-signature-value',
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('webhook_error');
+    expect(response.body.message).toBe('Webhook processing failed');
+  });
+
   it('9) queue worker/watcher processes at least one watch task', async () => {
     await new Promise((resolve) => setTimeout(resolve, 125));
     const processed = await anchor.getProcessedWatcherTaskCount();
