@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Express } from 'express';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -105,7 +107,7 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
 
 async function createExampleAppHarness(watchersEnabled?: string): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
-  const dbPath = `/tmp/anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`;
+  const dbPath = join(tmpdir(), `anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`);
   const originalDatabaseUrl = process.env.DATABASE_URL;
   const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
   const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
