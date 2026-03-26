@@ -748,9 +748,6 @@ export function createSqlDatabaseAdapter(
   return new SqlDatabaseAdapter(databaseConfig);
 }
 
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 export function makeSqliteDbUrlForTests(): string {
   const dbPath = join(tmpdir(), `anchor-kit-${randomUUID()}.sqlite`);
   // On Windows, the "file:" scheme before an absolute path (C:\...)
