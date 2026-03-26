@@ -506,6 +506,34 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.message).toBe('Webhook processing failed');
   });
 
+  it('8c) webhook request without provider header defaults to generic', async () => {
+    const payload = {
+      id: 'evt_default_provider',
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-anchor-signature': signature,
+        // Note: No x-webhook-provider header
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.duplicate).toBe(false);
+    expect(response.body.event_id).toBe('evt_default_provider');
+    expect(webhookCallbackCount).toBe(2); // Increment from previous webhook test
+  });
+
   it('9) queue worker/watcher processes at least one watch task', async () => {
     await new Promise((resolve) => setTimeout(resolve, 125));
     const processed = await anchor.getProcessedWatcherTaskCount();
