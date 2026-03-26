@@ -723,7 +723,7 @@ describe('MVP Express-mounted integration', () => {
       body: { account: otherAccount, challenge: signedChallengeXdr },
     });
 
-    // Should be rejected because the account in the body (and signature) 
+    // Should be rejected because the account in the body (and signature)
     // doesn't match the one the challenge was generated for in the DB.
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
