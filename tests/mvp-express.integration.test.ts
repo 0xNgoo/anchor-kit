@@ -190,6 +190,50 @@ describe('MVP Express-mounted integration', () => {
     expect((assets as Array<Record<string, unknown>>)[0]?.code).toBe('USDC');
     expect(response.body.version).toBe(version);
     expect(response.body.version).not.toBe('mvp');
+    expect(response.body.interactive_domain).toBe('https://anchor.example.com');
+  });
+
+  it('2b) /info omits interactive_domain when not configured', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { port: 3001 /* different port for safety */ },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-no-domain',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      framework: {
+        database: {
+          provider: 'sqlite',
+          url: customDbUrl,
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+    const response = await customInvoke({ path: '/info' });
+    expect(response.status).toBe(200);
+    expect(response.body).not.toHaveProperty('interactive_domain');
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore
+    }
   });
 
   it('3) challenge -> token happy path', async () => {
@@ -218,6 +262,7 @@ describe('MVP Express-mounted integration', () => {
     accessToken = String(tokenResponse.body.token ?? '');
     expect(accessToken.length).toBeGreaterThan(0);
     expect(tokenResponse.body.token_type).toBe('Bearer');
+    expect(tokenResponse.headers['cache-control']).toBe('no-store');
     // Verify default TTL is used when not configured
     expect(tokenResponse.body.expires_in).toBe(3600);
   });
@@ -443,6 +488,9 @@ describe('MVP Express-mounted integration', () => {
     expect(response.status).toBe(200);
     expect(response.body.id).toBe(transactionId);
     expect(response.body.asset_code).toBe('USDC');
+    expect(response.body.asset_issuer).toBe(
+      'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+    );
     expect(response.body.interactive_url).toBe(depositInteractiveUrl);
     expect(response.body.interactive_url).toBe(
       `https://anchor.example.com/deposit/${transactionId}`,
@@ -588,6 +636,33 @@ describe('MVP Express-mounted integration', () => {
         sub: clientKeypair.publicKey(),
         scope: 'wrong_api',
         typ: 'access_token',
+      },
+      'jwt-test-secret',
+      { expiresIn: 3600 },
+    );
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${badToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+  });
+
+  it('10d) token with missing/incorrect typ is rejected', async () => {
+    // Manually sign a token with a different scope to test the server's validation
+    const jwt = (await import('jsonwebtoken')).default;
+    const badToken = jwt.sign(
+      {
+        sub: clientKeypair.publicKey(),
+        scope: 'anchor_api',
+        // typ is missing
       },
       'jwt-test-secret',
       { expiresIn: 3600 },
