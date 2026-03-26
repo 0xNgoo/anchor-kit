@@ -10,6 +10,15 @@ import { createExampleApp } from '../example/express-app.ts';
 
 interface ExampleAppRuntime {
   app: Express;
+  anchor: {
+    config: {
+      get: (key: 'framework') => {
+        watchers?: {
+          enabled?: boolean;
+        };
+      };
+    };
+  };
   shutdown: () => Promise<void>;
 }
 
@@ -24,6 +33,28 @@ interface InvokeResponse {
   status: number;
   headers: Record<string, string>;
   body: Record<string, unknown>;
+}
+
+interface ExampleAppHarness {
+  runtime: ExampleAppRuntime;
+  cleanup: () => Promise<void>;
+}
+
+function setOptionalEnvVar(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
+
+function removeFileIfPresent(path: string): void {
+  try {
+    unlinkSync(path);
+  } catch {
+    // ignore cleanup errors
+  }
 }
 
 async function invokeExpress(app: Express, options: InvokeOptions): Promise<InvokeResponse> {
@@ -76,31 +107,46 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
   });
 }
 
-describe('example/express-app', () => {
+async function createExampleAppHarness(watchersEnabled?: string): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
+  const dbPath = `/tmp/anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
+  const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
+
+  setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
+  setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
+  setOptionalEnvVar('WATCHERS_ENABLED', watchersEnabled);
+
+  const runtime = await createExampleApp();
+
+  return {
+    runtime,
+    cleanup: async () => {
+      await runtime.shutdown();
+
+      setOptionalEnvVar('DATABASE_URL', originalDatabaseUrl);
+      setOptionalEnvVar('SEP10_SIGNING_KEY', originalSep10SigningKey);
+      setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
+      removeFileIfPresent(dbPath);
+    },
+  };
+}
+
+describe('example/express-app', () => {
   const clientKeypair = Keypair.random();
-  let runtime: ExampleAppRuntime;
-  let dbPath = '';
+  let harness: ExampleAppHarness;
 
   beforeAll(async () => {
-    dbPath = join(tmpdir(), `anchor-kit-example-test-${Date.now()}.sqlite`);
-    process.env.DATABASE_URL = `file:${dbPath}`;
-    process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
-    runtime = await createExampleApp();
+    harness = await createExampleAppHarness();
   });
 
   afterAll(async () => {
-    await runtime.shutdown();
-
-    try {
-      unlinkSync(dbPath);
-    } catch {
-      // ignore cleanup errors
-    }
+    await harness.cleanup();
   });
 
   it('mounts /anchor and serves /health', async () => {
-    const response = await invokeExpress(runtime.app, { path: '/anchor/health' });
+    const response = await invokeExpress(harness.runtime.app, { path: '/anchor/health' });
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'ok' });
   });
@@ -108,7 +154,7 @@ describe('example/express-app', () => {
   it('runs challenge -> token flow', async () => {
     const account = clientKeypair.publicKey();
 
-    const challengeResponse = await invokeExpress(runtime.app, {
+    const challengeResponse = await invokeExpress(harness.runtime.app, {
       path: `/anchor/auth/challenge?account=${account}`,
     });
     expect(challengeResponse.status).toBe(200);
@@ -118,7 +164,7 @@ describe('example/express-app', () => {
     challengeTx.sign(clientKeypair);
     const signedChallengeXdr = challengeTx.toXDR();
 
-    const tokenResponse = await invokeExpress(runtime.app, {
+    const tokenResponse = await invokeExpress(harness.runtime.app, {
       method: 'POST',
       path: '/anchor/auth/token',
       headers: { 'content-type': 'application/json' },
@@ -132,5 +178,25 @@ describe('example/express-app', () => {
     expect(tokenResponse.headers['cache-control']).toBe('no-store');
     expect(typeof tokenResponse.body.token).toBe('string');
     expect(String(tokenResponse.body.token).length).toBeGreaterThan(0);
+  });
+
+  it('keeps watchers enabled when the env var is absent', () => {
+    expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(true);
+  });
+});
+
+describe('example/express-app WATCHERS_ENABLED', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness('false');
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('disables watchers when configured through the environment', () => {
+    expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(false);
   });
 });
