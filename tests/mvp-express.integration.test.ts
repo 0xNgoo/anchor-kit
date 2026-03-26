@@ -371,6 +371,26 @@ describe('MVP Express-mounted integration', () => {
     depositInteractiveUrl = String(response.body.interactive_url ?? '');
     expect(transactionId.length).toBeGreaterThan(0);
     expect(response.body.status).toBe('pending_user_transfer_start');
+    expect(response.body).not.toHaveProperty('idempotency_replay');
+  });
+
+  it('6b) idempotent replay returns cached deposit response with replay flag', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': 'deposit-1',
+      },
+      body: { asset_code: 'USDC', amount: '25.5' },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.id).toBe(transactionId);
+    expect(response.body.interactive_url).toBe(depositInteractiveUrl);
+    expect(response.body.status).toBe('pending_user_transfer_start');
+    expect(response.body.idempotency_replay).toBe(true);
   });
 
   it('7) transaction lookup fetches persisted data', async () => {
