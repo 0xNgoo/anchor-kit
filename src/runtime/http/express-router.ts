@@ -242,12 +242,18 @@ export class AnchorExpressRouter {
 
     if (method === 'GET' && path === '/info') {
       const fullConfig = this.config.getConfig();
-      sendJson(res, 200, {
+      const responseBody: Record<string, unknown> = {
         name: fullConfig.operational?.name ?? 'Anchor-Kit Anchor',
         network: fullConfig.network.network,
         assets: fullConfig.assets.assets,
         version,
-      });
+      };
+
+      if (fullConfig.server.interactiveDomain) {
+        responseBody.interactive_domain = fullConfig.server.interactiveDomain;
+      }
+
+      sendJson(res, 200, responseBody);
       return;
     }
 
@@ -415,7 +421,12 @@ export class AnchorExpressRouter {
         { expiresIn: tokenLifetime },
       );
 
-      sendJson(res, 200, { token, expires_in: tokenLifetime });
+      res.setHeader('Cache-Control', 'no-store');
+      sendJson(res, 200, {
+        token,
+        expires_in: tokenLifetime,
+        token_type: 'Bearer',
+      });
       return;
     }
 
@@ -469,6 +480,15 @@ export class AnchorExpressRouter {
         return;
       }
 
+      if (selectedAsset.min_amount !== undefined && numericAmount < selectedAsset.min_amount) {
+        sendJson(res, 400, {
+          error: 'invalid_amount',
+          message: `Amount is below the minimum allowed of ${selectedAsset.min_amount}`,
+          min_amount: selectedAsset.min_amount,
+        });
+        return;
+      }
+
       const idempotencyKey = req.headers['idempotency-key'];
       const scope = `deposit:${auth.account}`;
       const requestHash = sha256(JSON.stringify({ assetCode, amount }));
@@ -484,11 +504,10 @@ export class AnchorExpressRouter {
             return;
           }
 
-          sendJson(
-            res,
-            existing.statusCode,
-            JSON.parse(existing.responseBody) as Record<string, unknown>,
-          );
+          sendJson(res, existing.statusCode, {
+            ...(JSON.parse(existing.responseBody) as Record<string, unknown>),
+            idempotency_replay: true,
+          });
           return;
         }
       }
@@ -511,6 +530,7 @@ export class AnchorExpressRouter {
           status: created.status,
           amount: created.amount,
           asset_code: created.assetCode,
+          asset_issuer: selectedAsset.issuer,
           interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
           created_at: created.createdAt,
         },
@@ -555,12 +575,14 @@ export class AnchorExpressRouter {
         return;
       }
 
+      const selectedAsset = this.config.getAsset(transaction.assetCode);
       sendJson(res, 200, {
         id: transaction.id,
         kind: transaction.kind,
         status: transaction.status,
         amount: transaction.amount,
         asset_code: transaction.assetCode,
+        asset_issuer: selectedAsset?.issuer,
         account: transaction.account,
         interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
         created_at: transaction.createdAt,
@@ -643,7 +665,8 @@ export class AnchorExpressRouter {
       ) as jwt.JwtPayload;
       const account = typeof decoded.sub === 'string' ? decoded.sub : null;
       const scope = typeof decoded.scope === 'string' ? decoded.scope : null;
-      if (!account || scope !== 'anchor_api') {
+      const typ = typeof decoded.typ === 'string' ? decoded.typ : null;
+      if (!account || scope !== 'anchor_api' || typ !== 'access_token') {
         return null;
       }
 
