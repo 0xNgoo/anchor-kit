@@ -1,6 +1,8 @@
-import { createHash, randomUUID } from 'node:crypto';
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import jwt from 'jsonwebtoken';
+import { version } from '../../../package.json';
+import type { AnchorConfig } from '@/core/config.ts';
+import { ValidationError } from '@/core/errors.ts';
+import { InMemoryRateLimiter, type RateLimitRule } from '@/runtime/http/rate-limiter.ts';
+import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts';
 import {
   Account,
   Keypair,
@@ -9,10 +11,9 @@ import {
   Transaction,
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
-import { ValidationError } from '@/core/errors.ts';
-import type { AnchorConfig } from '@/core/config.ts';
-import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts';
-import { InMemoryRateLimiter, type RateLimitRule } from '@/runtime/http/rate-limiter.ts';
+import jwt from 'jsonwebtoken';
+import { createHash, randomUUID } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type ExpressLikeMiddleware = (
   req: IncomingMessage,
@@ -245,7 +246,7 @@ export class AnchorExpressRouter {
         name: fullConfig.operational?.name ?? 'Anchor-Kit Anchor',
         network: fullConfig.network.network,
         assets: fullConfig.assets.assets,
-        version: 'mvp',
+        version,
       });
       return;
     }
@@ -305,6 +306,7 @@ export class AnchorExpressRouter {
         expiresAt,
       });
 
+      res.setHeader('Cache-Control', 'no-store');
       sendJson(res, 200, {
         challenge: challengeXdr,
         network_passphrase: this.networkPassphrase,
@@ -401,6 +403,8 @@ export class AnchorExpressRouter {
 
       await this.database.markAuthChallengeConsumed(stored.id);
 
+      const tokenLifetime = this.config.get('security').authTokenLifetimeSeconds ?? 3600;
+
       const token = jwt.sign(
         {
           sub: account,
@@ -408,10 +412,14 @@ export class AnchorExpressRouter {
           typ: 'access_token',
         },
         this.config.get('security').interactiveJwtSecret,
-        { expiresIn: 3600 },
+        { expiresIn: tokenLifetime },
       );
 
-      sendJson(res, 200, { token, expires_in: 3600, token_type: 'Bearer' });
+      sendJson(res, 200, {
+        token,
+        expires_in: tokenLifetime,
+        token_type: 'Bearer',
+      });
       return;
     }
 
@@ -456,6 +464,15 @@ export class AnchorExpressRouter {
         return;
       }
 
+      if (selectedAsset.max_amount !== undefined && numericAmount > selectedAsset.max_amount) {
+        sendJson(res, 400, {
+          error: 'invalid_amount',
+          message: `Amount exceeds the maximum allowed of ${selectedAsset.max_amount}`,
+          max_amount: selectedAsset.max_amount,
+        });
+        return;
+      }
+
       const idempotencyKey = req.headers['idempotency-key'];
       const scope = `deposit:${auth.account}`;
       const requestHash = sha256(JSON.stringify({ assetCode, amount }));
@@ -471,11 +488,10 @@ export class AnchorExpressRouter {
             return;
           }
 
-          sendJson(
-            res,
-            existing.statusCode,
-            JSON.parse(existing.responseBody) as Record<string, unknown>,
-          );
+          sendJson(res, existing.statusCode, {
+            ...(JSON.parse(existing.responseBody) as Record<string, unknown>),
+            idempotency_replay: true,
+          });
           return;
         }
       }
@@ -549,6 +565,7 @@ export class AnchorExpressRouter {
         amount: transaction.amount,
         asset_code: transaction.assetCode,
         account: transaction.account,
+        interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
         created_at: transaction.createdAt,
         updated_at: transaction.updatedAt,
       });

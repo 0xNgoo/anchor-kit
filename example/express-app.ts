@@ -9,6 +9,10 @@ export interface ExampleApp {
   shutdown: () => Promise<void>;
 }
 
+function getWatchersEnabled(): boolean {
+  return process.env.WATCHERS_ENABLED !== 'false';
+}
+
 export async function createExampleApp(): Promise<ExampleApp> {
   const databaseUrl =
     process.env.DATABASE_URL ?? `file:/tmp/anchor-kit-example-${randomUUID()}.sqlite`;
@@ -48,7 +52,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
         concurrency: 2,
       },
       watchers: {
-        enabled: true,
+        enabled: getWatchersEnabled(),
         pollIntervalMs: 15000,
         transactionTimeoutMs: 300000,
       },
