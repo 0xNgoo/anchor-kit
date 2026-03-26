@@ -126,6 +126,7 @@ describe('MVP Express-mounted integration', () => {
             code: 'USDC',
             issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
             deposits_enabled: true,
+            min_amount: 10,
             max_amount: 100,
           },
         ],
@@ -323,6 +324,23 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.max_amount).toBe(100);
   });
 
+  it('5d) deposit below min_amount is rejected with configured minimum', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '9.9' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_amount');
+    expect(response.body.min_amount).toBe(10);
+    expect(response.body.message).toContain('minimum allowed of 10');
+  });
+
   it('5c) deposit with unknown asset_code is rejected', async () => {
     const response = await invoke({
       method: 'POST',
@@ -372,6 +390,9 @@ describe('MVP Express-mounted integration', () => {
     depositInteractiveUrl = String(response.body.interactive_url ?? '');
     expect(transactionId.length).toBeGreaterThan(0);
     expect(response.body.status).toBe('pending_user_transfer_start');
+    expect(response.body.asset_issuer).toBe(
+      'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+    );
     expect(response.body).not.toHaveProperty('idempotency_replay');
   });
 
@@ -611,7 +632,7 @@ describe('MVP Express-mounted integration', () => {
 
   it('12) deposit idempotency replay returns original response', async () => {
     const asset_code = 'USDC';
-    const amount = '5.0';
+    const amount = '15.0';
     const firstResponse = await invoke({
       method: 'POST',
       path: '/transactions/deposit/interactive',
@@ -674,5 +695,38 @@ describe('MVP Express-mounted integration', () => {
 
     expect(response.status).toBe(403);
     expect(response.body.error).toBe('forbidden');
+  });
+
+  it('14) account mismatch during token exchange is rejected', async () => {
+    const account = clientKeypair.publicKey();
+    const otherAccountKeypair = Keypair.random();
+    const otherAccount = otherAccountKeypair.publicKey();
+
+    // Get challenge for 'account'
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+
+    // Sign with 'otherAccount' keypair (mismatched vs the challenge's DB entry)
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(otherAccountKeypair);
+    const signedChallengeXdr = challengeTx.toXDR();
+
+    // Submit with 'otherAccount' in the body
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      body: { account: otherAccount, challenge: signedChallengeXdr },
+    });
+
+    // Should be rejected because the account in the body (and signature) 
+    // doesn't match the one the challenge was generated for in the DB.
+    expect(tokenResponse.status).toBe(401);
+    expect(tokenResponse.body.error).toBe('invalid_challenge');
+    expect(tokenResponse.body.message).toBe('Challenge not found');
   });
 });

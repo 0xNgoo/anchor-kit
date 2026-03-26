@@ -473,6 +473,15 @@ export class AnchorExpressRouter {
         return;
       }
 
+      if (selectedAsset.min_amount !== undefined && numericAmount < selectedAsset.min_amount) {
+        sendJson(res, 400, {
+          error: 'invalid_amount',
+          message: `Amount is below the minimum allowed of ${selectedAsset.min_amount}`,
+          min_amount: selectedAsset.min_amount,
+        });
+        return;
+      }
+
       const idempotencyKey = req.headers['idempotency-key'];
       const scope = `deposit:${auth.account}`;
       const requestHash = sha256(JSON.stringify({ assetCode, amount }));
@@ -514,6 +523,7 @@ export class AnchorExpressRouter {
           status: created.status,
           amount: created.amount,
           asset_code: created.assetCode,
+          asset_issuer: selectedAsset.issuer,
           interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
           created_at: created.createdAt,
         },
