@@ -415,7 +415,11 @@ export class AnchorExpressRouter {
         { expiresIn: tokenLifetime },
       );
 
-      sendJson(res, 200, { token, expires_in: tokenLifetime });
+      sendJson(res, 200, {
+        token,
+        expires_in: tokenLifetime,
+        token_type: 'Bearer',
+      });
       return;
     }
 

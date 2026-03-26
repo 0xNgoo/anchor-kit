@@ -216,6 +216,7 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.status).toBe(200);
     accessToken = String(tokenResponse.body.token ?? '');
     expect(accessToken.length).toBeGreaterThan(0);
+    expect(tokenResponse.body.token_type).toBe('Bearer');
     // Verify default TTL is used when not configured
     expect(tokenResponse.body.expires_in).toBe(3600);
   });
@@ -374,7 +375,23 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body).not.toHaveProperty('idempotency_replay');
   });
 
-  it('6b) idempotent replay returns cached deposit response with replay flag', async () => {
+  it('6b) deposit with SAME idempotency-key but DIFFERENT body is rejected', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': 'deposit-1', // reused key from test 6
+      },
+      body: { asset_code: 'USDC', amount: '100.0' }, // different amount
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('idempotency_conflict');
+  });
+
+  it('6c) idempotent replay returns cached deposit response with replay flag', async () => {
     const response = await invoke({
       method: 'POST',
       path: '/transactions/deposit/interactive',
@@ -514,7 +531,34 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.body.error).toBe('invalid_challenge');
   });
 
-  it('10) malformed challenge XDR is rejected', async () => {
+  it('10b) token with missing/incorrect scope is rejected', async () => {
+    // Manually sign a token with a different scope to test the server's validation
+    const jwt = (await import('jsonwebtoken')).default;
+    const badToken = jwt.sign(
+      {
+        sub: clientKeypair.publicKey(),
+        scope: 'wrong_api',
+        typ: 'access_token',
+      },
+      'jwt-test-secret',
+      { expiresIn: 3600 },
+    );
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${badToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+  });
+
+  it('10c) malformed challenge XDR is rejected', async () => {
     const account = clientKeypair.publicKey();
     const invalidChallengeXdr = 'AAAAinvalid_xdr_string_that_is_not_a_valid_transaction';
 
