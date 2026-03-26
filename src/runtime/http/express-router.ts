@@ -460,6 +460,15 @@ export class AnchorExpressRouter {
         return;
       }
 
+      if (selectedAsset.max_amount !== undefined && numericAmount > selectedAsset.max_amount) {
+        sendJson(res, 400, {
+          error: 'invalid_amount',
+          message: `Amount exceeds the maximum allowed of ${selectedAsset.max_amount}`,
+          max_amount: selectedAsset.max_amount,
+        });
+        return;
+      }
+
       const idempotencyKey = req.headers['idempotency-key'];
       const scope = `deposit:${auth.account}`;
       const requestHash = sha256(JSON.stringify({ assetCode, amount }));
@@ -553,6 +562,7 @@ export class AnchorExpressRouter {
         amount: transaction.amount,
         asset_code: transaction.assetCode,
         account: transaction.account,
+        interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
         created_at: transaction.createdAt,
         updated_at: transaction.updatedAt,
       });
