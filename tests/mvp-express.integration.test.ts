@@ -476,4 +476,71 @@ describe('MVP Express-mounted integration', () => {
     expect(secondResponse.body.error).toBe('invalid_challenge');
     expect(secondResponse.body.message).toBe('Challenge already used');
   });
+
+  it('12) deposit idempotency replay returns original response', async () => {
+    const asset_code = 'USDC';
+    const amount = '5.0';
+    const firstResponse = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': 'replay-test-key',
+      },
+      body: { asset_code, amount },
+    });
+
+    expect(firstResponse.status).toBe(201);
+    const firstTxId = firstResponse.body.id;
+
+    const secondResponse = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': 'replay-test-key',
+      },
+      body: { asset_code, amount },
+    });
+
+    expect(secondResponse.status).toBe(201);
+    expect(secondResponse.body.id).toBe(firstTxId);
+  });
+
+  it('13) cross-account transaction lookup is rejected', async () => {
+    // Create a new account and get its token
+    const otherAccountKeypair = Keypair.random();
+    const account = otherAccountKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+    });
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(otherAccountKeypair);
+    const signedChallengeXdr = challengeTx.toXDR();
+
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      body: { account, challenge: signedChallengeXdr },
+    });
+    const otherAccessToken = String(tokenResponse.body.token ?? '');
+
+    // Now attempt to look up the transaction from another account
+    // transactionId was created in test #6 and belongs to clientKeypair
+    const response = await invoke({
+      method: 'GET',
+      path: `/transactions/${transactionId}`,
+      headers: {
+        authorization: `Bearer ${otherAccessToken}`,
+      },
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('forbidden');
+  });
 });
