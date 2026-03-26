@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { InMemoryRateLimiter } from '@/runtime/http/rate-limiter.ts';
+import { describe, expect, it } from 'vitest';
 
 describe('InMemoryRateLimiter', () => {
   it('blocks requests after limit within window', () => {
@@ -14,5 +14,18 @@ describe('InMemoryRateLimiter', () => {
     expect(second.allowed).toBe(true);
     expect(third.allowed).toBe(false);
     expect(third.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it('isolates rate limits per key', () => {
+    const limiter = new InMemoryRateLimiter();
+    const rule = { windowMs: 60000, max: 1 };
+
+    const firstKey = limiter.hit('auth:127.0.0.1', rule);
+    const firstKeyBlocked = limiter.hit('auth:127.0.0.1', rule);
+    const secondKey = limiter.hit('auth:192.168.1.1', rule);
+
+    expect(firstKey.allowed).toBe(true);
+    expect(firstKeyBlocked.allowed).toBe(false);
+    expect(secondKey.allowed).toBe(true);
   });
 });
