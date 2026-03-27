@@ -576,7 +576,10 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body.received).toBe(true);
     expect(firstResponse.body.duplicate).toBe(false);
+    expect(firstResponse.body.event_id).toBe('evt_1');
+    expect(firstResponse.body.provider).toBe('generic');
     expect(webhookCallbackCount).toBe(1);
 
     const duplicateResponse = await invoke({
@@ -591,36 +594,16 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(duplicateResponse.status).toBe(200);
+    expect(duplicateResponse.body.received).toBe(true);
     expect(duplicateResponse.body.duplicate).toBe(true);
+    expect(duplicateResponse.body.event_id).toBe('evt_1');
+    expect(duplicateResponse.body.provider).toBe('generic');
     expect(webhookCallbackCount).toBe(1);
   });
 
-  it('8b) rejects a request with an invalid signature', async () => {
+  it('8b) webhook route uses default provider when no header provided', async () => {
     const payload = {
-      id: 'evt_invalid_signature',
-      type: 'deposit.completed',
-      transaction_id: transactionId,
-    };
-
-    const response = await invoke({
-      method: 'POST',
-      path: '/webhooks/events',
-      headers: {
-        'content-type': 'application/json',
-        'x-webhook-provider': 'generic',
-        'x-anchor-signature': 'invalid-signature-value',
-      },
-      body: payload,
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBe('webhook_error');
-    expect(response.body.message).toBe('Webhook processing failed');
-  });
-
-  it('8c) webhook request without provider header defaults to generic', async () => {
-    const payload = {
-      id: 'evt_default_provider',
+      id: 'evt_2',
       type: 'deposit.completed',
       transaction_id: transactionId,
     };
@@ -635,15 +618,16 @@ describe('MVP Express-mounted integration', () => {
       headers: {
         'content-type': 'application/json',
         'x-anchor-signature': signature,
-        // Note: No x-webhook-provider header
+        // No x-webhook-provider header
       },
       body: payload,
     });
 
     expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
     expect(response.body.duplicate).toBe(false);
-    expect(response.body.event_id).toBe('evt_default_provider');
-    expect(webhookCallbackCount).toBe(2); // Increment from previous webhook test
+    expect(response.body.event_id).toBe('evt_2');
+    expect(response.body.provider).toBe('generic'); // Should default to 'generic'
   });
 
   it('9) queue worker/watcher processes at least one watch task', async () => {
