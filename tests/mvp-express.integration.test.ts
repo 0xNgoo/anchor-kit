@@ -603,6 +603,64 @@ describe('MVP Express-mounted integration', () => {
     expect(webhookCallbackCount).toBe(2); // Increment from previous webhook test
   });
 
+  it('8d) webhook without id field returns a generated event_id', async () => {
+    const payload = {
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+      // Note: No id field
+    };
+
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(response.body.duplicate).toBe(false);
+    expect(typeof response.body.event_id).toBe('string');
+    expect((response.body.event_id as string).length).toBeGreaterThan(0);
+  });
+
+  it('8e) webhook success response includes received_at ISO timestamp', async () => {
+    const payload = {
+      id: 'evt_received_at_check',
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(typeof response.body.received_at).toBe('string');
+    const parsed = Date.parse(response.body.received_at as string);
+    expect(Number.isNaN(parsed)).toBe(false);
+  });
+
   it('9) queue worker/watcher processes at least one watch task', async () => {
     await new Promise((resolve) => setTimeout(resolve, 125));
     const processed = await anchor.getProcessedWatcherTaskCount();
