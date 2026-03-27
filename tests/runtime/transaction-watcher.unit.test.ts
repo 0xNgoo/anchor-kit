@@ -186,4 +186,26 @@ describe('TransactionWatcher Unit Tests', () => {
     // Stop the watcher to clean up
     await transactionWatcher.stop();
   });
+
+  it('prevents overlapping ticks when called concurrently', async () => {
+    let resolveTick: (value: any[]) => void;
+    const tickPromise = new Promise<any[]>((resolve) => {
+      resolveTick = resolve;
+    });
+
+    mockDatabase.listPendingTransactionsBefore = vi.fn().mockReturnValue(tickPromise);
+
+    // Start two ticks concurrently
+    // Accessing private method for testing purposes
+    const tick1 = (transactionWatcher as any).tick();
+    const tick2 = (transactionWatcher as any).tick();
+
+    // Resolve the database call
+    resolveTick!([]);
+
+    await Promise.all([tick1, tick2]);
+
+    // Database should only be called once because the second tick should have returned early
+    expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
+  });
 });
