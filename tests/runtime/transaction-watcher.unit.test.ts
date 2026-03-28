@@ -186,4 +186,27 @@ describe('TransactionWatcher Unit Tests', () => {
     // Stop the watcher to clean up
     await transactionWatcher.stop();
   });
+
+  it('enqueues a cleanup_records job with the configured retention days', async () => {
+    const retentionDays = 45;
+    const customWatcher = new TransactionWatcher(mockDatabase, mockQueue, {
+      pollIntervalMs: 1000,
+      transactionTimeoutMs: 300000,
+      retentionDays,
+    });
+
+    // Start the watcher to trigger one tick
+    await customWatcher.start();
+
+    // Assert that the cleanup_records job was enqueued with the correct retentionDays
+    expect(mockQueue.enqueue).toHaveBeenCalledWith({
+      type: 'cleanup_records',
+      payload: {
+        retentionDays,
+      },
+    });
+
+    // Stop the watcher
+    await customWatcher.stop();
+  });
 });
