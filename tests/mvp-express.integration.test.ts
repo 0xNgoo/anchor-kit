@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { version } from '../package.json';
 
 interface TestResponse {
@@ -737,6 +737,42 @@ describe('MVP Express-mounted integration', () => {
 
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
+  });
+
+  it('10a) expired challenge is rejected during token exchange', async () => {
+    const account = clientKeypair.publicKey();
+    const initialNow = new Date('2026-01-01T00:00:00.000Z').getTime();
+    const dateNowSpy = vi.spyOn(Date, 'now');
+    dateNowSpy.mockReturnValue(initialNow);
+
+    try {
+      const challengeResponse = await invoke({
+        path: `/auth/challenge?account=${account}`,
+        headers: { 'x-forwarded-for': '10.0.0.12' },
+      });
+
+      expect(challengeResponse.status).toBe(200);
+      const challengeXdr = String(challengeResponse.body.challenge ?? '');
+      const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+      const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+      challengeTx.sign(clientKeypair);
+
+      dateNowSpy.mockReturnValue(initialNow + 301_000);
+
+      const tokenResponse = await invoke({
+        method: 'POST',
+        path: '/auth/token',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.12' },
+        body: { account, challenge: challengeTx.toXDR() },
+      });
+
+      expect(tokenResponse.status).toBe(401);
+      expect(tokenResponse.body.error).toBe('invalid_challenge');
+      expect(tokenResponse.body.message).toBe('Challenge expired');
+      expect(tokenResponse.body).not.toHaveProperty('access_token');
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it('10b) token with missing/incorrect scope is rejected', async () => {
