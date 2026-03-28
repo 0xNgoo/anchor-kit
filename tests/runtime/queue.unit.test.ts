@@ -122,4 +122,36 @@ describe('InMemoryQueueAdapter', () => {
 
     await queue.stop();
   });
+
+  it('should process jobs queued before start() after start() is called', async () => {
+    const queue = new InMemoryQueueAdapter({ concurrency: 1 });
+    const processedJobs: number[] = [];
+
+    const worker = async (job: QueueJob): Promise<void> => {
+      processedJobs.push(job.payload.jobId as number);
+    };
+
+    // Enqueue jobs BEFORE start()
+    const jobsToEnqueue = [1, 2, 3];
+    for (const jobId of jobsToEnqueue) {
+      await queue.enqueue({
+        type: 'process_watcher_task',
+        payload: { jobId },
+      });
+    }
+
+    // Verify no jobs processed yet
+    expect(processedJobs).toHaveLength(0);
+
+    // Start the queue
+    await queue.start(worker);
+
+    // Wait for jobs to complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify all jobs were processed in order
+    expect(processedJobs).toEqual(jobsToEnqueue);
+
+    await queue.stop();
+  });
 });
