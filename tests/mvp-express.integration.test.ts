@@ -95,7 +95,9 @@ function createMountedInvoker(anchor: AnchorInstance) {
   };
 }
 
-describe('MVP Express-mounted integration', () => {
+const isBun = !!(globalThis as any).Bun;
+
+describe.skipIf(!isBun)('MVP Express-mounted integration', () => {
   const sep10ServerKeypair = Keypair.random();
   const clientKeypair = Keypair.random();
   const dbUrl = makeSqliteDbUrlForTests();

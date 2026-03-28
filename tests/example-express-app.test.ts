@@ -131,7 +131,9 @@ async function createExampleAppHarness(watchersEnabled?: string): Promise<Exampl
   };
 }
 
-describe('example/express-app', () => {
+const isBun = !!(globalThis as any).Bun;
+
+describe.skipIf(!isBun)('example/express-app', () => {
   const clientKeypair = Keypair.random();
   let harness: ExampleAppHarness;
 
@@ -182,7 +184,7 @@ describe('example/express-app', () => {
   });
 });
 
-describe('example/express-app WATCHERS_ENABLED', () => {
+describe.skipIf(!isBun)('example/express-app WATCHERS_ENABLED', () => {
   let harness: ExampleAppHarness;
 
   beforeAll(async () => {

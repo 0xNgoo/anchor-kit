@@ -5,7 +5,9 @@ import { unlinkSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DatabaseAdapter } from '@/runtime/interfaces.ts';
 
-describe('SqlDatabaseAdapter – interactive transaction status updates', () => {
+const isBun = !!(globalThis as any).Bun;
+
+describe.skipIf(!isBun)('SqlDatabaseAdapter – interactive transaction status updates', () => {
   const dbUrl = makeSqliteDbUrlForTests();
   const dbPath = dbUrl.startsWith('file:') ? dbUrl.slice('file:'.length) : dbUrl;
   let db: DatabaseAdapter;

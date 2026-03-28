@@ -152,6 +152,27 @@ describe('TransactionWatcher Unit Tests', () => {
     await transactionWatcher.stop();
   });
 
+  it('enqueues a cleanup_records job with the configured retention days', async () => {
+    const retentionDays = 14;
+    const watcher = new TransactionWatcher(mockDatabase, mockQueue, {
+      pollIntervalMs: 1000,
+      transactionTimeoutMs: 300000,
+      retentionDays,
+    });
+
+    // Start triggers a tick
+    await watcher.start();
+
+    expect(mockQueue.enqueue).toHaveBeenCalledWith({
+      type: 'cleanup_records',
+      payload: {
+        retentionDays,
+      },
+    });
+
+    await watcher.stop();
+  });
+
   it('calculates cutoff time correctly for transaction timeout', async () => {
     const now = Date.now();
     const timeoutMs = 300000; // 5 minutes

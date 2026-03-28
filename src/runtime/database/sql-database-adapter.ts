@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Database } from 'bun:sqlite';
 import { ConfigError } from '@/core/errors.ts';
 import type {
   AuthChallengeRecord,
@@ -13,7 +12,7 @@ import type {
 } from '@/runtime/interfaces.ts';
 import type { FrameworkConfig } from '@/types/config.ts';
 
-type SqliteLike = Database;
+type SqliteLike = any;
 
 interface PostgresClient {
   connect(): Promise<void>;
@@ -55,7 +54,8 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
 
   public async connect(): Promise<void> {
     if (this.provider === 'sqlite') {
-      this.sqlite = new Database(toSqlitePath(this.url));
+      const sqliteModuleUnknown: any = await import('bun:sqlite');
+      this.sqlite = new sqliteModuleUnknown.Database(toSqlitePath(this.url));
       return;
     }
 
