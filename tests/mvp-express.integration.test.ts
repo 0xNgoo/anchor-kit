@@ -402,6 +402,75 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.id).toBeUndefined();
   });
 
+  it('5e) deposit with deposits_enabled: false asset is rejected', async () => {
+    const disabledDbUrl = makeSqliteDbUrlForTests();
+    const disabledAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-disabled',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: false,
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: disabledDbUrl },
+      },
+    });
+
+    await disabledAnchor.init();
+    const disabledInvoke = createMountedInvoker(disabledAnchor);
+
+    // Obtain a valid auth token for this anchor instance
+    const testKeypair = Keypair.random();
+    const challengeResponse = await disabledInvoke({
+      path: `/auth/challenge?account=${testKeypair.publicKey()}`,
+    });
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(testKeypair);
+    const tokenResponse = await disabledInvoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      body: { account: testKeypair.publicKey(), challenge: challengeTx.toXDR() },
+    });
+    const token = String(tokenResponse.body.token ?? '');
+
+    const response = await disabledInvoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_asset');
+    expect(response.body.id).toBeUndefined();
+
+    await disabledAnchor.shutdown();
+    const disabledDbPath = disabledDbUrl.startsWith('file:')
+      ? disabledDbUrl.slice('file:'.length)
+      : disabledDbUrl;
+    try {
+      unlinkSync(disabledDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
   it('5b) deposit at max_amount boundary is accepted', async () => {
     const response = await invoke({
       method: 'POST',
