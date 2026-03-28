@@ -564,6 +564,9 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.interactive_url).toBe(
       `https://anchor.example.com/deposit/${transactionId}`,
     );
+    expect(response.body.more_info_url).toBe(
+      `https://anchor.example.com/deposit/${transactionId}`,
+    );
   });
 
   it('7b) transaction lookup returns 404 for non-existent ID', async () => {
