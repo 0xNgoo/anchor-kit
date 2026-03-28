@@ -129,7 +129,7 @@ describe('InMemoryQueueAdapter', () => {
       let jobStarted = false;
       let jobFinished = false;
 
-      const worker = async (job: QueueJob) => {
+      const worker = async (_job: QueueJob) => {
         jobStarted = true;
         await new Promise((resolve) => setTimeout(resolve, 50));
         jobFinished = true;
@@ -153,7 +153,7 @@ describe('InMemoryQueueAdapter', () => {
       const queue = new InMemoryQueueAdapter({ concurrency: 1 });
       let jobsStartedCount = 0;
 
-      const worker = async (job: QueueJob) => {
+      const worker = async (_job: QueueJob) => {
         jobsStartedCount++;
         await new Promise((resolve) => setTimeout(resolve, 50));
       };
