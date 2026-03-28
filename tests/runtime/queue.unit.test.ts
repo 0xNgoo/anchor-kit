@@ -122,4 +122,74 @@ describe('InMemoryQueueAdapter', () => {
 
     await queue.stop();
   });
+
+  describe('Shutdown behavior', () => {
+    it('stop() should wait for in-flight jobs to complete', async () => {
+      const queue = new InMemoryQueueAdapter({ concurrency: 1 });
+      let jobStarted = false;
+      let jobFinished = false;
+
+      const worker = async (job: QueueJob) => {
+        jobStarted = true;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        jobFinished = true;
+      };
+
+      await queue.start(worker);
+      await queue.enqueue({ type: 'process_watcher_task', payload: {} });
+
+      // Ensure the job has started
+      while (!jobStarted) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+
+      // Call stop() - this should now wait for the in-flight job to finish
+      await queue.stop();
+
+      expect(jobFinished).toBe(true);
+    });
+
+    it('should not start any new jobs after shutdown begins', async () => {
+      const queue = new InMemoryQueueAdapter({ concurrency: 1 });
+      let jobsStartedCount = 0;
+
+      const worker = async (job: QueueJob) => {
+        jobsStartedCount++;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      };
+
+      await queue.start(worker);
+
+      // Enqueue two jobs
+      await queue.enqueue({ type: 'process_watcher_task', payload: { id: 1 } });
+      await queue.enqueue({ type: 'process_watcher_task', payload: { id: 2 } });
+
+      // Wait a tiny bit for the first job to start
+      while (jobsStartedCount === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+
+      expect(jobsStartedCount).toBe(1);
+
+      // Stop the queue while the first job is still running
+      await queue.stop();
+
+      // Even if we wait, the second job should never have started
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(jobsStartedCount).toBe(1);
+    });
+
+    it('should resolve stop() immediately if no jobs are running', async () => {
+      const queue = new InMemoryQueueAdapter({ concurrency: 2 });
+      await queue.start(async () => {});
+      // No jobs enqueued
+
+      const start = Date.now();
+      await queue.stop();
+      const duration = Date.now() - start;
+
+      expect(duration).toBeLessThan(50); // Should be near-instant
+    });
+  });
 });

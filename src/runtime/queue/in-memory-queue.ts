@@ -10,6 +10,8 @@ export class InMemoryQueueAdapter implements QueueAdapter {
   private running = false;
   private activeWorkers = 0;
   private worker: ((job: QueueJob) => Promise<void>) | null = null;
+  private stopPromise: Promise<void> | null = null;
+  private resolveStop: (() => void) | null = null;
 
   constructor(options: InMemoryQueueOptions) {
     this.concurrency = options.concurrency;
@@ -28,6 +30,20 @@ export class InMemoryQueueAdapter implements QueueAdapter {
 
   public async stop(): Promise<void> {
     this.running = false;
+
+    if (this.activeWorkers === 0) {
+      return Promise.resolve();
+    }
+
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+
+    this.stopPromise = new Promise<void>((resolve) => {
+      this.resolveStop = resolve;
+    });
+
+    return this.stopPromise;
   }
 
   private kick(): void {
@@ -46,6 +62,11 @@ export class InMemoryQueueAdapter implements QueueAdapter {
         })
         .finally(() => {
           this.activeWorkers -= 1;
+          if (!this.running && this.activeWorkers === 0 && this.resolveStop) {
+            this.resolveStop();
+            this.resolveStop = null;
+            this.stopPromise = null;
+          }
           this.kick();
         });
     }

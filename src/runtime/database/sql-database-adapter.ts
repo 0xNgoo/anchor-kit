@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Database } from 'bun:sqlite';
+import Database from 'better-sqlite3';
 import { ConfigError } from '@/core/errors.ts';
 import type {
   AuthChallengeRecord,
@@ -13,7 +13,7 @@ import type {
 } from '@/runtime/interfaces.ts';
 import type { FrameworkConfig } from '@/types/config.ts';
 
-type SqliteLike = Database;
+type SqliteLike = Database.Database;
 
 interface PostgresClient {
   connect(): Promise<void>;
