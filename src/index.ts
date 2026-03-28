@@ -15,3 +15,4 @@ export type {
   Watcher,
   WebhookProcessor,
 } from './runtime/interfaces.ts';
+export { SecurityConfigSchema } from './validation/schema';
