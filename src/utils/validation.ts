@@ -152,9 +152,12 @@ export const AnchorKitConfigSchema = {
     NetworkConfigSchema.validate(network);
 
     // Security Section
-    if (!security.sep10SigningKey) throw new Error('Missing required secret: security.sep10SigningKey');
-    if (!security.interactiveJwtSecret) throw new Error('Missing required secret: security.interactiveJwtSecret');
-    if (!security.distributionAccountSecret) throw new Error('Missing required secret: security.distributionAccountSecret');
+    if (!security.sep10SigningKey)
+      throw new Error('Missing required secret: security.sep10SigningKey');
+    if (!security.interactiveJwtSecret)
+      throw new Error('Missing required secret: security.interactiveJwtSecret');
+    if (!security.distributionAccountSecret)
+      throw new Error('Missing required secret: security.distributionAccountSecret');
     if (security.authTokenLifetimeSeconds !== undefined && security.authTokenLifetimeSeconds <= 0) {
       throw new Error('security.authTokenLifetimeSeconds must be > 0');
     }
@@ -176,7 +179,10 @@ export const AnchorKitConfigSchema = {
     if (framework.queue?.concurrency !== undefined && framework.queue.concurrency < 1) {
       throw new Error('framework.queue.concurrency must be >= 1');
     }
-    if (framework.watchers?.pollIntervalMs !== undefined && framework.watchers.pollIntervalMs < 10) {
+    if (
+      framework.watchers?.pollIntervalMs !== undefined &&
+      framework.watchers.pollIntervalMs < 10
+    ) {
       throw new Error('framework.watchers.pollIntervalMs must be >= 10');
     }
     if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {

@@ -3,6 +3,7 @@ import {
   NetworkConfigSchema,
   ValidationUtils,
 } from '../../src/utils/validation';
+import type { AnchorKitConfig } from '../../src/types/config';
 
 describe('ValidationUtils', () => {
   describe('isValidEmail', () => {
@@ -127,7 +128,9 @@ describe('NetworkConfigSchema', () => {
 
   test('should throw for invalid network name', () => {
     // @ts-expect-error test case
-    expect(() => NetworkConfigSchema.validate({ network: 'invalidnet' })).toThrow(/Invalid network/);
+    expect(() => NetworkConfigSchema.validate({ network: 'invalidnet' })).toThrow(
+      /Invalid network/,
+    );
   });
 
   test('should throw for invalid horizonUrl', () => {
@@ -141,7 +144,7 @@ describe('NetworkConfigSchema', () => {
 });
 
 describe('AnchorKitConfigSchema', () => {
-  const validConfig: any = {
+  const validConfig: AnchorKitConfig = {
     network: { network: 'testnet' },
     server: { interactiveDomain: 'https://example.com' },
     security: {
@@ -162,7 +165,10 @@ describe('AnchorKitConfigSchema', () => {
   });
 
   test('should throw for missing secrets', () => {
-    const invalidConfig = { ...validConfig, security: { ...validConfig.security, sep10SigningKey: '' } };
+    const invalidConfig = {
+      ...validConfig,
+      security: { ...validConfig.security, sep10SigningKey: '' },
+    };
     expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/sep10SigningKey/);
   });
 
