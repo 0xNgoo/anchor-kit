@@ -44,4 +44,12 @@ describe('IdempotencyUtils', () => {
     const obj: Record<string, IdempotencyHeaderValue> = { 'Idempotency-Key': '   ' };
     expect(IdempotencyUtils.extractIdempotencyHeader(obj)).toBeNull();
   });
+
+  test('extractIdempotencyHeader handles array idempotency-key with first non-empty value', () => {
+    // Array with multiple values - first non-empty wins
+    const obj: Record<string, IdempotencyHeaderValue> = {
+      'idempotency-key': ['', 'first-valid', 'second-valid'],
+    };
+    expect(IdempotencyUtils.extractIdempotencyHeader(obj, 'idempotency-key')).toBe('first-valid');
+  });
 });
