@@ -1,266 +1,225 @@
-import type { AnchorKitConfig, NetworkConfig } from '@/types/config.ts';
-import DOMPurify from 'isomorphic-dompurify';
+import { AnchorKitConfigSchema } from '@/utils/validation.ts';
+import { ConfigError } from '@/core/errors.ts';
+import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
+import { Networks } from '@stellar/stellar-sdk';
+import { DatabaseUrlSchema } from '@/utils/validation.ts';
 
 /**
- * ValidationUtils helper object
- * Provides standard validation for common fields used in SEPs.
+ * AnchorConfig
+ * Central configuration manager for the Anchor-Kit SDK.
  */
-export const ValidationUtils = {
-  /**
-   * Validates if the given string is a valid email address.
-   * Uses a standard regex pattern for common email verification.
-   *
-   * @param email The email address to validate.
-   * @returns true if valid, false otherwise.
-   */
-  isValidEmail(email: string): boolean {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return emailRegex.test(email);
-  },
+export class AnchorConfig {
+  private config: AnchorKitConfig;
+
+  constructor(config: Partial<AnchorKitConfig>) {
+    const merged = this.mergeWithDefaults(config || {});
+    this.config = this.deepFreeze(merged) as AnchorKitConfig;
+  }
 
   /**
-   * Validates if the given string is a valid E.164 phone number.
-   * Example: +1234567890
-   *
-   * @param phone The phone number to validate.
-   * @returns true if valid, false otherwise.
+   * Merge partial config with sensible defaults for network and operational.
    */
-  isValidPhoneNumber(phone: string): boolean {
-    const phoneRegex = /^\+[1-9]\d{1,14}$/;
-    return phoneRegex.test(phone);
-  },
+  private mergeWithDefaults(input: Partial<AnchorKitConfig>): AnchorKitConfig {
+    const defaultNetworkPassphrases: Record<string, string> = {
+      public: Networks.PUBLIC,
+      testnet: Networks.TESTNET,
+      futurenet: Networks.FUTURENET,
+    };
+
+    const hasNetworkProp = Object.prototype.hasOwnProperty.call(input, 'network');
+    const networkInput = input.network as Partial<NetworkConfig> | undefined;
+
+    let network: NetworkConfig | undefined;
+    if (hasNetworkProp && typeof networkInput === 'undefined') {
+      network = undefined;
+    } else {
+      network = {
+        network: networkInput?.network || 'testnet',
+        horizonUrl: networkInput?.horizonUrl,
+        networkPassphrase:
+          networkInput?.networkPassphrase ||
+          defaultNetworkPassphrases[networkInput?.network || 'testnet'],
+      };
+    }
+
+    const operationalInput = input.operational;
+    const operational = {
+      name: operationalInput?.name,
+      website: operationalInput?.website,
+      supportEmail: operationalInput?.supportEmail,
+      address: operationalInput?.address,
+      webhooksEnabled: operationalInput?.webhooksEnabled ?? true,
+      queueBackend: operationalInput?.queueBackend ?? 'memory',
+      redisUrl: operationalInput?.redisUrl,
+      corsEnabled: operationalInput?.corsEnabled ?? true,
+      transactionRetentionDays: operationalInput?.transactionRetentionDays ?? 90,
+    } as AnchorKitConfig['operational'];
+
+    // Keep original input values for required sections so explicit `undefined`
+    // is preserved (validation will catch missing required fields).
+    const merged: {
+      [K in keyof AnchorKitConfig]: AnchorKitConfig[K] | undefined;
+    } = {
+      network,
+      server: input.server,
+      security: input.security,
+      assets: input.assets,
+      kyc: input.kyc,
+      kycRequired: input.kycRequired,
+      operational,
+      metadata: input.metadata,
+      framework: input.framework
+        ? {
+            ...input.framework,
+            queue: {
+              backend: input.framework.queue?.backend ?? 'memory',
+              concurrency: input.framework.queue?.concurrency ?? 1,
+            },
+            watchers: {
+              enabled: input.framework.watchers?.enabled ?? true,
+              pollIntervalMs: input.framework.watchers?.pollIntervalMs ?? 15000,
+              transactionTimeoutMs: input.framework.watchers?.transactionTimeoutMs ?? 300000,
+              retentionDays: input.framework.watchers?.retentionDays ?? 90,
+            },
+            http: {
+              maxBodyBytes: input.framework.http?.maxBodyBytes ?? 1024 * 1024,
+            },
+            rateLimit: {
+              windowMs: input.framework.rateLimit?.windowMs ?? 60000,
+              authChallengeMax: input.framework.rateLimit?.authChallengeMax ?? 30,
+              authTokenMax: input.framework.rateLimit?.authTokenMax ?? 30,
+              webhookMax: input.framework.rateLimit?.webhookMax ?? 120,
+              depositMax: input.framework.rateLimit?.depositMax ?? 60,
+            },
+          }
+        : undefined,
+      webhooks: input.webhooks,
+    };
+
+    return merged as AnchorKitConfig;
+  }
 
   /**
-   * Validates if the given string is a valid URL.
-   *
-   * @param url The URL string to validate.
-   * @returns true if valid, false otherwise.
+   * Deep freeze an object to produce an immutable configuration snapshot.
    */
-  isValidUrl(url: string): boolean {
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  },
+  private deepFreeze<T>(obj: T): T {
+    if (obj === null || typeof obj !== 'object') return obj;
+    const record = obj as Record<PropertyKey, unknown>;
 
-  /**
-   * Sanitizes input string by removing HTML tags and scripts.
-   * Uses DOMPurify for robust XSS prevention.
-   *
-   * @param input The raw input string.
-   * @returns Sanitized string.
-   */
-  sanitizeInput(input: string): string {
-    if (!input) return '';
-    return DOMPurify.sanitize(input, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).trim();
-  },
-
-  /**
-   * Validates if a string is a valid decimal number.
-   *
-   * @param value The string to validate.
-   * @returns true if valid, false otherwise.
-   */
-  isDecimal(value: string): boolean {
-    if (!value) return false;
-    return /^-?\d+(\.\d+)?$/.test(value);
-  },
-
-  /**
-   * Validates if a string is a valid Stellar public key (starting with 'G').
-   *
-   * @param address The address to validate.
-   * @returns true if valid, false otherwise.
-   */
-  isValidStellarAddress(address: string): boolean {
-    if (!address || typeof address !== 'string') return false;
-    // Basic format check to avoid loading full SDK if obviously wrong
-    if (!/^G[A-Z2-7]{55}$/.test(address)) return false;
-    return true;
-  },
-
-  /**
-   * Validates database connection strings or file paths loosely.
-   *
-   * @param urlString The database URL.
-   * @returns true if valid, false otherwise.
-   */
-  isValidDatabaseUrl(urlString: string): boolean {
-    if (!urlString || typeof urlString !== 'string') return false;
-    const validSchemes = ['postgresql:', 'postgres:', 'mysql:', 'mysql2:', 'sqlite:', 'file:'];
-    if (validSchemes.some((scheme) => urlString.startsWith(scheme))) {
-      return true;
-    }
-    try {
-      new URL(urlString);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-};
-
-/**
- * NetworkConfigSchema - Public validation helper for nested network configuration.
- */
-export const NetworkConfigSchema = {
-  /**
-   * Validates a NetworkConfig object.
-   * Throws an error if validation fails.
-   *
-   * @param config The NetworkConfig object to validate.
-   */
-  validate(config: NetworkConfig): void {
-    if (!config) throw new Error('Missing required field: network');
-    const validNetworks = ['public', 'testnet', 'futurenet'];
-    if (!validNetworks.includes(config.network)) {
-      throw new Error(
-        `Invalid network: ${config.network}. Must be one of: ${validNetworks.join(', ')}`,
-      );
-    }
-    if (config.horizonUrl && !ValidationUtils.isValidUrl(config.horizonUrl)) {
-      throw new Error('Invalid URL format for network.horizonUrl');
-    }
-  },
-};
-
-/**
- * AnchorKitConfigSchema - Public validation helper for the top-level configuration object.
- */
-export const AnchorKitConfigSchema = {
-  /**
-   * Validates the complete AnchorKitConfig object.
-   * Throws an error if validation fails.
-   *
-   * @param config The AnchorKitConfig object to validate.
-   */
-  validate(config: AnchorKitConfig): void {
-    if (!config) throw new Error('Configuration object is missing');
-
-    const { network, server, security, assets, framework, metadata } = config;
-
-    // Validate Sections
-    if (!network) throw new Error('Missing required top-level field: network');
-    if (!server) throw new Error('Missing required top-level field: server');
-    if (!security) throw new Error('Missing required top-level field: security');
-    if (!assets) throw new Error('Missing required top-level field: assets');
-    if (!framework) throw new Error('Missing required top-level field: framework');
-
-    // Network Section
-    NetworkConfigSchema.validate(network);
-
-    // Security Section
-    if (!security.sep10SigningKey)
-      throw new Error('Missing required secret: security.sep10SigningKey');
-    if (!security.interactiveJwtSecret)
-      throw new Error('Missing required secret: security.interactiveJwtSecret');
-    if (!security.distributionAccountSecret)
-      throw new Error('Missing required secret: security.distributionAccountSecret');
-    if (security.authTokenLifetimeSeconds !== undefined && security.authTokenLifetimeSeconds <= 0) {
-      throw new Error('security.authTokenLifetimeSeconds must be > 0');
-    }
-
-    // Assets Section
-    if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
-      throw new Error('At least one asset must be configured in assets.assets');
-    }
-
-    // Framework Database config
-    if (!framework.database || !framework.database.provider || !framework.database.url) {
-      throw new Error('Missing required database configuration in framework.database');
-    }
-    if (!ValidationUtils.isValidDatabaseUrl(framework.database.url)) {
-      throw new Error('Invalid database URL format');
-    }
-
-    // Framework Numbers
-    if (framework.queue?.concurrency !== undefined && framework.queue.concurrency < 1) {
-      throw new Error('framework.queue.concurrency must be >= 1');
-    }
-    if (
-      framework.watchers?.pollIntervalMs !== undefined &&
-      framework.watchers.pollIntervalMs < 10
-    ) {
-      throw new Error('framework.watchers.pollIntervalMs must be >= 10');
-    }
-    if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {
-      throw new Error('framework.http.maxBodyBytes must be >= 1024');
-    }
-
-    if (framework.rateLimit) {
-      const rateValues = [
-        framework.rateLimit.windowMs,
-        framework.rateLimit.authChallengeMax,
-        framework.rateLimit.authTokenMax,
-        framework.rateLimit.webhookMax,
-        framework.rateLimit.depositMax,
-      ];
-      if (rateValues.some((value) => value !== undefined && value <= 0)) {
-        throw new Error('framework.rateLimit values must be > 0');
+    // Freeze children first
+    for (const key of Reflect.ownKeys(record)) {
+      const value = record[key];
+      if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+        this.deepFreeze(value);
       }
     }
 
-    // Other URLs
-    if (server.interactiveDomain && !ValidationUtils.isValidUrl(server.interactiveDomain)) {
-      throw new Error('Invalid URL format for server.interactiveDomain');
-    }
-    if (metadata?.tomlUrl && !ValidationUtils.isValidUrl(metadata.tomlUrl)) {
-      throw new Error('Invalid URL format for metadata.tomlUrl');
-    }
-  },
-};
+    return Object.freeze(obj);
+  }
 
-/**
- * AssetSchema
- * Validation schema for individual Asset entries.
- */
-export const AssetSchema = {
   /**
-   * Validates if the given object is a valid Asset entry.
-   *
-   * @param asset The asset object to validate.
-   * @returns true if valid, false otherwise.
+   * Get a specific configuration section
    */
-  isValid(asset: unknown): boolean {
-    if (!asset || typeof asset !== 'object') return false;
-    const a = asset as Record<string, unknown>;
+  public get<K extends keyof AnchorKitConfig>(key: K): AnchorKitConfig[K] {
+    return this.config[key];
+  }
 
-    // Required fields: code, issuer
-    if (typeof a.code !== 'string' || a.code.length === 0) return false;
-    if (typeof a.issuer !== 'string' || !ValidationUtils.isValidStellarAddress(a.issuer)) {
+  /**
+   * Return the raw configuration object
+   */
+  public getConfig(): AnchorKitConfig {
+    return this.config;
+  }
+
+  /**
+   * Lookup an asset by its code from the configured assets.
+   * The lookup is case-sensitive.
+   *
+   * @param code - The exact asset code to look up (e.g., 'USDC').
+   * @returns The matching Asset object, or undefined if not found.
+   */
+  public getAsset(code: string): Asset | undefined {
+    return this.config.assets?.assets?.find((asset) => asset.code === code);
+  }
+
+  /**
+   * Return required KYC fields by asset code.
+   * Returns an empty list when no policy exists or the asset is unmapped.
+   *
+   * @param code - The exact asset code to look up.
+   * @returns An array of required KYC field names.
+   */
+  public getKycRequiredFields(code: string): string[] {
+    const fields = this.config.kycRequired?.[code];
+    return Array.isArray(fields) ? fields : [];
+  }
+
+  /**
+   * Compare a provided passphrase against the configured network passphrase.
+   * Uses network default passphrases if an explicit one is not configured.
+   *
+   * @param passphrase - The passphrase to check.
+   * @returns boolean - True if it matches, false otherwise.
+   */
+  public isNetworkPassphrase(passphrase: string): boolean {
+    const configuredPassphrase = this.config.network?.networkPassphrase;
+
+    if (configuredPassphrase) {
+      return passphrase === configuredPassphrase;
+    }
+
+    const network = this.config.network?.network;
+    let defaultPassphrase: string;
+
+    switch (network) {
+      case 'public':
+        defaultPassphrase = Networks.PUBLIC;
+        break;
+      case 'testnet':
+        defaultPassphrase = Networks.TESTNET;
+        break;
+      case 'futurenet':
+        defaultPassphrase = Networks.FUTURENET;
+        break;
+      default:
+        return false;
+    }
+
+    return passphrase === defaultPassphrase;
+  }
+
+  /**
+   * Validate the configuration object for required secrets,
+   * URLs, network values, and basic structural invariants.
+   * Throws ConfigError if validation fails.
+   */
+  public validate(): void {
+    try {
+      AnchorKitConfigSchema.validate(this.config);
+    } catch (error) {
+      throw new ConfigError((error as Error).message);
+    }
+  }
+
+  /**
+   * Helper to check for standard HTTP/HTTPS URLs
+   * @deprecated Use ValidationUtils.isValidUrl instead
+   */
+  private isValidUrl(urlString: string): boolean {
+    try {
+      if (typeof URL !== 'function') return false;
+      const url = new URL(urlString);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
       return false;
     }
+  }
 
-    // Optional fields if provided must have correct type
-    if (a.name !== undefined && typeof a.name !== 'string') return false;
-    if (a.deposits_enabled !== undefined && typeof a.deposits_enabled !== 'boolean') return false;
-    if (a.withdrawals_enabled !== undefined && typeof a.withdrawals_enabled !== 'boolean')
-      return false;
-    if (a.min_amount !== undefined && typeof a.min_amount !== 'number') return false;
-    if (a.max_amount !== undefined && typeof a.max_amount !== 'number') return false;
-
-    return true;
-  },
-};
-
-/**
- * DatabaseUrlSchema
- * Restricts database URLs to supported schemes (postgres, sqlite).
- */
-export const DatabaseUrlSchema = {
   /**
-   * Validates if the given string is a supported database URL.
-   * Acceptable schemes: postgresql:, postgres:, sqlite:, file:
-   *
-   * @param urlString The database URL string.
-   * @returns true if supported, false otherwise.
+   * Helper to validate database connection strings or file paths
+   * @deprecated Use ValidationUtils.isValidDatabaseUrl instead
    */
-  isValid(urlString: string): boolean {
-    if (!urlString || typeof urlString !== 'string') return false;
-
-    const validSchemes = ['postgresql:', 'postgres:', 'sqlite:', 'file:'];
-    return validSchemes.some((scheme) => urlString.startsWith(scheme));
-  },
-};
+  private isValidDatabaseUrl(urlString: string): boolean {
+    return DatabaseUrlSchema.isValid(urlString);
+  }
+}
