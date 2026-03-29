@@ -104,8 +104,7 @@ export const AssetSchema = {
 
     // Optional fields if provided must have correct type
     if (a.name !== undefined && typeof a.name !== 'string') return false;
-    if (a.deposits_enabled !== undefined && typeof a.deposits_enabled !== 'boolean')
-      return false;
+    if (a.deposits_enabled !== undefined && typeof a.deposits_enabled !== 'boolean') return false;
     if (a.withdrawals_enabled !== undefined && typeof a.withdrawals_enabled !== 'boolean')
       return false;
     if (a.min_amount !== undefined && typeof a.min_amount !== 'number') return false;
