@@ -253,6 +253,10 @@ export class AnchorExpressRouter {
         responseBody.interactive_domain = fullConfig.server.interactiveDomain;
       }
 
+      if (fullConfig.operational?.supportEmail) {
+        responseBody.support_email = fullConfig.operational.supportEmail;
+      }
+
       sendJson(res, 200, responseBody);
       return;
     }
