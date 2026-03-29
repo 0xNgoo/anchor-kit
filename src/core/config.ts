@@ -1,6 +1,7 @@
 import { ConfigError } from '@/core/errors.ts';
 import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
 import { Networks } from '@stellar/stellar-sdk';
+import { DatabaseUrlSchema } from '@/utils/validation.ts';
 
 /**
  * AnchorConfig
@@ -236,6 +237,12 @@ export class AnchorConfig {
       throw new ConfigError('Missing required database configuration in framework.database');
     }
 
+    if (framework.database.provider === 'mysql') {
+      throw new ConfigError(
+        'MySQL is not currently supported in this MVP. Please use "postgres" or "sqlite".',
+      );
+    }
+
     if (
       framework.queue &&
       framework.queue.concurrency !== undefined &&
@@ -322,21 +329,6 @@ export class AnchorConfig {
    * Helper to validate database connection strings or file paths
    */
   private isValidDatabaseUrl(urlString: string): boolean {
-    if (!urlString || typeof urlString !== 'string') return false;
-
-    const validSchemes = ['postgresql:', 'postgres:', 'mysql:', 'mysql2:', 'sqlite:', 'file:'];
-
-    if (validSchemes.some((scheme) => urlString.startsWith(scheme))) {
-      return true;
-    }
-
-    // In case it's another valid URI
-    try {
-      if (typeof URL !== 'function') throw new Error('URL not available');
-      new URL(urlString);
-      return true;
-    } catch {
-      return false;
-    }
+    return DatabaseUrlSchema.isValid(urlString);
   }
 }
