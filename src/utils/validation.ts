@@ -211,3 +211,56 @@ export const AnchorKitConfigSchema = {
     }
   },
 };
+
+/**
+ * AssetSchema
+ * Validation schema for individual Asset entries.
+ */
+export const AssetSchema = {
+  /**
+   * Validates if the given object is a valid Asset entry.
+   *
+   * @param asset The asset object to validate.
+   * @returns true if valid, false otherwise.
+   */
+  isValid(asset: unknown): boolean {
+    if (!asset || typeof asset !== 'object') return false;
+    const a = asset as Record<string, unknown>;
+
+    // Required fields: code, issuer
+    if (typeof a.code !== 'string' || a.code.length === 0) return false;
+    if (typeof a.issuer !== 'string' || !ValidationUtils.isValidStellarAddress(a.issuer)) {
+      return false;
+    }
+
+    // Optional fields if provided must have correct type
+    if (a.name !== undefined && typeof a.name !== 'string') return false;
+    if (a.deposits_enabled !== undefined && typeof a.deposits_enabled !== 'boolean') return false;
+    if (a.withdrawals_enabled !== undefined && typeof a.withdrawals_enabled !== 'boolean')
+      return false;
+    if (a.min_amount !== undefined && typeof a.min_amount !== 'number') return false;
+    if (a.max_amount !== undefined && typeof a.max_amount !== 'number') return false;
+
+    return true;
+  },
+};
+
+/**
+ * DatabaseUrlSchema
+ * Restricts database URLs to supported schemes (postgres, sqlite).
+ */
+export const DatabaseUrlSchema = {
+  /**
+   * Validates if the given string is a supported database URL.
+   * Acceptable schemes: postgresql:, postgres:, sqlite:, file:
+   *
+   * @param urlString The database URL string.
+   * @returns true if supported, false otherwise.
+   */
+  isValid(urlString: string): boolean {
+    if (!urlString || typeof urlString !== 'string') return false;
+
+    const validSchemes = ['postgresql:', 'postgres:', 'sqlite:', 'file:'];
+    return validSchemes.some((scheme) => urlString.startsWith(scheme));
+  },
+};
