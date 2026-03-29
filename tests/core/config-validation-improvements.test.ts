@@ -97,10 +97,7 @@ describe('Config Validation Improvements (#124, #125)', () => {
   });
 
   it('should accept valid sqlite URLs', () => {
-    const sqliteConfigs = [
-      'sqlite:./local.db',
-      'file:./data.db',
-    ];
+    const sqliteConfigs = ['sqlite:./local.db', 'file:./data.db'];
 
     sqliteConfigs.forEach((url) => {
       const config = new AnchorConfig({

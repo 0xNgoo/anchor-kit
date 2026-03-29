@@ -92,23 +92,24 @@ export const AssetSchema = {
    * @param asset The asset object to validate.
    * @returns true if valid, false otherwise.
    */
-  isValid(asset: any): boolean {
+  isValid(asset: unknown): boolean {
     if (!asset || typeof asset !== 'object') return false;
+    const a = asset as Record<string, unknown>;
 
     // Required fields: code, issuer
-    if (typeof asset.code !== 'string' || asset.code.length === 0) return false;
-    if (typeof asset.issuer !== 'string' || !ValidationUtils.isValidStellarAddress(asset.issuer)) {
+    if (typeof a.code !== 'string' || a.code.length === 0) return false;
+    if (typeof a.issuer !== 'string' || !ValidationUtils.isValidStellarAddress(a.issuer)) {
       return false;
     }
 
     // Optional fields if provided must have correct type
-    if (asset.name !== undefined && typeof asset.name !== 'string') return false;
-    if (asset.deposits_enabled !== undefined && typeof asset.deposits_enabled !== 'boolean')
+    if (a.name !== undefined && typeof a.name !== 'string') return false;
+    if (a.deposits_enabled !== undefined && typeof a.deposits_enabled !== 'boolean')
       return false;
-    if (asset.withdrawals_enabled !== undefined && typeof asset.withdrawals_enabled !== 'boolean')
+    if (a.withdrawals_enabled !== undefined && typeof a.withdrawals_enabled !== 'boolean')
       return false;
-    if (asset.min_amount !== undefined && typeof asset.min_amount !== 'number') return false;
-    if (asset.max_amount !== undefined && typeof asset.max_amount !== 'number') return false;
+    if (a.min_amount !== undefined && typeof a.min_amount !== 'number') return false;
+    if (a.max_amount !== undefined && typeof a.max_amount !== 'number') return false;
 
     return true;
   },
