@@ -1,0 +1,1 @@
+const SecurityConfigSchema = 1;
