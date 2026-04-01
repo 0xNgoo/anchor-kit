@@ -13,6 +13,7 @@ import {
 } from '@stellar/stellar-sdk';
 import jwt from 'jsonwebtoken';
 import { createHash, randomUUID } from 'node:crypto';
+import { IdempotencyUtils } from '@/utils/idempotency.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type ExpressLikeMiddleware = (
@@ -489,11 +490,14 @@ export class AnchorExpressRouter {
         return;
       }
 
-      const idempotencyKey = req.headers['idempotency-key'];
+      const idempotencyKey = IdempotencyUtils.extractIdempotencyHeader(
+        req.headers,
+        'idempotency-key',
+      );
       const scope = `deposit:${auth.account}`;
       const requestHash = sha256(JSON.stringify({ assetCode, amount }));
 
-      if (typeof idempotencyKey === 'string' && idempotencyKey.length > 0) {
+      if (idempotencyKey !== null) {
         const existing = await this.database.getIdempotencyRecord(scope, idempotencyKey);
         if (existing) {
           if (existing.requestHash !== requestHash) {
