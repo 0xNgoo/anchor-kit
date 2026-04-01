@@ -320,6 +320,20 @@ export const ServerConfigSchema: Record<keyof Required<ServerConfig>, SchemaFiel
       }
     },
   },
+  corsOrigins: {
+    type: 'string[]',
+    required: false,
+    description: 'Allowed origins for CORS.',
+    validate: (value) =>
+      Array.isArray(value) &&
+      value.every((origin) => typeof origin === 'string' && origin.length > 0),
+  },
+  requestTimeout: {
+    type: 'number',
+    required: false,
+    description: 'Request timeout in milliseconds. Defaults to 30000.',
+    validate: (value) => typeof value === 'number' && Number.isFinite(value) && value > 0,
+  },
 };
 
 /**

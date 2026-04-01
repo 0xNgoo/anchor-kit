@@ -11,6 +11,8 @@ describe('ServerConfigSchema', () => {
     expect(ServerConfigSchema).toHaveProperty('port');
     expect(ServerConfigSchema).toHaveProperty('debug');
     expect(ServerConfigSchema).toHaveProperty('interactiveDomain');
+    expect(ServerConfigSchema).toHaveProperty('corsOrigins');
+    expect(ServerConfigSchema).toHaveProperty('requestTimeout');
   });
 
   it('each field has required schema properties', () => {
@@ -71,6 +73,38 @@ describe('ServerConfigSchema', () => {
       expect(ServerConfigSchema.interactiveDomain.validate(123)).toBe(false);
     });
   });
+
+  describe('corsOrigins field', () => {
+    it('validates arrays of non-empty origin strings', () => {
+      expect(ServerConfigSchema.corsOrigins.validate(['https://app.example.com'])).toBe(true);
+      expect(
+        ServerConfigSchema.corsOrigins.validate([
+          'https://app.example.com',
+          'http://localhost:3000',
+        ]),
+      ).toBe(true);
+    });
+
+    it('rejects invalid origin arrays', () => {
+      expect(ServerConfigSchema.corsOrigins.validate('https://app.example.com')).toBe(false);
+      expect(ServerConfigSchema.corsOrigins.validate([''])).toBe(false);
+      expect(ServerConfigSchema.corsOrigins.validate([123])).toBe(false);
+    });
+  });
+
+  describe('requestTimeout field', () => {
+    it('validates positive finite timeouts', () => {
+      expect(ServerConfigSchema.requestTimeout.validate(1)).toBe(true);
+      expect(ServerConfigSchema.requestTimeout.validate(30000)).toBe(true);
+    });
+
+    it('rejects invalid timeout values', () => {
+      expect(ServerConfigSchema.requestTimeout.validate(0)).toBe(false);
+      expect(ServerConfigSchema.requestTimeout.validate(-1)).toBe(false);
+      expect(ServerConfigSchema.requestTimeout.validate(Number.POSITIVE_INFINITY)).toBe(false);
+      expect(ServerConfigSchema.requestTimeout.validate('30000')).toBe(false);
+    });
+  });
 });
 
 describe('validateServerConfig', () => {
@@ -80,6 +114,8 @@ describe('validateServerConfig', () => {
       port: 3000,
       debug: false,
       interactiveDomain: 'https://anchor.example.com',
+      corsOrigins: ['https://app.example.com'],
+      requestTimeout: 30000,
     });
     expect(errors).toEqual([]);
   });
