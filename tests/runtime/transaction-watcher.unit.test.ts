@@ -188,8 +188,8 @@ describe('TransactionWatcher Unit Tests', () => {
   });
 
   it('prevents overlapping ticks when called concurrently', async () => {
-    let resolveTick: (value: any[]) => void;
-    const tickPromise = new Promise<any[]>((resolve) => {
+    let resolveTick!: (value: unknown[]) => void;
+    const tickPromise = new Promise<unknown[]>((resolve) => {
       resolveTick = resolve;
     });
 
@@ -197,8 +197,9 @@ describe('TransactionWatcher Unit Tests', () => {
 
     // Start two ticks concurrently
     // Accessing private method for testing purposes
-    const tick1 = (transactionWatcher as any).tick();
-    const tick2 = (transactionWatcher as any).tick();
+    const watcherWithTick = transactionWatcher as unknown as { tick: () => Promise<void> };
+    const tick1 = watcherWithTick.tick();
+    const tick2 = watcherWithTick.tick();
 
     // Resolve the database call
     resolveTick!([]);

@@ -111,7 +111,9 @@ describe('Webhook Provider Fallback', () => {
         verifyWebhookSignatures: true,
       },
       assets: {
-        assets: [{ code: 'USDC', issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5' }],
+        assets: [
+          { code: 'USDC', issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5' },
+        ],
       },
       framework: {
         database: { provider: 'sqlite', url: dbUrl },
