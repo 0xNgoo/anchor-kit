@@ -64,7 +64,9 @@ describe('ServerConfigSchema', () => {
 
   describe('interactiveDomain field', () => {
     it('validates valid URLs', () => {
-      expect(ServerConfigSchema.interactiveDomain.validate('https://anchor.example.com')).toBe(true);
+      expect(ServerConfigSchema.interactiveDomain.validate('https://anchor.example.com')).toBe(
+        true,
+      );
       expect(ServerConfigSchema.interactiveDomain.validate('http://localhost:8080')).toBe(true);
     });
     it('rejects invalid URLs', () => {

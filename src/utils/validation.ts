@@ -295,10 +295,7 @@ export const ServerConfigSchema: Record<keyof Required<ServerConfig>, SchemaFiel
     required: false,
     description: 'Server port number. Defaults to 3000.',
     validate: (value) =>
-      typeof value === 'number' &&
-      Number.isInteger(value) &&
-      value > 0 &&
-      value <= 65535,
+      typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535,
   },
   debug: {
     type: 'boolean',
