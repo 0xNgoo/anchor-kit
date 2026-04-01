@@ -141,6 +141,12 @@ export interface SecurityConfig {
    * @optional - defaults to true
    */
   verifyWebhookSignatures?: boolean;
+
+  /**
+   * Auth token lifetime in seconds
+   * @optional - defaults to 3600 (1 hour)
+   */
+  authTokenLifetimeSeconds?: number;
 }
 
 /**

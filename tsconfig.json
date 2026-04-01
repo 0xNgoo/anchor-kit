@@ -15,6 +15,7 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
+    "resolveJsonModule": true,
     "types": [
       "@types/bun", // add Bun global
       "vitest/globals", // add Vitest global types for test files
@@ -25,6 +26,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "example/**/*", "setup-repo.ts"],
+  "include": ["src/**/*", "tests/**/*", "example/**/*"],
   "exclude": ["node_modules", "dist"]
 }

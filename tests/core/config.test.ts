@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
 import { AnchorConfig } from '@/core/config.ts';
 import { ConfigError } from '@/core/errors.ts';
 import type { AnchorKitConfig } from '@/types/config.ts';
 import { Networks } from '@stellar/stellar-sdk';
+import { describe, expect, it } from 'vitest';
 
 describe('AnchorConfig', () => {
   const validBaseConfig: AnchorKitConfig = {
@@ -244,6 +244,50 @@ describe('AnchorConfig', () => {
       };
       const config = new AnchorConfig(sqliteConfig);
       expect(() => config.validate()).not.toThrow();
+    });
+
+    it('should accept valid auth token lifetime', () => {
+      const configWithTtl: AnchorKitConfig = {
+        ...validBaseConfig,
+        security: {
+          ...validBaseConfig.security,
+          authTokenLifetimeSeconds: 7200,
+        },
+      };
+      const config = new AnchorConfig(configWithTtl);
+      expect(() => config.validate()).not.toThrow();
+      expect(config.get('security').authTokenLifetimeSeconds).toBe(7200);
+    });
+
+    it('should use default TTL when not specified', () => {
+      const config = new AnchorConfig(validBaseConfig);
+      expect(config.get('security').authTokenLifetimeSeconds).toBeUndefined();
+    });
+
+    it('should reject invalid auth token lifetime (zero)', () => {
+      const invalidConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        security: {
+          ...validBaseConfig.security,
+          authTokenLifetimeSeconds: 0,
+        },
+      };
+      const config = new AnchorConfig(invalidConfig);
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/authTokenLifetimeSeconds must be > 0/);
+    });
+
+    it('should reject invalid auth token lifetime (negative)', () => {
+      const invalidConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        security: {
+          ...validBaseConfig.security,
+          authTokenLifetimeSeconds: -100,
+        },
+      };
+      const config = new AnchorConfig(invalidConfig);
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/authTokenLifetimeSeconds must be > 0/);
     });
   });
 });

@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Express } from 'express';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -8,6 +10,15 @@ import { createExampleApp } from '../example/express-app.ts';
 
 interface ExampleAppRuntime {
   app: Express;
+  anchor: {
+    config: {
+      get: (key: 'framework') => {
+        watchers?: {
+          enabled?: boolean;
+        };
+      };
+    };
+  };
   shutdown: () => Promise<void>;
 }
 
@@ -28,6 +39,23 @@ const DEFAULT_CHALLENGE_EXPIRATION_SECONDS = 300;
 interface ExampleAppHarness {
   runtime: ExampleAppRuntime;
   cleanup: () => Promise<void>;
+}
+
+function setOptionalEnvVar(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
+
+function removeFileIfPresent(path: string): void {
+  try {
+    unlinkSync(path);
+  } catch {
+    // ignore cleanup errors
+  }
 }
 
 async function invokeExpress(app: Express, options: InvokeOptions): Promise<InvokeResponse> {
@@ -80,22 +108,22 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
 }
 
 async function createExampleAppHarness(
-  options: { challengeExpirationSeconds?: string } = {},
+  options: {
+    challengeExpirationSeconds?: string;
+    watchersEnabled?: string;
+  } = {},
 ): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
-  const dbPath = `/tmp/anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`;
+  const dbPath = join(tmpdir(), `anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`);
   const originalDatabaseUrl = process.env.DATABASE_URL;
   const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
   const originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
+  const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
 
-  process.env.DATABASE_URL = `file:${dbPath}`;
-  process.env.SEP10_SIGNING_KEY = sep10ServerKeypair.secret();
-
-  if (options.challengeExpirationSeconds === undefined) {
-    delete process.env.CHALLENGE_EXPIRATION_SECONDS;
-  } else {
-    process.env.CHALLENGE_EXPIRATION_SECONDS = options.challengeExpirationSeconds;
-  }
+  setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
+  setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
+  setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', options.challengeExpirationSeconds);
+  setOptionalEnvVar('WATCHERS_ENABLED', options.watchersEnabled);
 
   const runtime = await createExampleApp();
 
@@ -104,29 +132,11 @@ async function createExampleAppHarness(
     cleanup: async () => {
       await runtime.shutdown();
 
-      if (originalDatabaseUrl === undefined) {
-        delete process.env.DATABASE_URL;
-      } else {
-        process.env.DATABASE_URL = originalDatabaseUrl;
-      }
-
-      if (originalSep10SigningKey === undefined) {
-        delete process.env.SEP10_SIGNING_KEY;
-      } else {
-        process.env.SEP10_SIGNING_KEY = originalSep10SigningKey;
-      }
-
-      if (originalChallengeExpirationSeconds === undefined) {
-        delete process.env.CHALLENGE_EXPIRATION_SECONDS;
-      } else {
-        process.env.CHALLENGE_EXPIRATION_SECONDS = originalChallengeExpirationSeconds;
-      }
-
-      try {
-        unlinkSync(dbPath);
-      } catch {
-        // ignore cleanup errors
-      }
+      setOptionalEnvVar('DATABASE_URL', originalDatabaseUrl);
+      setOptionalEnvVar('SEP10_SIGNING_KEY', originalSep10SigningKey);
+      setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', originalChallengeExpirationSeconds);
+      setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
+      removeFileIfPresent(dbPath);
     },
   };
 }
@@ -193,6 +203,10 @@ describe('example/express-app', () => {
       DEFAULT_CHALLENGE_EXPIRATION_SECONDS,
     );
   });
+
+  it('keeps watchers enabled when the env var is absent', () => {
+    expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(true);
+  });
 });
 
 describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
@@ -222,5 +236,21 @@ describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
     expect(Number(challengeTx.timeBounds.maxTime) - Number(challengeTx.timeBounds.minTime)).toBe(
       45,
     );
+  });
+});
+
+describe('example/express-app WATCHERS_ENABLED', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness({ watchersEnabled: 'false' });
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('disables watchers when configured through the environment', () => {
+    expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(false);
   });
 });

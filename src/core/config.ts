@@ -1,6 +1,8 @@
-import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
+import { AnchorKitConfigSchema } from '@/utils/validation.ts';
 import { ConfigError } from '@/core/errors.ts';
+import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
 import { Networks } from '@stellar/stellar-sdk';
+import { DatabaseUrlSchema } from '@/utils/validation.ts';
 
 /**
  * AnchorConfig
@@ -192,117 +194,16 @@ export class AnchorConfig {
    * Throws ConfigError if validation fails.
    */
   public validate(): void {
-    if (!this.config) {
-      throw new ConfigError('Configuration object is missing');
-    }
-
-    const { network, server, security, assets, framework } = this.config;
-
-    // Validate Required Top-Level Fields
-    if (!network) {
-      throw new ConfigError('Missing required top-level field: network');
-    }
-    if (!server) {
-      throw new ConfigError('Missing required top-level field: server');
-    }
-    if (!security) {
-      throw new ConfigError('Missing required top-level field: security');
-    }
-    if (!assets) {
-      throw new ConfigError('Missing required top-level field: assets');
-    }
-    if (!framework) {
-      throw new ConfigError('Missing required top-level field: framework');
-    }
-
-    // Validate Required Secrets
-    if (!security.sep10SigningKey) {
-      throw new ConfigError('Missing required secret: security.sep10SigningKey');
-    }
-    if (!security.interactiveJwtSecret) {
-      throw new ConfigError('Missing required secret: security.interactiveJwtSecret');
-    }
-    if (!security.distributionAccountSecret) {
-      throw new ConfigError('Missing required secret: security.distributionAccountSecret');
-    }
-
-    // Validate Assets configuration
-    if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
-      throw new ConfigError('At least one asset must be configured in assets.assets');
-    }
-
-    // Validate Framework Database config
-    if (!framework.database || !framework.database.provider || !framework.database.url) {
-      throw new ConfigError('Missing required database configuration in framework.database');
-    }
-
-    if (
-      framework.queue &&
-      framework.queue.concurrency !== undefined &&
-      framework.queue.concurrency < 1
-    ) {
-      throw new ConfigError('framework.queue.concurrency must be >= 1');
-    }
-
-    if (
-      framework.watchers &&
-      framework.watchers.pollIntervalMs !== undefined &&
-      framework.watchers.pollIntervalMs < 10
-    ) {
-      throw new ConfigError('framework.watchers.pollIntervalMs must be >= 10');
-    }
-
-    if (
-      framework.http &&
-      framework.http.maxBodyBytes !== undefined &&
-      framework.http.maxBodyBytes < 1024
-    ) {
-      throw new ConfigError('framework.http.maxBodyBytes must be >= 1024');
-    }
-
-    if (framework.rateLimit) {
-      const rateValues = [
-        framework.rateLimit.windowMs,
-        framework.rateLimit.authChallengeMax,
-        framework.rateLimit.authTokenMax,
-        framework.rateLimit.webhookMax,
-        framework.rateLimit.depositMax,
-      ];
-      if (rateValues.some((value) => value !== undefined && value <= 0)) {
-        throw new ConfigError('framework.rateLimit values must be > 0');
-      }
-    }
-
-    // Validate database URL loosely (could be a connection string or file path)
-    if (!this.isValidDatabaseUrl(framework.database.url)) {
-      throw new ConfigError('Invalid database URL format');
-    }
-
-    // Validate specific URLs if they are provided
-    if (server.interactiveDomain && !this.isValidUrl(server.interactiveDomain)) {
-      throw new ConfigError('Invalid URL format for server.interactiveDomain');
-    }
-
-    if (network.horizonUrl && !this.isValidUrl(network.horizonUrl)) {
-      throw new ConfigError('Invalid URL format for network.horizonUrl');
-    }
-
-    const { metadata } = this.config;
-    if (metadata?.tomlUrl && !this.isValidUrl(metadata.tomlUrl)) {
-      throw new ConfigError('Invalid URL format for metadata.tomlUrl');
-    }
-
-    // Validate network-related values
-    const validNetworks = ['public', 'testnet', 'futurenet'];
-    if (!validNetworks.includes(network.network)) {
-      throw new ConfigError(
-        `Invalid network: ${network.network}. Must be one of: ${validNetworks.join(', ')}`,
-      );
+    try {
+      AnchorKitConfigSchema.validate(this.config);
+    } catch (error) {
+      throw new ConfigError((error as Error).message);
     }
   }
 
   /**
    * Helper to check for standard HTTP/HTTPS URLs
+   * @deprecated Use ValidationUtils.isValidUrl instead
    */
   private isValidUrl(urlString: string): boolean {
     try {
@@ -316,23 +217,9 @@ export class AnchorConfig {
 
   /**
    * Helper to validate database connection strings or file paths
+   * @deprecated Use ValidationUtils.isValidDatabaseUrl instead
    */
   private isValidDatabaseUrl(urlString: string): boolean {
-    if (!urlString || typeof urlString !== 'string') return false;
-
-    const validSchemes = ['postgresql:', 'postgres:', 'mysql:', 'mysql2:', 'sqlite:', 'file:'];
-
-    if (validSchemes.some((scheme) => urlString.startsWith(scheme))) {
-      return true;
-    }
-
-    // In case it's another valid URI
-    try {
-      if (typeof URL !== 'function') throw new Error('URL not available');
-      new URL(urlString);
-      return true;
-    } catch {
-      return false;
-    }
+    return DatabaseUrlSchema.isValid(urlString);
   }
 }

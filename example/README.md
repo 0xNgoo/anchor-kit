@@ -11,6 +11,7 @@ This example shows the intended MVP integration model:
 # optional
 export DATABASE_URL=file:/tmp/anchor-kit-example.sqlite
 export CHALLENGE_EXPIRATION_SECONDS=45
+export WATCHERS_ENABLED=false
 
 bun run example/express-app.ts
 ```
@@ -21,6 +22,7 @@ Server starts on `http://localhost:3000` by default.
 
 - `DATABASE_URL`: overrides the example database location
 - `CHALLENGE_EXPIRATION_SECONDS`: overrides the SEP-10 challenge lifetime in seconds. Defaults to `300`.
+- `WATCHERS_ENABLED`: set to `false` to disable background watchers. Defaults to enabled.
 
 ## Quick check
 
