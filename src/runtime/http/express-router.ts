@@ -577,7 +577,7 @@ export class AnchorExpressRouter {
 
       const serverConfig = this.config.get('server');
       const selectedAsset = this.config.getAsset(transaction.assetCode);
-      const responseData: any = {
+      const responseData: Record<string, unknown> & { more_info_url?: string } = {
         id: transaction.id,
         kind: transaction.kind,
         status: transaction.status,
