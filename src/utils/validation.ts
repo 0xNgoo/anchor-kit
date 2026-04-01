@@ -261,3 +261,97 @@ export const AnchorKitConfigSchema = {
     }
   },
 };
+
+// ---------------------------------------------------------------------------
+// ServerConfigSchema
+// ---------------------------------------------------------------------------
+
+import type { ServerConfig } from '../types/config.ts';
+
+export interface SchemaField {
+  type: string;
+  required: boolean;
+  description: string;
+  validate: (value: unknown) => boolean;
+}
+
+/**
+ * ServerConfigSchema
+ * Runtime schema for validating partial ServerConfig objects.
+ *
+ * @example
+ * import { ServerConfigSchema } from 'anchor-kit';
+ * ServerConfigSchema.port.validate(3000); // true
+ */
+export const ServerConfigSchema: Record<keyof Required<ServerConfig>, SchemaField> = {
+  host: {
+    type: 'string',
+    required: false,
+    description: 'Server host address. Defaults to 0.0.0.0',
+    validate: (value) => typeof value === 'string' && value.length > 0,
+  },
+  port: {
+    type: 'number',
+    required: false,
+    description: 'Server port number. Defaults to 3000.',
+    validate: (value) =>
+      typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535,
+  },
+  debug: {
+    type: 'boolean',
+    required: false,
+    description: 'Enable debug mode for verbose logging. Defaults to false.',
+    validate: (value) => typeof value === 'boolean',
+  },
+  interactiveDomain: {
+    type: 'string',
+    required: false,
+    description: 'Interactive web portal domain/URL for SEP-24 flows.',
+    validate: (value) => {
+      if (typeof value !== 'string' || value.length === 0) return false;
+      try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    },
+  },
+  corsOrigins: {
+    type: 'string[]',
+    required: false,
+    description: 'Allowed origins for CORS.',
+    validate: (value) =>
+      Array.isArray(value) &&
+      value.every((origin) => typeof origin === 'string' && origin.length > 0),
+  },
+  requestTimeout: {
+    type: 'number',
+    required: false,
+    description: 'Request timeout in milliseconds. Defaults to 30000.',
+    validate: (value) => typeof value === 'number' && Number.isFinite(value) && value > 0,
+  },
+};
+
+/**
+ * validateServerConfig
+ * Validates a partial ServerConfig object. Returns array of error strings.
+ *
+ * @example
+ * validateServerConfig({ port: -1 }); // ['port: invalid value']
+ */
+export function validateServerConfig(config: Partial<ServerConfig>): string[] {
+  const errors: string[] = [];
+  for (const [key, field] of Object.entries(ServerConfigSchema) as [
+    keyof ServerConfig,
+    SchemaField,
+  ][]) {
+    const value = config[key];
+    if (value === undefined || value === null) {
+      if (field.required) errors.push(`${key}: is required`);
+      continue;
+    }
+    if (!field.validate(value)) errors.push(`${key}: invalid value`);
+  }
+  return errors;
+}
