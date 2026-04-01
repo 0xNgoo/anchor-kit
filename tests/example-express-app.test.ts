@@ -34,9 +34,19 @@ interface InvokeResponse {
   body: Record<string, unknown>;
 }
 
+const DEFAULT_CHALLENGE_EXPIRATION_SECONDS = 300;
+
 interface ExampleAppHarness {
   runtime: ExampleAppRuntime;
   cleanup: () => Promise<void>;
+}
+
+function getChallengeLifetimeSeconds(challengeTx: Transaction): number {
+  if (!challengeTx.timeBounds) {
+    throw new Error('Expected SEP-10 challenge transaction to include time bounds');
+  }
+
+  return Number(challengeTx.timeBounds.maxTime) - Number(challengeTx.timeBounds.minTime);
 }
 
 function setOptionalEnvVar(key: string, value: string | undefined): void {
@@ -105,16 +115,23 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
   });
 }
 
-async function createExampleAppHarness(watchersEnabled?: string): Promise<ExampleAppHarness> {
+async function createExampleAppHarness(
+  options: {
+    challengeExpirationSeconds?: string;
+    watchersEnabled?: string;
+  } = {},
+): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
   const dbPath = join(tmpdir(), `anchor-kit-example-test-${Date.now()}-${Math.random()}.sqlite`);
   const originalDatabaseUrl = process.env.DATABASE_URL;
   const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
+  const originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
   const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
 
   setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
   setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
-  setOptionalEnvVar('WATCHERS_ENABLED', watchersEnabled);
+  setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', options.challengeExpirationSeconds);
+  setOptionalEnvVar('WATCHERS_ENABLED', options.watchersEnabled);
 
   const runtime = await createExampleApp();
 
@@ -125,6 +142,7 @@ async function createExampleAppHarness(watchersEnabled?: string): Promise<Exampl
 
       setOptionalEnvVar('DATABASE_URL', originalDatabaseUrl);
       setOptionalEnvVar('SEP10_SIGNING_KEY', originalSep10SigningKey);
+      setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', originalChallengeExpirationSeconds);
       setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
       removeFileIfPresent(dbPath);
     },
@@ -177,8 +195,51 @@ describe('example/express-app', () => {
     expect(String(tokenResponse.body.token).length).toBeGreaterThan(0);
   });
 
+  it('uses the default challenge expiration when the env var is absent', async () => {
+    const account = clientKeypair.publicKey();
+
+    const challengeResponse = await invokeExpress(harness.runtime.app, {
+      path: `/anchor/auth/challenge?account=${account}`,
+    });
+
+    expect(challengeResponse.status).toBe(200);
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+
+    expect(getChallengeLifetimeSeconds(challengeTx)).toBe(DEFAULT_CHALLENGE_EXPIRATION_SECONDS);
+  });
+
   it('keeps watchers enabled when the env var is absent', () => {
     expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(true);
+  });
+});
+
+describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness({ challengeExpirationSeconds: '45' });
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('uses the configured challenge expiration from the environment', async () => {
+    const clientKeypair = Keypair.random();
+    const account = clientKeypair.publicKey();
+
+    const challengeResponse = await invokeExpress(harness.runtime.app, {
+      path: `/anchor/auth/challenge?account=${account}`,
+    });
+
+    expect(challengeResponse.status).toBe(200);
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+
+    expect(getChallengeLifetimeSeconds(challengeTx)).toBe(45);
   });
 });
 
@@ -186,7 +247,7 @@ describe('example/express-app WATCHERS_ENABLED', () => {
   let harness: ExampleAppHarness;
 
   beforeAll(async () => {
-    harness = await createExampleAppHarness('false');
+    harness = await createExampleAppHarness({ watchersEnabled: 'false' });
   });
 
   afterAll(async () => {
