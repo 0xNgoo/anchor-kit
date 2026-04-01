@@ -27,22 +27,42 @@ describe('SqlDatabaseAdapter – interactive transaction status updates', () => 
 
   it('updates status and reflects the change on fetch', async () => {
     const txId = randomUUID();
-    const inserted = await db.insertInteractiveTransaction({
-      id: txId,
-      account: 'GTEST1234',
-      kind: 'deposit',
-      assetCode: 'USDC',
-      amount: '50.00',
-      status: 'pending_user_transfer_start',
-    });
+    const RealDate = Date;
+    let currentTime = new RealDate('2026-01-01T00:00:00.000Z').getTime();
 
-    expect(inserted.status).toBe('pending_user_transfer_start');
+    class MockDate extends RealDate {
+      constructor(value?: string | number | Date) {
+        super(value === undefined ? currentTime : value);
+      }
 
-    await db.updateTransactionStatus(txId, 'completed');
+      static override now(): number {
+        return currentTime;
+      }
+    }
 
-    const fetched = await db.getInteractiveTransactionById(txId);
-    expect(fetched).not.toBeNull();
-    expect(fetched!.status).toBe('completed');
-    expect(fetched!.updatedAt).not.toBe(inserted.updatedAt);
+    globalThis.Date = MockDate as DateConstructor;
+
+    try {
+      const inserted = await db.insertInteractiveTransaction({
+        id: txId,
+        account: 'GTEST1234',
+        kind: 'deposit',
+        assetCode: 'USDC',
+        amount: '50.00',
+        status: 'pending_user_transfer_start',
+      });
+
+      expect(inserted.status).toBe('pending_user_transfer_start');
+
+      currentTime = new RealDate('2026-01-01T00:00:01.000Z').getTime();
+      await db.updateTransactionStatus(txId, 'completed');
+
+      const fetched = await db.getInteractiveTransactionById(txId);
+      expect(fetched).not.toBeNull();
+      expect(fetched!.status).toBe('completed');
+      expect(fetched!.updatedAt).not.toBe(inserted.updatedAt);
+    } finally {
+      globalThis.Date = RealDate;
+    }
   });
 });
