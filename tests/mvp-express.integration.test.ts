@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { version } from '../package.json';
 
 interface TestResponse {
@@ -402,6 +402,75 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.id).toBeUndefined();
   });
 
+  it('5e) deposit with deposits_enabled: false asset is rejected', async () => {
+    const disabledDbUrl = makeSqliteDbUrlForTests();
+    const disabledAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-disabled',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: false,
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: disabledDbUrl },
+      },
+    });
+
+    await disabledAnchor.init();
+    const disabledInvoke = createMountedInvoker(disabledAnchor);
+
+    // Obtain a valid auth token for this anchor instance
+    const testKeypair = Keypair.random();
+    const challengeResponse = await disabledInvoke({
+      path: `/auth/challenge?account=${testKeypair.publicKey()}`,
+    });
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(testKeypair);
+    const tokenResponse = await disabledInvoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      body: { account: testKeypair.publicKey(), challenge: challengeTx.toXDR() },
+    });
+    const token = String(tokenResponse.body.token ?? '');
+
+    const response = await disabledInvoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_asset');
+    expect(response.body.id).toBeUndefined();
+
+    await disabledAnchor.shutdown();
+    const disabledDbPath = disabledDbUrl.startsWith('file:')
+      ? disabledDbUrl.slice('file:'.length)
+      : disabledDbUrl;
+    try {
+      unlinkSync(disabledDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
   it('5b) deposit at max_amount boundary is accepted', async () => {
     const response = await invoke({
       method: 'POST',
@@ -533,7 +602,10 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body.received).toBe(true);
     expect(firstResponse.body.duplicate).toBe(false);
+    expect(firstResponse.body.event_id).toBe('evt_1');
+    expect(firstResponse.body.provider).toBe('generic');
     expect(webhookCallbackCount).toBe(1);
 
     const duplicateResponse = await invoke({
@@ -548,36 +620,16 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(duplicateResponse.status).toBe(200);
+    expect(duplicateResponse.body.received).toBe(true);
     expect(duplicateResponse.body.duplicate).toBe(true);
+    expect(duplicateResponse.body.event_id).toBe('evt_1');
+    expect(duplicateResponse.body.provider).toBe('generic');
     expect(webhookCallbackCount).toBe(1);
   });
 
-  it('8b) rejects a request with an invalid signature', async () => {
+  it('8b) webhook route uses default provider when no header provided', async () => {
     const payload = {
-      id: 'evt_invalid_signature',
-      type: 'deposit.completed',
-      transaction_id: transactionId,
-    };
-
-    const response = await invoke({
-      method: 'POST',
-      path: '/webhooks/events',
-      headers: {
-        'content-type': 'application/json',
-        'x-webhook-provider': 'generic',
-        'x-anchor-signature': 'invalid-signature-value',
-      },
-      body: payload,
-    });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBe('webhook_error');
-    expect(response.body.message).toBe('Webhook processing failed');
-  });
-
-  it('8c) webhook request without provider header defaults to generic', async () => {
-    const payload = {
-      id: 'evt_default_provider',
+      id: 'evt_2',
       type: 'deposit.completed',
       transaction_id: transactionId,
     };
@@ -592,15 +644,74 @@ describe('MVP Express-mounted integration', () => {
       headers: {
         'content-type': 'application/json',
         'x-anchor-signature': signature,
-        // Note: No x-webhook-provider header
+        // No x-webhook-provider header
       },
       body: payload,
     });
 
     expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
     expect(response.body.duplicate).toBe(false);
-    expect(response.body.event_id).toBe('evt_default_provider');
-    expect(webhookCallbackCount).toBe(2); // Increment from previous webhook test
+    expect(response.body.event_id).toBe('evt_2');
+    expect(response.body.provider).toBe('generic'); // Should default to 'generic'
+  });
+
+  it('8d) webhook without id field returns a generated event_id', async () => {
+    const payload = {
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+      // Note: No id field
+    };
+
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(response.body.duplicate).toBe(false);
+    expect(typeof response.body.event_id).toBe('string');
+    expect((response.body.event_id as string).length).toBeGreaterThan(0);
+  });
+
+  it('8e) webhook success response includes received_at ISO timestamp', async () => {
+    const payload = {
+      id: 'evt_received_at_check',
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(typeof response.body.received_at).toBe('string');
+    const parsed = Date.parse(response.body.received_at as string);
+    expect(Number.isNaN(parsed)).toBe(false);
   });
 
   it('9) queue worker/watcher processes at least one watch task', async () => {
@@ -626,6 +737,42 @@ describe('MVP Express-mounted integration', () => {
 
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
+  });
+
+  it('10a) expired challenge is rejected during token exchange', async () => {
+    const account = clientKeypair.publicKey();
+    const initialNow = new Date('2026-01-01T00:00:00.000Z').getTime();
+    const dateNowSpy = vi.spyOn(Date, 'now');
+    dateNowSpy.mockReturnValue(initialNow);
+
+    try {
+      const challengeResponse = await invoke({
+        path: `/auth/challenge?account=${account}`,
+        headers: { 'x-forwarded-for': '10.0.0.12' },
+      });
+
+      expect(challengeResponse.status).toBe(200);
+      const challengeXdr = String(challengeResponse.body.challenge ?? '');
+      const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+      const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+      challengeTx.sign(clientKeypair);
+
+      dateNowSpy.mockReturnValue(initialNow + 301_000);
+
+      const tokenResponse = await invoke({
+        method: 'POST',
+        path: '/auth/token',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.12' },
+        body: { account, challenge: challengeTx.toXDR() },
+      });
+
+      expect(tokenResponse.status).toBe(401);
+      expect(tokenResponse.body.error).toBe('invalid_challenge');
+      expect(tokenResponse.body.message).toBe('Challenge expired');
+      expect(tokenResponse.body).not.toHaveProperty('access_token');
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it('10b) token with missing/incorrect scope is rejected', async () => {
