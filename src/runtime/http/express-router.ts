@@ -618,7 +618,13 @@ export class AnchorExpressRouter {
       const eventId =
         typeof eventIdField === 'string' && eventIdField.length > 0 ? eventIdField : randomUUID();
       const providerHeader = req.headers['x-webhook-provider'];
-      const provider = typeof providerHeader === 'string' ? providerHeader : 'generic';
+      const providerBody = payload.provider;
+      const provider =
+        typeof providerHeader === 'string' && providerHeader.length > 0
+          ? providerHeader
+          : typeof providerBody === 'string' && providerBody.length > 0
+            ? providerBody
+            : 'generic';
       const signatureHeader = req.headers['x-anchor-signature'];
       const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
 
