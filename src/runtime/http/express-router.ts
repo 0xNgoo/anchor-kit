@@ -626,6 +626,8 @@ export class AnchorExpressRouter {
           received: true,
           duplicate: result.duplicate,
           event_id: result.eventId,
+          received_at: new Date().toISOString(),
+          provider,
         });
       } catch {
         sendJson(res, 400, {
