@@ -193,7 +193,54 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.interactive_domain).toBe('https://anchor.example.com');
   });
 
-  it('2b) /info omits interactive_domain when not configured', async () => {
+  it('2b) /info includes support_email when configured', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: {},
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-email',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      operational: { supportEmail: 'support@example.com' },
+      framework: {
+        database: { provider: 'sqlite', url: customDbUrl },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+    const response = await customInvoke({ path: '/info' });
+    expect(response.status).toBe(200);
+    expect(response.body.support_email).toBe('support@example.com');
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('2c) /info omits support_email when not configured', async () => {
+    const response = await invoke({ path: '/info' });
+    expect(response.status).toBe(200);
+    expect(response.body).not.toHaveProperty('support_email');
+  });
+
+  it('2d) /info omits interactive_domain when not configured', async () => {
     const customDbUrl = makeSqliteDbUrlForTests();
     const customAnchor = createAnchor({
       network: { network: 'testnet' },
