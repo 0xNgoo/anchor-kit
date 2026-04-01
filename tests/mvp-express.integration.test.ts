@@ -227,7 +227,11 @@ describe('MVP Express-mounted integration', () => {
     const customDbPath = customDbUrl.startsWith('file:')
       ? customDbUrl.slice('file:'.length)
       : customDbUrl;
-    try { unlinkSync(customDbPath); } catch { /* ignore */ }
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      /* ignore */
+    }
   });
 
   it('2c) /info omits support_email when not configured', async () => {

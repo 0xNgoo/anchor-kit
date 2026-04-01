@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
  * so we use this shim instead. TypeScript still validates the type
  * relationships at compile time via the generic constraints.
  */
-function expectTypeOf<T>(_value: T) {
+function expectTypeOf<T>(_value?: T) {
   return {
     toEqualTypeOf<U>(_?: U): void {},
     toMatchTypeOf<U>(_?: U): void {},
