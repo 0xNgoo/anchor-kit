@@ -627,6 +627,75 @@ describe('MVP Express-mounted integration', () => {
     expect(webhookCallbackCount).toBe(1);
   });
 
+  it('8b) unsigned webhook is accepted when signature verification is disabled', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    let unsignedWebhookCallbackCount = 0;
+
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-webhook-unsigned',
+        distributionAccountSecret: 'distribution-test-secret',
+        verifyWebhookSignatures: false,
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: true,
+          },
+        ],
+      },
+      framework: {
+        database: {
+          provider: 'sqlite',
+          url: customDbUrl,
+        },
+      },
+      webhooks: {
+        onEvent: async () => {
+          unsignedWebhookCallbackCount += 1;
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    const payload = {
+      id: 'evt_unsigned',
+      type: 'deposit.completed',
+      transaction_id: 'tx_unsigned',
+    };
+
+    const response = await customInvoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.duplicate).toBe(false);
+    expect(unsignedWebhookCallbackCount).toBe(1);
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
   it('8b) webhook route uses default provider when no header provided', async () => {
     const payload = {
       id: 'evt_2',
