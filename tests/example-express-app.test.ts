@@ -41,6 +41,14 @@ interface ExampleAppHarness {
   cleanup: () => Promise<void>;
 }
 
+function getChallengeLifetimeSeconds(challengeTx: Transaction): number {
+  if (!challengeTx.timeBounds) {
+    throw new Error('Expected SEP-10 challenge transaction to include time bounds');
+  }
+
+  return Number(challengeTx.timeBounds.maxTime) - Number(challengeTx.timeBounds.minTime);
+}
+
 function setOptionalEnvVar(key: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[key];
@@ -199,9 +207,7 @@ describe('example/express-app', () => {
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     const challengeTx = new Transaction(challengeXdr, networkPassphrase);
 
-    expect(Number(challengeTx.timeBounds.maxTime) - Number(challengeTx.timeBounds.minTime)).toBe(
-      DEFAULT_CHALLENGE_EXPIRATION_SECONDS,
-    );
+    expect(getChallengeLifetimeSeconds(challengeTx)).toBe(DEFAULT_CHALLENGE_EXPIRATION_SECONDS);
   });
 
   it('keeps watchers enabled when the env var is absent', () => {
@@ -233,9 +239,7 @@ describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     const challengeTx = new Transaction(challengeXdr, networkPassphrase);
 
-    expect(Number(challengeTx.timeBounds.maxTime) - Number(challengeTx.timeBounds.minTime)).toBe(
-      45,
-    );
+    expect(getChallengeLifetimeSeconds(challengeTx)).toBe(45);
   });
 });
 
