@@ -1,3 +1,4 @@
+import type { AnchorKitConfig, NetworkConfig } from '@/types/config.ts';
 import DOMPurify from 'isomorphic-dompurify';
 
 /**
@@ -78,5 +79,185 @@ export const ValidationUtils = {
     // Basic format check to avoid loading full SDK if obviously wrong
     if (!/^G[A-Z2-7]{55}$/.test(address)) return false;
     return true;
+  },
+
+  /**
+   * Validates database connection strings or file paths loosely.
+   *
+   * @param urlString The database URL.
+   * @returns true if valid, false otherwise.
+   */
+  isValidDatabaseUrl(urlString: string): boolean {
+    return DatabaseUrlSchema.isValid(urlString);
+  },
+};
+
+/**
+ * AssetSchema
+ * Validation schema for individual Asset entries.
+ */
+export const AssetSchema = {
+  /**
+   * Validates if the given object is a valid Asset entry.
+   *
+   * @param asset The asset object to validate.
+   * @returns true if valid, false otherwise.
+   */
+  isValid(asset: unknown): boolean {
+    if (!asset || typeof asset !== 'object') return false;
+    const a = asset as Record<string, unknown>;
+
+    // Required fields: code, issuer
+    if (typeof a.code !== 'string' || a.code.length === 0) return false;
+    if (typeof a.issuer !== 'string' || !ValidationUtils.isValidStellarAddress(a.issuer)) {
+      return false;
+    }
+
+    // Optional fields if provided must have correct type
+    if (a.name !== undefined && typeof a.name !== 'string') return false;
+    if (a.deposits_enabled !== undefined && typeof a.deposits_enabled !== 'boolean') return false;
+    if (a.withdrawals_enabled !== undefined && typeof a.withdrawals_enabled !== 'boolean')
+      return false;
+    if (a.min_amount !== undefined && typeof a.min_amount !== 'number') return false;
+    if (a.max_amount !== undefined && typeof a.max_amount !== 'number') return false;
+
+    return true;
+  },
+};
+
+/**
+ * DatabaseUrlSchema
+ * Restricts database URLs to supported schemes (postgres, sqlite).
+ */
+export const DatabaseUrlSchema = {
+  /**
+   * Validates if the given string is a supported database URL.
+   * Acceptable schemes: postgresql:, postgres:, sqlite:, file:
+   *
+   * @param urlString The database URL string.
+   * @returns true if supported, false otherwise.
+   */
+  isValid(urlString: string): boolean {
+    if (!urlString || typeof urlString !== 'string') return false;
+
+    const validSchemes = ['postgresql:', 'postgres:', 'sqlite:', 'file:'];
+    return validSchemes.some((scheme) => urlString.startsWith(scheme));
+  },
+};
+
+/**
+ * NetworkConfigSchema - Public validation helper for nested network configuration.
+ */
+export const NetworkConfigSchema = {
+  /**
+   * Validates a NetworkConfig object.
+   * Throws an error if validation fails.
+   *
+   * @param config The NetworkConfig object to validate.
+   */
+  validate(config: NetworkConfig): void {
+    if (!config) throw new Error('Missing required field: network');
+    const validNetworks = ['public', 'testnet', 'futurenet'];
+    if (!validNetworks.includes(config.network)) {
+      throw new Error(
+        `Invalid network: ${config.network}. Must be one of: ${validNetworks.join(', ')}`,
+      );
+    }
+    if (config.horizonUrl && !ValidationUtils.isValidUrl(config.horizonUrl)) {
+      throw new Error('Invalid URL format for network.horizonUrl');
+    }
+  },
+};
+
+/**
+ * AnchorKitConfigSchema - Public validation helper for the top-level configuration object.
+ */
+export const AnchorKitConfigSchema = {
+  /**
+   * Validates the complete AnchorKitConfig object.
+   * Throws an error if validation fails.
+   *
+   * @param config The AnchorKitConfig object to validate.
+   */
+  validate(config: AnchorKitConfig): void {
+    if (!config) throw new Error('Configuration object is missing');
+
+    const { network, server, security, assets, framework, metadata } = config;
+
+    // Validate Sections
+    if (!network) throw new Error('Missing required top-level field: network');
+    if (!server) throw new Error('Missing required top-level field: server');
+    if (!security) throw new Error('Missing required top-level field: security');
+    if (!assets) throw new Error('Missing required top-level field: assets');
+    if (!framework) throw new Error('Missing required top-level field: framework');
+
+    // Network Section
+    NetworkConfigSchema.validate(network);
+
+    // Security Section
+    if (!security.sep10SigningKey)
+      throw new Error('Missing required secret: security.sep10SigningKey');
+    if (!security.interactiveJwtSecret)
+      throw new Error('Missing required secret: security.interactiveJwtSecret');
+    if (!security.distributionAccountSecret)
+      throw new Error('Missing required secret: security.distributionAccountSecret');
+    if (security.authTokenLifetimeSeconds !== undefined && security.authTokenLifetimeSeconds <= 0) {
+      throw new Error('security.authTokenLifetimeSeconds must be > 0');
+    }
+
+    // Assets Section
+    if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
+      throw new Error('At least one asset must be configured in assets.assets');
+    }
+
+    // Framework Database config
+    if (!framework.database || !framework.database.provider || !framework.database.url) {
+      throw new Error('Missing required database configuration in framework.database');
+    }
+
+    if (framework.database.provider === 'mysql') {
+      throw new Error(
+        'MySQL is not currently supported in this MVP. Please use "postgres" or "sqlite".',
+      );
+    }
+
+    if (!ValidationUtils.isValidDatabaseUrl(framework.database.url)) {
+      throw new Error('Invalid database URL format');
+    }
+
+    // Framework Numbers
+    if (framework.queue?.concurrency !== undefined && framework.queue.concurrency < 1) {
+      throw new Error('framework.queue.concurrency must be >= 1');
+    }
+    if (
+      framework.watchers?.pollIntervalMs !== undefined &&
+      framework.watchers.pollIntervalMs < 10
+    ) {
+      throw new Error('framework.watchers.pollIntervalMs must be >= 10');
+    }
+    if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {
+      throw new Error('framework.http.maxBodyBytes must be >= 1024');
+    }
+
+    if (framework.rateLimit) {
+      const rateValues = [
+        framework.rateLimit.windowMs,
+        framework.rateLimit.authChallengeMax,
+        framework.rateLimit.authTokenMax,
+        framework.rateLimit.webhookMax,
+        framework.rateLimit.depositMax,
+      ];
+      if (rateValues.some((value) => value !== undefined && value <= 0)) {
+        throw new Error('framework.rateLimit values must be > 0');
+      }
+    }
+
+    // Other URLs
+    if (server.interactiveDomain && !ValidationUtils.isValidUrl(server.interactiveDomain)) {
+      throw new Error('Invalid URL format for server.interactiveDomain');
+    }
+    if (metadata?.tomlUrl && !ValidationUtils.isValidUrl(metadata.tomlUrl)) {
+      throw new Error('Invalid URL format for metadata.tomlUrl');
+    }
   },
 };

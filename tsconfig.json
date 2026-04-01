@@ -26,6 +26,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "example/**/*", "setup-repo.ts"],
+  "include": ["src/**/*", "tests/**/*", "example/**/*"],
   "exclude": ["node_modules", "dist"]
 }
