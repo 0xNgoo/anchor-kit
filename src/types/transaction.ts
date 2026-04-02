@@ -8,6 +8,8 @@
 
 import type { TransactionStatus } from './transaction-status.ts';
 
+export type TransactionKind = 'deposit' | 'withdrawal';
+
 /**
  * Represents a monetary amount with currency/asset information
  * Uses string for decimal precision (common pattern for financial data)
@@ -140,7 +142,7 @@ export interface Transaction {
   status: TransactionStatus;
 
   /** Transaction type: 'deposit' (fiat->crypto) or 'withdrawal' (crypto->fiat) */
-  kind: 'deposit' | 'withdrawal';
+  kind: TransactionKind;
 
   // ============================================
   // Amount Fields (using Decimal string representation)
