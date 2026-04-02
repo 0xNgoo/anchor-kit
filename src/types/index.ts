@@ -10,6 +10,7 @@ export type { Customer } from './customer.ts';
 
 export type {
   Transaction,
+  TransactionKind,
   Amount,
   RailTransactionData,
   StellarTransactionData,

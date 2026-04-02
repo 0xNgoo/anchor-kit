@@ -1,5 +1,6 @@
 import type {
   Transaction,
+  TransactionKind,
   Amount,
   RailTransactionData,
   StellarTransactionData,
@@ -14,6 +15,15 @@ describe('Transaction', () => {
   // ============================================
 
   describe('core fields', () => {
+    it('exports TransactionKind as the Transaction kind alias', () => {
+      const deposit: TransactionKind = 'deposit';
+      const withdrawal: TransactionKind = 'withdrawal';
+
+      expect(deposit).toBe('deposit');
+      expect(withdrawal).toBe('withdrawal');
+      expectTypeOf<Transaction['kind']>().toEqualTypeOf<TransactionKind>();
+    });
+
     it('requires id, status, and kind', () => {
       const tx: Transaction = {
         id: 'txn-001',
