@@ -92,6 +92,18 @@ describe('StellarUtils', () => {
       expect(parseFloat(operation.amount)).toBe(parseFloat(params.amount));
     });
 
+    it('should throw a clear error when a non-native asset issuer is missing', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1.5',
+          assetCode: 'USDC',
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('Issuer is required for non-native asset payments: USDC');
+    });
+
     it('should throw when parsing invalid XDR', () => {
       expect(() => StellarUtils.parseXdrTransaction('invalid-xdr')).toThrow(/Failed to parse XDR/);
     });
