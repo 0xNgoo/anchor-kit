@@ -4,7 +4,7 @@
  */
 
 export { TRANSACTION_STATUSES, isTerminalTransactionStatus } from './transaction-status.ts';
-export type { TransactionStatus } from './transaction-status.ts';
+export type { TerminalTransactionStatus, TransactionStatus } from './transaction-status.ts';
 
 export type { Customer } from './customer.ts';
 

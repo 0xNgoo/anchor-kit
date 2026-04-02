@@ -1,6 +1,7 @@
 import {
   isTerminalTransactionStatus,
   TRANSACTION_STATUSES,
+  type TerminalTransactionStatus,
   type TransactionStatus,
 } from '@/types/index.ts';
 
@@ -34,8 +35,8 @@ describe('TransactionStatus', () => {
     expect(unique.size).toBe(TRANSACTION_STATUSES.length);
   });
 
-  it('returns true for terminal statuses', () => {
-    const terminalStatuses: TransactionStatus[] = [
+  it('returns the expected result for every valid status', () => {
+    const terminalStatuses = new Set<TerminalTransactionStatus>([
       'completed',
       'refunded',
       'expired',
@@ -43,24 +44,27 @@ describe('TransactionStatus', () => {
       'no_market',
       'too_small',
       'too_large',
-    ];
+    ]);
 
-    expect(terminalStatuses.every((status) => isTerminalTransactionStatus(status))).toBe(true);
+    for (const status of TRANSACTION_STATUSES) {
+      expect(isTerminalTransactionStatus(status)).toBe(terminalStatuses.has(status));
+    }
   });
 
-  it('returns false for non-terminal statuses', () => {
-    const nonTerminalStatuses: TransactionStatus[] = [
-      'incomplete',
-      'pending_anchor',
-      'pending_user_transfer_start',
-      'pending_user_transfer_complete',
-      'pending_external',
-      'pending_trust',
-      'pending_user',
-      'pending_stellar',
-    ];
+  it('acts as a type guard for terminal statuses', () => {
+    const terminalStatuses = TRANSACTION_STATUSES.filter(isTerminalTransactionStatus);
 
-    expect(nonTerminalStatuses.some((status) => isTerminalTransactionStatus(status))).toBe(false);
+    const narrowed: TerminalTransactionStatus[] = terminalStatuses;
+
+    expect(narrowed).toEqual([
+      'completed',
+      'refunded',
+      'expired',
+      'error',
+      'no_market',
+      'too_small',
+      'too_large',
+    ] satisfies TerminalTransactionStatus[]);
   });
 
   // -- compile-time checks (tsc catches these before tests even run) --
