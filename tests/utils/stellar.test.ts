@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Account, Keypair, MuxedAccount } from '@stellar/stellar-sdk';
 import { StellarUtils } from '@/utils/stellar.ts';
 
 interface ParsedPaymentOperation {
@@ -90,6 +91,48 @@ describe('StellarUtils', () => {
       const operation = asPaymentOperation(parsed.operations[0]);
       expect(operation.asset?.isNative()).toBe(true);
       expect(parseFloat(operation.amount)).toBe(parseFloat(params.amount));
+    });
+
+    it('should fail early for an invalid source public key', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: invalidAccountId,
+          destination: validAccountId,
+          amount: '1',
+          assetCode: 'XLM',
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('source must be a valid Stellar public or muxed public key');
+    });
+
+    it('should fail early for an invalid destination public key', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: invalidAccountId,
+          amount: '1',
+          assetCode: 'XLM',
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('destination must be a valid Stellar public or muxed public key');
+    });
+
+    it('should accept muxed source and destination accounts', async () => {
+      const baseAccount = Keypair.random().publicKey();
+      const source = new MuxedAccount(new Account(baseAccount, '0'), '123').accountId();
+      const destination = new MuxedAccount(new Account(baseAccount, '0'), '456').accountId();
+
+      const xdr = await StellarUtils.buildPaymentXdr({
+        source,
+        destination,
+        amount: '1',
+        assetCode: 'XLM',
+        network: 'testnet',
+      });
+
+      const parsed = StellarUtils.parseXdrTransaction(xdr);
+      expect(parsed.source).toBe(source);
+      expect(parsed.operations.length).toBe(1);
     });
 
     it('should throw when parsing invalid XDR', () => {
