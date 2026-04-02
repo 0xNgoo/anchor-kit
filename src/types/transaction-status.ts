@@ -52,6 +52,9 @@ export function isTerminalTransactionStatus(
   return (TERMINAL_TRANSACTION_STATUSES as readonly TransactionStatus[]).includes(status);
 }
 
+/** Union of all pending transaction statuses. */
+export type PendingTransactionStatus = Extract<TransactionStatus, `pending_${string}`>;
+
 const PENDING_TRANSACTION_STATUSES: ReadonlySet<TransactionStatus> = new Set([
   'pending_anchor',
   'pending_user_transfer_start',
@@ -74,6 +77,8 @@ const PENDING_TRANSACTION_STATUSES: ReadonlySet<TransactionStatus> = new Set([
  * - `pending_user`
  * - `pending_stellar`
  */
-export function isPendingTransactionStatus(status: TransactionStatus): boolean {
+export function isPendingTransactionStatus(
+  status: TransactionStatus,
+): status is PendingTransactionStatus {
   return PENDING_TRANSACTION_STATUSES.has(status);
 }
