@@ -51,3 +51,29 @@ export function isTerminalTransactionStatus(
 ): status is TerminalTransactionStatus {
   return (TERMINAL_TRANSACTION_STATUSES as readonly TransactionStatus[]).includes(status);
 }
+
+const PENDING_TRANSACTION_STATUSES: ReadonlySet<TransactionStatus> = new Set([
+  'pending_anchor',
+  'pending_user_transfer_start',
+  'pending_user_transfer_complete',
+  'pending_external',
+  'pending_trust',
+  'pending_user',
+  'pending_stellar',
+]);
+
+/**
+ * Returns whether a transaction is still in progress.
+ *
+ * Pending statuses are:
+ * - `pending_anchor`
+ * - `pending_user_transfer_start`
+ * - `pending_user_transfer_complete`
+ * - `pending_external`
+ * - `pending_trust`
+ * - `pending_user`
+ * - `pending_stellar`
+ */
+export function isPendingTransactionStatus(status: TransactionStatus): boolean {
+  return PENDING_TRANSACTION_STATUSES.has(status);
+}

@@ -1,4 +1,5 @@
 import {
+  isPendingTransactionStatus,
   isTerminalTransactionStatus,
   TRANSACTION_STATUSES,
   type TerminalTransactionStatus,
@@ -65,6 +66,35 @@ describe('TransactionStatus', () => {
       'too_small',
       'too_large',
     ] satisfies TerminalTransactionStatus[]);
+  });
+
+  it('returns true for every pending or in-progress status', () => {
+    const pendingStatuses: TransactionStatus[] = [
+      'pending_anchor',
+      'pending_user_transfer_start',
+      'pending_user_transfer_complete',
+      'pending_external',
+      'pending_trust',
+      'pending_user',
+      'pending_stellar',
+    ];
+
+    expect(pendingStatuses.every((status) => isPendingTransactionStatus(status))).toBe(true);
+  });
+
+  it('returns false for every non-pending status', () => {
+    const nonPendingStatuses: TransactionStatus[] = [
+      'incomplete',
+      'completed',
+      'refunded',
+      'expired',
+      'error',
+      'no_market',
+      'too_small',
+      'too_large',
+    ];
+
+    expect(nonPendingStatuses.every((status) => !isPendingTransactionStatus(status))).toBe(true);
   });
 
   // -- compile-time checks (tsc catches these before tests even run) --
