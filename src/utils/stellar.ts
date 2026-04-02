@@ -119,7 +119,11 @@ export const StellarUtils = {
           ? Networks.FUTURENET
           : Networks.TESTNET;
 
-    const asset = assetCode === 'XLM' ? Asset.native() : new Asset(assetCode, issuer as string);
+    if (assetCode !== 'XLM' && (!issuer || !ValidationUtils.isValidStellarAddress(issuer))) {
+      throw new Error(`A valid issuer is required for non-native asset payments: ${assetCode}`);
+    }
+
+    const asset = assetCode === 'XLM' ? Asset.native() : new Asset(assetCode, issuer);
 
     // We use a dummy sequence number because the actual submission will be handled later
     // or by a signer that manages sequence numbers.
