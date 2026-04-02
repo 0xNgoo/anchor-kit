@@ -1,5 +1,6 @@
 import {
   isPendingTransactionStatus,
+  type PendingTransactionStatus,
   TRANSACTION_STATUSES,
   type TransactionStatus,
 } from '@/types/index.ts';
@@ -61,6 +62,18 @@ describe('TransactionStatus', () => {
     ];
 
     expect(nonPendingStatuses.every((status) => !isPendingTransactionStatus(status))).toBe(true);
+  });
+
+  it('narrows to PendingTransactionStatus when the helper returns true', () => {
+    const status: TransactionStatus = 'pending_anchor';
+
+    if (isPendingTransactionStatus(status)) {
+      const narrowed: PendingTransactionStatus = status;
+      expect(narrowed).toBe('pending_anchor');
+      return;
+    }
+
+    throw new Error('expected status to narrow to PendingTransactionStatus');
   });
 
   // -- compile-time checks (tsc catches these before tests even run) --

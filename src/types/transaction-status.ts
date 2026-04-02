@@ -27,6 +27,9 @@ export const TRANSACTION_STATUSES = [
 /** Union of all valid transaction statuses, pulled from the array above. */
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 
+/** Union of all pending transaction statuses. */
+export type PendingTransactionStatus = Extract<TransactionStatus, `pending_${string}`>;
+
 const PENDING_TRANSACTION_STATUSES: ReadonlySet<TransactionStatus> = new Set([
   'pending_anchor',
   'pending_user_transfer_start',
@@ -49,6 +52,8 @@ const PENDING_TRANSACTION_STATUSES: ReadonlySet<TransactionStatus> = new Set([
  * - `pending_user`
  * - `pending_stellar`
  */
-export function isPendingTransactionStatus(status: TransactionStatus): boolean {
+export function isPendingTransactionStatus(
+  status: TransactionStatus,
+): status is PendingTransactionStatus {
   return PENDING_TRANSACTION_STATUSES.has(status);
 }
