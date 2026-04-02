@@ -117,6 +117,19 @@ describe('StellarUtils', () => {
       ).rejects.toThrow('destination must be a valid Stellar public or muxed public key');
     });
 
+    it('should fail early for an invalid issuer on non-native assets', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1',
+          assetCode: 'USDC',
+          issuer: invalidAccountId,
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('issuer must be a valid Stellar public key for non-native assets');
+    });
+
     it('should accept muxed source and destination accounts', async () => {
       const baseAccount = Keypair.random().publicKey();
       const source = new MuxedAccount(new Account(baseAccount, '0'), '123').accountId();

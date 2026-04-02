@@ -123,6 +123,10 @@ export const StellarUtils = {
       throw new Error('destination must be a valid Stellar public or muxed public key');
     }
 
+    if (assetCode !== 'XLM' && !StrKey.isValidEd25519PublicKey(issuer ?? '')) {
+      throw new Error('issuer must be a valid Stellar public key for non-native assets');
+    }
+
     const networkPassphrase =
       network === 'public'
         ? Networks.PUBLIC
