@@ -37,6 +37,8 @@ The SDK does not own `listen()` and does not bind network ports.
 bun add anchor-kit
 ```
 
+For tests and local development, you can import `makeSqliteDbUrlForTests` directly from `anchor-kit`.
+
 ## Quick Start
 
 ```ts
