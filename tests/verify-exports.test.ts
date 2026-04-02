@@ -1,4 +1,4 @@
-import { AssetSchema, DatabaseUrlSchema, utils } from '../src/index';
+import { AssetSchema, DatabaseUrlSchema, makeSqliteDbUrlForTests, utils } from '../src/index';
 import { describe, expect, it } from 'vitest';
 
 describe('Export Verification', () => {
@@ -15,6 +15,12 @@ describe('Export Verification', () => {
   it('should still be available through utils.AssetSchema', () => {
     expect(utils.AssetSchema).toBeDefined();
     expect(utils.AssetSchema).toBe(AssetSchema);
+  });
+
+  it('should export makeSqliteDbUrlForTests at the top level', () => {
+    expect(makeSqliteDbUrlForTests).toBeDefined();
+    expect(typeof makeSqliteDbUrlForTests).toBe('function');
+    expect(makeSqliteDbUrlForTests()).toMatch(/^file:/);
   });
 });
 
