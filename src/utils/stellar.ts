@@ -130,8 +130,8 @@ export const StellarUtils = {
           ? Networks.FUTURENET
           : Networks.TESTNET;
 
-    if (assetCode !== 'XLM' && !issuer) {
-      throw new Error(`Issuer is required for non-native asset payments: ${assetCode}`);
+    if (assetCode !== 'XLM' && (!issuer || !ValidationUtils.isValidStellarAddress(issuer))) {
+      throw new Error(`A valid issuer is required for non-native asset payments: ${assetCode}`);
     }
 
     if (assetCode !== 'XLM' && !StrKey.isValidEd25519PublicKey(issuer)) {
