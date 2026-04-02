@@ -26,3 +26,29 @@ export const TRANSACTION_STATUSES = [
 
 /** Union of all valid transaction statuses, pulled from the array above. */
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+
+const PENDING_TRANSACTION_STATUSES: ReadonlySet<TransactionStatus> = new Set([
+  'pending_anchor',
+  'pending_user_transfer_start',
+  'pending_user_transfer_complete',
+  'pending_external',
+  'pending_trust',
+  'pending_user',
+  'pending_stellar',
+]);
+
+/**
+ * Returns whether a transaction is still in progress.
+ *
+ * Pending statuses are:
+ * - `pending_anchor`
+ * - `pending_user_transfer_start`
+ * - `pending_user_transfer_complete`
+ * - `pending_external`
+ * - `pending_trust`
+ * - `pending_user`
+ * - `pending_stellar`
+ */
+export function isPendingTransactionStatus(status: TransactionStatus): boolean {
+  return PENDING_TRANSACTION_STATUSES.has(status);
+}
