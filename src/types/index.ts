@@ -3,7 +3,7 @@
  * This is the main entry point for all type exports
  */
 
-export { TRANSACTION_STATUSES } from './transaction-status.ts';
+export { TRANSACTION_STATUSES, isTerminalTransactionStatus } from './transaction-status.ts';
 export type { TransactionStatus } from './transaction-status.ts';
 
 export type { Customer } from './customer.ts';
