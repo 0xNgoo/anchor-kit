@@ -37,8 +37,6 @@ The SDK does not own `listen()` and does not bind network ports.
 bun add anchor-kit
 ```
 
-For tests and local development, you can import `makeSqliteDbUrlForTests` directly from `anchor-kit`.
-
 ## Quick Start
 
 ```ts
@@ -95,6 +93,16 @@ await anchor.startBackgroundJobs();
 app.use('/anchor', anchor.getExpressRouter());
 
 app.listen(3000);
+```
+
+## Testing
+
+For tests and local development, `makeSqliteDbUrlForTests` creates a temporary SQLite database URL that you can import directly from `anchor-kit`.
+
+```ts
+import { makeSqliteDbUrlForTests } from 'anchor-kit';
+
+const databaseUrl = makeSqliteDbUrlForTests();
 ```
 
 ## Endpoints
