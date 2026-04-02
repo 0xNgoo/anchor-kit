@@ -101,7 +101,20 @@ describe('StellarUtils', () => {
           assetCode: 'USDC',
           network: 'testnet',
         }),
-      ).rejects.toThrow('Issuer is required for non-native asset payments: USDC');
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
+    });
+
+    it('should throw a clear error when a non-native asset issuer is invalid', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1.5',
+          assetCode: 'USDC',
+          issuer: invalidAccountId,
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
     });
 
     it('should throw when parsing invalid XDR', () => {
