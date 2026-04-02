@@ -36,7 +36,7 @@ describe('TransactionStatus', () => {
   });
 
   it('returns the expected result for every valid status', () => {
-    const terminalStatuses = new Set<TerminalTransactionStatus>([
+    const terminalStatuses = new Set<TransactionStatus>([
       'completed',
       'refunded',
       'expired',
