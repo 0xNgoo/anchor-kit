@@ -1,9 +1,12 @@
 import {
+  Account,
   Memo as StellarMemo,
   TransactionBuilder,
   Asset,
+  MuxedAccount,
   Networks,
   Operation,
+  StrKey,
   Transaction,
 } from '@stellar/stellar-sdk';
 import { ValidationUtils } from './validation';
@@ -112,6 +115,18 @@ export const StellarUtils = {
   async buildPaymentXdr(params: PaymentParams): Promise<string> {
     const { source, destination, amount, assetCode, issuer, memo, network } = params;
 
+    if (!isValidPaymentAccountAddress(source)) {
+      throw new Error('source must be a valid Stellar public or muxed public key');
+    }
+
+    if (!isValidPaymentAccountAddress(destination)) {
+      throw new Error('destination must be a valid Stellar public or muxed public key');
+    }
+
+    if (assetCode !== 'XLM' && !StrKey.isValidEd25519PublicKey(issuer ?? '')) {
+      throw new Error('issuer must be a valid Stellar public key for non-native assets');
+    }
+
     const networkPassphrase =
       network === 'public'
         ? Networks.PUBLIC
@@ -123,11 +138,9 @@ export const StellarUtils = {
 
     // We use a dummy sequence number because the actual submission will be handled later
     // or by a signer that manages sequence numbers.
-    const sourceAccount = {
-      sequenceNumber: () => '0',
-      incrementSequenceNumber: () => {},
-      accountId: () => source,
-    };
+    const sourceAccount = StrKey.isValidMed25519PublicKey(source)
+      ? MuxedAccount.fromAddress(source, '0')
+      : new Account(source, '0');
 
     const builder = new TransactionBuilder(sourceAccount, {
       fee: '100',
@@ -176,3 +189,7 @@ export const StellarUtils = {
     return ValidationUtils.isValidStellarAddress(accountId);
   },
 };
+
+function isValidPaymentAccountAddress(address: string): boolean {
+  return StrKey.isValidEd25519PublicKey(address) || StrKey.isValidMed25519PublicKey(address);
+}
