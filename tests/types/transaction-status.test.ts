@@ -1,4 +1,9 @@
-import { TRANSACTION_STATUSES, type TransactionStatus } from '@/types/index.ts';
+import {
+  isTerminalTransactionStatus,
+  TRANSACTION_STATUSES,
+  type TerminalTransactionStatus,
+  type TransactionStatus,
+} from '@/types/index.ts';
 
 describe('TransactionStatus', () => {
   // -- runtime checks on the status array --
@@ -28,6 +33,38 @@ describe('TransactionStatus', () => {
   it('contains no duplicates', () => {
     const unique = new Set(TRANSACTION_STATUSES);
     expect(unique.size).toBe(TRANSACTION_STATUSES.length);
+  });
+
+  it('returns the expected result for every valid status', () => {
+    const terminalStatuses = new Set<TransactionStatus>([
+      'completed',
+      'refunded',
+      'expired',
+      'error',
+      'no_market',
+      'too_small',
+      'too_large',
+    ]);
+
+    for (const status of TRANSACTION_STATUSES) {
+      expect(isTerminalTransactionStatus(status)).toBe(terminalStatuses.has(status));
+    }
+  });
+
+  it('acts as a type guard for terminal statuses', () => {
+    const terminalStatuses = TRANSACTION_STATUSES.filter(isTerminalTransactionStatus);
+
+    const narrowed: TerminalTransactionStatus[] = terminalStatuses;
+
+    expect(narrowed).toEqual([
+      'completed',
+      'refunded',
+      'expired',
+      'error',
+      'no_market',
+      'too_small',
+      'too_large',
+    ] satisfies TerminalTransactionStatus[]);
   });
 
   // -- compile-time checks (tsc catches these before tests even run) --

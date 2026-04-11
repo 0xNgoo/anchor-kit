@@ -26,3 +26,28 @@ export const TRANSACTION_STATUSES = [
 
 /** Union of all valid transaction statuses, pulled from the array above. */
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+
+const TERMINAL_TRANSACTION_STATUSES = [
+  'completed',
+  'refunded',
+  'expired',
+  'error',
+  'no_market',
+  'too_small',
+  'too_large',
+] as const;
+
+/** Union of transaction statuses that cannot make further progress. */
+export type TerminalTransactionStatus = (typeof TERMINAL_TRANSACTION_STATUSES)[number];
+
+/**
+ * Returns true when a transaction can no longer make progress.
+ *
+ * Terminal statuses:
+ * `completed`, `refunded`, `expired`, `error`, `no_market`, `too_small`, `too_large`
+ */
+export function isTerminalTransactionStatus(
+  status: TransactionStatus,
+): status is TerminalTransactionStatus {
+  return (TERMINAL_TRANSACTION_STATUSES as readonly TransactionStatus[]).includes(status);
+}
