@@ -1,7 +1,16 @@
 import { AssetSchema, DatabaseUrlSchema, utils } from '../src/index';
+import type { TransactionKind } from '../src/index';
 import { describe, expect, it } from 'vitest';
 
 describe('Export Verification', () => {
+  it('should export TransactionKind at the top level', () => {
+    const deposit: TransactionKind = 'deposit';
+    const withdrawal: TransactionKind = 'withdrawal';
+
+    expect(deposit).toBe('deposit');
+    expect(withdrawal).toBe('withdrawal');
+  });
+
   it('should export AssetSchema at the top level', () => {
     expect(AssetSchema).toBeDefined();
     expect(typeof AssetSchema.isValid).toBe('function');
