@@ -41,6 +41,14 @@ const TERMINAL_TRANSACTION_STATUSES = [
 export type TerminalTransactionStatus = (typeof TERMINAL_TRANSACTION_STATUSES)[number];
 
 /**
+ * Runtime guard that validates arbitrary input is a `TransactionStatus`.
+ * Uses the canonical `TRANSACTION_STATUSES` array as the single source of truth.
+ */
+export function isTransactionStatus(value: unknown): value is TransactionStatus {
+  return typeof value === 'string' && (TRANSACTION_STATUSES as readonly string[]).includes(value);
+}
+
+/**
  * Returns true when a transaction can no longer make progress.
  *
  * Terminal statuses:
