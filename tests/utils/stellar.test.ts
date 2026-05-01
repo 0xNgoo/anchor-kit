@@ -117,6 +117,31 @@ describe('StellarUtils', () => {
       ).rejects.toThrow('destination must be a valid Stellar public or muxed public key');
     });
 
+    it('should throw a clear error when a non-native asset issuer is missing', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1.5',
+          assetCode: 'USDC',
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
+    });
+
+    it('should throw a clear error when a non-native asset issuer is invalid', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1.5',
+          assetCode: 'USDC',
+          issuer: invalidAccountId,
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
+    });
+
     it('should fail early for an invalid issuer on non-native assets', async () => {
       await expect(
         StellarUtils.buildPaymentXdr({
@@ -127,7 +152,7 @@ describe('StellarUtils', () => {
           issuer: invalidAccountId,
           network: 'testnet',
         }),
-      ).rejects.toThrow('issuer must be a valid Stellar public key for non-native assets');
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
     });
 
     it('should accept muxed source and destination accounts', async () => {

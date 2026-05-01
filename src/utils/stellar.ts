@@ -123,10 +123,6 @@ export const StellarUtils = {
       throw new Error('destination must be a valid Stellar public or muxed public key');
     }
 
-    if (assetCode !== 'XLM' && !StrKey.isValidEd25519PublicKey(issuer ?? '')) {
-      throw new Error('issuer must be a valid Stellar public key for non-native assets');
-    }
-
     const networkPassphrase =
       network === 'public'
         ? Networks.PUBLIC
@@ -134,7 +130,11 @@ export const StellarUtils = {
           ? Networks.FUTURENET
           : Networks.TESTNET;
 
-    const asset = assetCode === 'XLM' ? Asset.native() : new Asset(assetCode, issuer as string);
+    if (assetCode !== 'XLM' && (!issuer || !ValidationUtils.isValidStellarAddress(issuer))) {
+      throw new Error(`A valid issuer is required for non-native asset payments: ${assetCode}`);
+    }
+
+    const asset = assetCode === 'XLM' ? Asset.native() : new Asset(assetCode, issuer);
 
     // We use a dummy sequence number because the actual submission will be handled later
     // or by a signer that manages sequence numbers.
