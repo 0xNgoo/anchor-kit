@@ -134,10 +134,6 @@ export const StellarUtils = {
       throw new Error(`A valid issuer is required for non-native asset payments: ${assetCode}`);
     }
 
-    if (assetCode !== 'XLM' && !StrKey.isValidEd25519PublicKey(issuer)) {
-      throw new Error('issuer must be a valid Stellar public key for non-native assets');
-    }
-
     const asset = assetCode === 'XLM' ? Asset.native() : new Asset(assetCode, issuer);
 
     // We use a dummy sequence number because the actual submission will be handled later

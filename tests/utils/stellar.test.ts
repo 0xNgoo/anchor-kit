@@ -152,7 +152,7 @@ describe('StellarUtils', () => {
           issuer: invalidAccountId,
           network: 'testnet',
         }),
-      ).rejects.toThrow('issuer must be a valid Stellar public key for non-native assets');
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
     });
 
     it('should accept muxed source and destination accounts', async () => {
