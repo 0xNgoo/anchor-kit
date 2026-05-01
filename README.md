@@ -95,6 +95,16 @@ app.use('/anchor', anchor.getExpressRouter());
 app.listen(3000);
 ```
 
+## Testing
+
+For tests and local development, `makeSqliteDbUrlForTests` creates a temporary SQLite database URL that you can import directly from `anchor-kit`.
+
+```ts
+import { makeSqliteDbUrlForTests } from 'anchor-kit';
+
+const databaseUrl = makeSqliteDbUrlForTests();
+```
+
 ## Endpoints
 
 Mounted under your chosen base path (for example `/anchor`):
