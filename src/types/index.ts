@@ -7,6 +7,7 @@ export {
   TRANSACTION_STATUSES,
   isPendingTransactionStatus,
   isTerminalTransactionStatus,
+  isTransactionStatus,
 } from './transaction-status.ts';
 export type {
   PendingTransactionStatus,
