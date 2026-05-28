@@ -23,7 +23,7 @@ describe('sqlite idempotency persistence', () => {
 
     db.run(
       'INSERT INTO idempotency (scope, id_key, hash, status, response) VALUES (?, ?, ?, ?, ?)',
-      [scope, key, hash, status, JSON.stringify(response)]
+      [scope, key, hash, status, JSON.stringify(response)],
     );
 
     const all = [...db.query('SELECT scope, id_key, hash, status, response FROM idempotency')];
