@@ -44,7 +44,13 @@ import express from 'express';
 import { createAnchor } from 'anchor-kit';
 
 const app = express();
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as { rawBody?: string }).rawBody = buf.toString('utf8');
+    },
+  }),
+);
 
 const anchor = createAnchor({
   network: { network: 'testnet' },
@@ -94,6 +100,12 @@ app.use('/anchor', anchor.getExpressRouter());
 
 app.listen(3000);
 ```
+
+### Webhook raw body capture
+
+Webhook signature verification signs the exact request body bytes, so Anchor-Kit must receive the unmodified raw body. If Express parses or normalizes JSON before the SDK can verify the signature, an otherwise valid `x-anchor-signature` can fail.
+
+When mounting Anchor-Kit behind Express, configure `express.json()` with a `verify` hook before `anchor.getExpressRouter()` and store `req.rawBody`, as shown in the Quick Start. Verify the webhook signature before parsing, transforming, or rebuilding the body for any custom middleware.
 
 ## Testing
 
