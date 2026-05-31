@@ -1,9 +1,11 @@
 import {
   AnchorKitConfigSchema,
   NetworkConfigSchema,
+  SecurityConfigSchema,
   ValidationUtils,
 } from '../../src/utils/validation';
-import type { AnchorKitConfig } from '../../src/types/config';
+import { SecurityConfigSchema as PublicSecurityConfigSchema } from '../../src';
+import type { AnchorKitConfig, SecurityConfig } from '../../src/types/config';
 
 describe('ValidationUtils', () => {
   describe('isValidEmail', () => {
@@ -140,6 +142,56 @@ describe('NetworkConfigSchema', () => {
         horizonUrl: 'not-a-url',
       }),
     ).toThrow(/Invalid URL format/);
+  });
+});
+
+describe('SecurityConfigSchema', () => {
+  const validSecurity: SecurityConfig = {
+    sep10SigningKey: 'SD6P3...',
+    interactiveJwtSecret: 'shhh',
+    distributionAccountSecret: 'SD7Q4...',
+  };
+
+  test('is publicly reachable from the package entry point', () => {
+    expect(PublicSecurityConfigSchema).toBe(SecurityConfigSchema);
+    expect(typeof PublicSecurityConfigSchema.validate).toBe('function');
+  });
+
+  test('validates a correct SecurityConfig without throwing', () => {
+    expect(() => SecurityConfigSchema.validate(validSecurity)).not.toThrow();
+  });
+
+  test('throws when the security block itself is missing', () => {
+    // @ts-expect-error test case
+    expect(() => SecurityConfigSchema.validate(undefined)).toThrow(/security/);
+  });
+
+  test('throws for each required secret independently', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({ ...validSecurity, sep10SigningKey: '' }),
+    ).toThrow(/sep10SigningKey/);
+    expect(() =>
+      SecurityConfigSchema.validate({ ...validSecurity, interactiveJwtSecret: '' }),
+    ).toThrow(/interactiveJwtSecret/);
+    expect(() =>
+      SecurityConfigSchema.validate({ ...validSecurity, distributionAccountSecret: '' }),
+    ).toThrow(/distributionAccountSecret/);
+  });
+
+  test('throws when authTokenLifetimeSeconds is not strictly positive', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({ ...validSecurity, authTokenLifetimeSeconds: 0 }),
+    ).toThrow(/authTokenLifetimeSeconds/);
+    expect(() =>
+      SecurityConfigSchema.validate({ ...validSecurity, authTokenLifetimeSeconds: -1 }),
+    ).toThrow(/authTokenLifetimeSeconds/);
+  });
+
+  test('allows authTokenLifetimeSeconds when undefined or positive', () => {
+    expect(() => SecurityConfigSchema.validate(validSecurity)).not.toThrow();
+    expect(() =>
+      SecurityConfigSchema.validate({ ...validSecurity, authTokenLifetimeSeconds: 3600 }),
+    ).not.toThrow();
   });
 });
 
