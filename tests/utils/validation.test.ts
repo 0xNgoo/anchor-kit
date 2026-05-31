@@ -172,6 +172,15 @@ describe('SecurityConfigSchema', () => {
       }),
     ).toThrow(/authTokenLifetimeSeconds must be > 0/);
   });
+
+  test('should throw when authTokenLifetimeSeconds is a string', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        authTokenLifetimeSeconds: '3600' as unknown as number,
+      }),
+    ).toThrow(/authTokenLifetimeSeconds must be > 0/);
+  });
 });
 
 describe('AnchorKitConfigSchema', () => {

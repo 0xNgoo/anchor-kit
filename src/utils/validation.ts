@@ -187,7 +187,12 @@ export const SecurityConfigSchema = {
       throw new Error('Missing required secret: security.interactiveJwtSecret');
     if (!config.distributionAccountSecret)
       throw new Error('Missing required secret: security.distributionAccountSecret');
-    if (config.authTokenLifetimeSeconds !== undefined && config.authTokenLifetimeSeconds <= 0) {
+    if (
+      config.authTokenLifetimeSeconds !== undefined &&
+      (typeof config.authTokenLifetimeSeconds !== 'number' ||
+        !Number.isFinite(config.authTokenLifetimeSeconds) ||
+        config.authTokenLifetimeSeconds <= 0)
+    ) {
       throw new Error('security.authTokenLifetimeSeconds must be > 0');
     }
   },
