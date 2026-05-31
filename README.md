@@ -12,11 +12,13 @@ Designed for **Bun** and **TypeScript**, Anchor-Kit aims to make Stellar Anchors
 
 ## Features
 
-- 🏗 **SEP-24 Out of the Box**: Hosted deposit and withdrawal flows with minimal configuration.
-- 🔐 **SEP-10 Authentication**: Built-in Stellar Web Authentication handling.
-- 🧩 **Modular Architecture**: Plugin system for different payment rails (Flutterwave, Paystack, etc.).
+- 🔐 **SEP-10 Authentication**: Built-in challenge/token flow.
+- 🏗 **SEP-24 Interactive Deposits**: Minimal deposit flow endpoints.
+- 🌐 **Express Integration**: Mount routes with `anchor.getExpressRouter()`.
+- 🪝 **Webhook Endpoint**: Signature verification and callback hook support.
+- 🗄 **SQL Persistence**: SQLite for local/dev and PostgreSQL support path.
+- ⚙️ **Background Processing**: In-process queue and transaction watcher lifecycle.
 - 🛡 **Type-Safe**: Built with TypeScript for a robust developer experience.
-- ⚡ **Bun Optimized**: Fast runtime performance.
 
 ## MVP Status
 
@@ -107,6 +109,17 @@ Webhook signature verification signs the exact request body bytes, so Anchor-Kit
 
 When mounting Anchor-Kit behind Express, configure `express.json()` with a `verify` hook before `anchor.getExpressRouter()` and store `req.rawBody`, as shown in the Quick Start. Verify the webhook signature before parsing, transforming, or rebuilding the body for any custom middleware.
 
+## Background Job Lifecycle
+
+Background processing is explicit and host-controlled.
+
+1. Call `await anchor.init()` before mounting routes or starting jobs.
+2. Call `await anchor.startBackgroundJobs()` once during app startup.
+3. Call `await anchor.stopBackgroundJobs()` during graceful shutdown.
+4. Call `await anchor.shutdown()` after jobs are stopped.
+
+`startBackgroundJobs()` and `stopBackgroundJobs()` are idempotent and safe to call more than once.
+
 ## Testing
 
 For tests and local development, `makeSqliteDbUrlForTests` creates a temporary SQLite database URL that you can import directly from `anchor-kit`.
@@ -128,6 +141,56 @@ Mounted under your chosen base path (for example `/anchor`):
 - `POST /transactions/deposit/interactive` (Bearer auth)
 - `GET /transactions/:id` (Bearer auth)
 - `POST /webhooks/events`
+
+## curl Examples
+
+Assume your host app mounts the router at `/anchor` on `http://localhost:3000`.
+
+### SEP-10 challenge/token flow
+
+Get a challenge for a Stellar account:
+
+```bash
+ACCOUNT="G...YOUR_STELLAR_ACCOUNT"
+curl -s "http://localhost:3000/anchor/auth/challenge?account=${ACCOUNT}"
+```
+
+Exchange a wallet-signed challenge XDR for a bearer token:
+
+```bash
+ACCOUNT="G...YOUR_STELLAR_ACCOUNT"
+SIGNED_CHALLENGE_XDR="AAAA...wallet-signed-challenge-xdr"
+
+curl -s \
+  -X POST http://localhost:3000/anchor/auth/token \
+  -H 'content-type: application/json' \
+  -d "{\"account\":\"${ACCOUNT}\",\"challenge\":\"${SIGNED_CHALLENGE_XDR}\"}"
+```
+
+### Interactive deposit and transaction lookup
+
+Create a deposit transaction:
+
+```bash
+TOKEN="eyJ...sep10-access-token"
+
+curl -s \
+  -X POST http://localhost:3000/anchor/transactions/deposit/interactive \
+  -H "authorization: Bearer ${TOKEN}" \
+  -H 'content-type: application/json' \
+  -d '{"asset_code":"USDC","amount":"25"}'
+```
+
+Look up a transaction by id:
+
+```bash
+TOKEN="eyJ...sep10-access-token"
+TX_ID="replace-with-transaction-id"
+
+curl -s \
+  -H "authorization: Bearer ${TOKEN}" \
+  "http://localhost:3000/anchor/transactions/${TX_ID}"
+```
 
 ## Docs
 
