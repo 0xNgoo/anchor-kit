@@ -115,8 +115,7 @@ Background processing is explicit and host-controlled.
 
 1. Call `await anchor.init()` before mounting routes or starting jobs.
 2. Call `await anchor.startBackgroundJobs()` once during app startup.
-3. Call `await anchor.stopBackgroundJobs()` during graceful shutdown.
-4. Call `await anchor.shutdown()` after jobs are stopped.
+3. Call `await anchor.shutdown()` during graceful shutdown (which automatically stops background jobs).
 
 `startBackgroundJobs()` and `stopBackgroundJobs()` are idempotent and safe to call more than once.
 
