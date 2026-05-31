@@ -1,6 +1,7 @@
 import {
   AnchorKitConfigSchema,
   NetworkConfigSchema,
+  SecurityConfigSchema,
   ValidationUtils,
 } from '../../src/utils/validation';
 import type { AnchorKitConfig } from '../../src/types/config';
@@ -140,6 +141,36 @@ describe('NetworkConfigSchema', () => {
         horizonUrl: 'not-a-url',
       }),
     ).toThrow(/Invalid URL format/);
+  });
+});
+
+describe('SecurityConfigSchema', () => {
+  const validSecurityConfig = {
+    sep10SigningKey: 'SD6P3...',
+    interactiveJwtSecret: 'shhh',
+    distributionAccountSecret: 'SD7Q4...',
+  };
+
+  test('should validate a correct SecurityConfig', () => {
+    expect(() => SecurityConfigSchema.validate(validSecurityConfig)).not.toThrow();
+  });
+
+  test('should throw for missing security secrets', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        sep10SigningKey: '',
+      }),
+    ).toThrow(/sep10SigningKey/);
+  });
+
+  test('should throw for invalid authTokenLifetimeSeconds', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        authTokenLifetimeSeconds: 0,
+      }),
+    ).toThrow(/authTokenLifetimeSeconds must be > 0/);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { AnchorKitConfig, NetworkConfig } from '@/types/config.ts';
+import type { AnchorKitConfig, NetworkConfig, SecurityConfig } from '@/types/config.ts';
 import DOMPurify from 'isomorphic-dompurify';
 
 /**
@@ -170,6 +170,30 @@ export const NetworkConfigSchema = {
 };
 
 /**
+ * SecurityConfigSchema - Public validation helper for security configuration.
+ */
+export const SecurityConfigSchema = {
+  /**
+   * Validates a SecurityConfig object.
+   * Throws an error if validation fails.
+   *
+   * @param config The SecurityConfig object to validate.
+   */
+  validate(config: SecurityConfig): void {
+    if (!config) throw new Error('Missing required field: security');
+    if (!config.sep10SigningKey)
+      throw new Error('Missing required secret: security.sep10SigningKey');
+    if (!config.interactiveJwtSecret)
+      throw new Error('Missing required secret: security.interactiveJwtSecret');
+    if (!config.distributionAccountSecret)
+      throw new Error('Missing required secret: security.distributionAccountSecret');
+    if (config.authTokenLifetimeSeconds !== undefined && config.authTokenLifetimeSeconds <= 0) {
+      throw new Error('security.authTokenLifetimeSeconds must be > 0');
+    }
+  },
+};
+
+/**
  * AnchorKitConfigSchema - Public validation helper for the top-level configuration object.
  */
 export const AnchorKitConfigSchema = {
@@ -195,15 +219,7 @@ export const AnchorKitConfigSchema = {
     NetworkConfigSchema.validate(network);
 
     // Security Section
-    if (!security.sep10SigningKey)
-      throw new Error('Missing required secret: security.sep10SigningKey');
-    if (!security.interactiveJwtSecret)
-      throw new Error('Missing required secret: security.interactiveJwtSecret');
-    if (!security.distributionAccountSecret)
-      throw new Error('Missing required secret: security.distributionAccountSecret');
-    if (security.authTokenLifetimeSeconds !== undefined && security.authTokenLifetimeSeconds <= 0) {
-      throw new Error('security.authTokenLifetimeSeconds must be > 0');
-    }
+    SecurityConfigSchema.validate(security);
 
     // Assets Section
     if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
