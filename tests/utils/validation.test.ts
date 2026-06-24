@@ -44,7 +44,7 @@ describe('ValidationUtils', () => {
 
     test('should return false for invalid URLs', () => {
       expect(ValidationUtils.isValidUrl('not-a-url')).toBe(false);
-      expect(ValidationUtils.isValidUrl('ftp://invalid')).toBe(true); // Technically a valid URL structure
+      expect(ValidationUtils.isValidUrl('ftp://invalid')).toBe(false); // Non-HTTP(S) schemes should be rejected
       expect(ValidationUtils.isValidUrl('')).toBe(false);
     });
   });
