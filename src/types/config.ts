@@ -141,6 +141,12 @@ export interface SecurityConfig {
    * @optional - defaults to true
    */
   verifyWebhookSignatures?: boolean;
+
+  /**
+   * Auth token lifetime in seconds
+   * @optional - defaults to 3600 (1 hour)
+   */
+  authTokenLifetimeSeconds?: number;
 }
 
 /**
@@ -400,6 +406,101 @@ export interface FrameworkConfig {
   };
 
   /**
+   * Queue backend configuration
+   * @optional - defaults to in-process memory queue
+   */
+  queue?: {
+    /**
+     * Queue backend implementation
+     */
+    backend: 'memory';
+
+    /**
+     * Number of worker tasks processed concurrently
+     * @optional - defaults to 1
+     */
+    concurrency?: number;
+  };
+
+  /**
+   * Watcher configuration for async lifecycle checks
+   * @optional
+   */
+  watchers?: {
+    /**
+     * Enable periodic watcher checks
+     * @optional - defaults to true
+     */
+    enabled?: boolean;
+
+    /**
+     * Poll interval in milliseconds
+     * @optional - defaults to 15000
+     */
+    pollIntervalMs?: number;
+
+    /**
+     * Pending transaction timeout in milliseconds
+     * @optional - defaults to 300000
+     */
+    transactionTimeoutMs?: number;
+
+    /**
+     * Retention window in days for watcher logs and operational records.
+     * @optional - defaults to 90
+     */
+    retentionDays?: number;
+  };
+
+  /**
+   * HTTP guardrails for SDK route handlers.
+   * @optional
+   */
+  http?: {
+    /**
+     * Maximum accepted request body size in bytes.
+     * @optional - defaults to 1048576 (1 MB)
+     */
+    maxBodyBytes?: number;
+  };
+
+  /**
+   * In-process per-route rate limiting.
+   * @optional
+   */
+  rateLimit?: {
+    /**
+     * Sliding window duration in milliseconds.
+     * @optional - defaults to 60000
+     */
+    windowMs?: number;
+
+    /**
+     * Max requests per window for auth challenge endpoint.
+     * @optional - defaults to 30
+     */
+    authChallengeMax?: number;
+
+    /**
+     * Max requests per window for auth token endpoint.
+     * @optional - defaults to 30
+     */
+    authTokenMax?: number;
+
+    /**
+     * Max requests per window for webhook endpoint.
+     * @optional - defaults to 120
+     */
+    webhookMax?: number;
+
+    /**
+     * Max requests per window for deposit endpoint.
+     * @optional - defaults to 60
+     */
+    depositMax?: number;
+  };
+
+  /**
    * Plugin system for extending functionality
    * @optional
    */
@@ -517,4 +618,25 @@ export interface AnchorKitConfig {
    * @required
    */
   framework: FrameworkConfig;
+
+  /**
+   * Webhook integration configuration.
+   */
+  webhooks?: {
+    /**
+     * Called after webhook event verification and persistence.
+     */
+    onEvent?: (
+      event: {
+        id: string;
+        eventId: string;
+        provider: string;
+        payload: Record<string, unknown>;
+      },
+      context: {
+        receivedAt: string;
+        signature?: string;
+      },
+    ) => Promise<void> | void;
+  };
 }

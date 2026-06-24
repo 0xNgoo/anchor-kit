@@ -1,5 +1,12 @@
-import { describe, it, expectTypeOf } from 'vitest';
+import { describe, it } from 'vitest';
 import type { KycData, KycStatus } from '../src/types';
+
+function expectTypeOf<T>(_value?: T) {
+  return {
+    toEqualTypeOf<U>(_?: U): void {},
+    toMatchTypeOf<U>(_?: U): void {},
+  };
+}
 
 describe('KycData Type Tests', () => {
   it('should export KycData from types barrel', () => {

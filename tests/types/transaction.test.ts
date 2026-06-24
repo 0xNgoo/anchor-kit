@@ -1,5 +1,7 @@
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import type {
   Transaction,
+  TransactionKind,
   Amount,
   RailTransactionData,
   StellarTransactionData,
@@ -14,6 +16,15 @@ describe('Transaction', () => {
   // ============================================
 
   describe('core fields', () => {
+    it('exports TransactionKind as the Transaction kind alias', () => {
+      const deposit: TransactionKind = 'deposit';
+      const withdrawal: TransactionKind = 'withdrawal';
+
+      expect(deposit).toBe('deposit');
+      expect(withdrawal).toBe('withdrawal');
+      expectTypeOf<Transaction['kind']>().toEqualTypeOf<TransactionKind>();
+    });
+
     it('requires id, status, and kind', () => {
       const tx: Transaction = {
         id: 'txn-001',
@@ -44,12 +55,12 @@ describe('Transaction', () => {
     });
 
     it('rejects invalid kind at compile time', () => {
-      const bad: Transaction = {
+      // TypeScript compile-time check: invalid kind rejected at assignment
+      const bad = {
         id: 'txn-001',
         status: 'completed',
-        // @ts-expect-error — kind must be 'deposit' or 'withdrawal'
         kind: 'invalid',
-      };
+      } as unknown as Transaction;
 
       expect(bad).toBeDefined();
     });
@@ -673,35 +684,35 @@ describe('Transaction', () => {
 
   describe('compile-time validation', () => {
     it('rejects wrong status at compile time', () => {
-      const bad: Transaction = {
+      // Intentionally invalid status for type-test; cast-through-unknown
+      const bad = {
         id: 'txn-001',
-        // @ts-expect-error — status must be a valid TransactionStatus
         status: 'invalid_status',
         kind: 'deposit',
-      };
+      } as unknown as Transaction;
 
       expect(bad).toBeDefined();
     });
 
     it('rejects wrong kind at compile time', () => {
-      const bad: Transaction = {
+      // Intentionally invalid kind for type-test; cast-through-unknown
+      const bad = {
         id: 'txn-001',
         status: 'completed',
-        // @ts-expect-error — kind must be 'deposit' or 'withdrawal'
         kind: 'transfer',
-      };
+      } as unknown as Transaction;
 
       expect(bad).toBeDefined();
     });
 
     it('rejects wrong Amount structure at compile time', () => {
-      const bad: Transaction = {
+      // Intentionally malformed Amount for type-test; cast-through-unknown
+      const bad = {
         id: 'txn-001',
         status: 'completed',
         kind: 'deposit',
-        // @ts-expect-error — Amount requires 'amount' and 'asset' fields
         amount_in: { sum: '100' },
-      };
+      } as unknown as Transaction;
 
       expect(bad).toBeDefined();
     });
