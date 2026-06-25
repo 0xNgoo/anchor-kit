@@ -664,7 +664,7 @@ export class AnchorExpressRouter {
     res: ServerResponse,
     endpoint: 'auth_challenge' | 'auth_token' | 'webhook' | 'deposit',
   ): boolean {
-    const trustForwardedFor = this.config.get('framework').rateLimit?.trustForwardedFor ?? false;
+    const trustForwardedFor = this.config.get('framework')?.rateLimit?.trustForwardedFor ?? false;
     const clientId = extractClientIdentifier(req, trustForwardedFor);
     const key = `${endpoint}:${clientId}`;
     const result = this.rateLimiter.hit(key, this.rateRules[endpoint]);
