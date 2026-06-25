@@ -180,6 +180,7 @@ describe('MVP Express-mounted integration', () => {
     const response = await invoke({ path: '/health' });
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('ok');
+    expect(response.body.version).toBe(version);
   });
 
   it('2) /info returns configured assets and package version', async () => {
