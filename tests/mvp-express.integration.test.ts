@@ -181,11 +181,6 @@ describe('MVP Express-mounted integration', () => {
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('ok');
   });
-  it('1) app mounts router and /health works', async () => {
-    const response = await invoke({ path: '/health' });
-    expect(response.status).toBe(200);
-    expect(response.body.status).toBe('ok');
-  });
 
   it('1b) wrong HTTP method on supported path returns 404', async () => {
     const response = await invoke({
