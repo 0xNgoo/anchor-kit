@@ -3,6 +3,7 @@ import { createAnchor, type AnchorInstance } from "@/index.ts";
 import { Keypair } from "@stellar/stellar-sdk";
 import { unlinkSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
 import jwt from "jsonwebtoken";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
@@ -63,10 +64,14 @@ function createMountedInvoker(anchor: AnchorInstance) {
         end(payload?: string): void {
           const contentType = responseHeaders["content-type"] ?? "";
           const bodyText = typeof payload === "string" ? payload : "";
-          const body =
-            contentType.includes("application/json") && bodyText
-              ? (JSON.parse(bodyText) as Record<string, unknown>)
-              : {};
+          let body: Record<string, unknown> = {};
+          if (contentType.includes("application/json") && bodyText) {
+            try {
+              body = JSON.parse(bodyText) as Record<string, unknown>;
+            } catch {
+              body = { raw: bodyText };
+            }
+          }
           resolve({
             status: statusCode,
             headers: responseHeaders,
@@ -97,7 +102,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
 describe("Bearer token signed with wrong secret", () => {
   const sep10ServerKeypair = Keypair.random();
   const dbUrl = makeSqliteDbUrlForTests();
-  const dbPath = dbUrl.startsWith("file:") ? dbUrl.slice("file:".length) : dbUrl;
+  const dbPath = dbUrl.startsWith("file:") ? fileURLToPath(dbUrl) : dbUrl;
   let anchor: AnchorInstance;
   let invoke: (options: TestRequestOptions) => Promise<TestResponse>;
 
@@ -146,8 +151,10 @@ describe("Bearer token signed with wrong secret", () => {
   });
 
   afterAll(async () => {
-    await anchor.stopBackgroundJobs();
-    await anchor.shutdown();
+    if (anchor) {
+      await anchor.stopBackgroundJobs();
+      await anchor.shutdown();
+    }
     try { unlinkSync(dbPath); } catch {}
   });
 
