@@ -129,7 +129,6 @@ export const AssetSchema = {
     ) {
       return false;
     }
-
     return true;
   },
 };
