@@ -831,6 +831,69 @@ describe('MVP Express-mounted integration', () => {
     expect(Number.isNaN(parsed)).toBe(false);
   });
 
+  it('8f) failed webhook error response includes event_id', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: {},
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-error-event-id',
+        distributionAccountSecret: 'distribution-test-secret',
+        webhookSecret: 'webhook-test-secret',
+        verifyWebhookSignatures: true,
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: customDbUrl },
+      },
+      webhooks: {
+        onEvent: async () => {
+          throw new Error('simulated processing failure');
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    const payload = { id: 'evt_err_1', type: 'deposit.completed' };
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await customInvoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('webhook_error');
+    expect(response.body.event_id).toBe('evt_err_1');
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
   it('9) queue worker/watcher processes at least one watch task', async () => {
     await new Promise((resolve) => setTimeout(resolve, 125));
     const processed = await anchor.getProcessedWatcherTaskCount();

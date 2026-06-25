@@ -648,6 +648,7 @@ export class AnchorExpressRouter {
         sendJson(res, 400, {
           error: 'webhook_error',
           message: 'Webhook processing failed',
+          event_id: eventId,
         });
       }
       return;
