@@ -64,6 +64,13 @@ describe('TransactionWatcher Unit Tests', () => {
     });
   });
 
+  it('treats stop() before start() as a safe no-op', async () => {
+    await expect(transactionWatcher.stop()).resolves.toBeUndefined();
+    expect(mockDatabase.listPendingTransactionsBefore).not.toHaveBeenCalled();
+    expect(mockQueue.enqueue).not.toHaveBeenCalled();
+    expect(mockQueue.stop).not.toHaveBeenCalled();
+  });
+
   it('enqueues expiration jobs for stale pending deposits', async () => {
     const staleTransaction = {
       id: 'stale-tx-1',

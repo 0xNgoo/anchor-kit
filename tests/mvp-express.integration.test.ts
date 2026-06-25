@@ -802,6 +802,26 @@ describe('MVP Express-mounted integration', () => {
     expect((response.body.event_id as string).length).toBeGreaterThan(0);
   });
 
+  it('8f) webhook route accepts an empty body and generates event_id for signed empty payloads', async () => {
+    const signature = createHmac('sha256', 'webhook-test-secret').update('').digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(response.body.duplicate).toBe(false);
+    expect(typeof response.body.event_id).toBe('string');
+    expect((response.body.event_id as string).length).toBeGreaterThan(0);
+  });
+
   it('8e) webhook success response includes received_at ISO timestamp', async () => {
     const payload = {
       id: 'evt_received_at_check',
