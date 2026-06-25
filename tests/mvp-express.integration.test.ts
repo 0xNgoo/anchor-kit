@@ -393,7 +393,10 @@ describe('MVP Express-mounted integration', () => {
     const response = await invoke({
       method: 'POST',
       path: '/auth/token',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': '10.0.0.5',
+      },
       body: { account: 'not-a-stellar-key', challenge: 'some-challenge' },
     });
 
