@@ -462,6 +462,22 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.id).toBeUndefined();
   });
 
+  it('5f) deposit with differently-cased asset_code is rejected', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'usdc', amount: '10' }, // configured as USDC
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_asset');
+    expect(response.body.id).toBeUndefined();
+  });
+
   it('5e) deposit with deposits_enabled: false asset is rejected', async () => {
     const disabledDbUrl = makeSqliteDbUrlForTests();
     const disabledAnchor = createAnchor({
