@@ -389,6 +389,32 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('3a) auth challenge route returns 429 when authChallengeMax is exceeded', async () => {
+    const account = Keypair.random().publicKey();
+    const headers = { 'x-forwarded-for': '10.0.0.99' };
+
+    const firstResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers,
+    });
+    expect(firstResponse.status).toBe(200);
+
+    const secondResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers,
+    });
+    expect(secondResponse.status).toBe(200);
+
+    const thirdResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers,
+    });
+
+    expect(thirdResponse.status).toBe(429);
+    expect(thirdResponse.body.error).toBe('rate_limited');
+    expect(thirdResponse.headers['retry-after']).toBeDefined();
+  });
+
   it('4) unauthorized deposit interactive rejected', async () => {
     const response = await invoke({
       method: 'POST',
@@ -447,6 +473,38 @@ describe('MVP Express-mounted integration', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_asset');
     expect(response.body.id).toBeUndefined();
+  });
+
+  it('5f) deposit missing asset_code returns invalid_request', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { amount: '10' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toContain('asset_code and amount');
+  });
+
+  it('5g) deposit missing amount returns invalid_request', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toContain('asset_code and amount');
   });
 
   it('5e) deposit with deposits_enabled: false asset is rejected', async () => {
@@ -590,6 +648,36 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.interactive_url).toBe(depositInteractiveUrl);
     expect(response.body.status).toBe('pending_user_transfer_start');
     expect(response.body.idempotency_replay).toBe(true);
+  });
+
+  it('6d) empty Idempotency-Key header is treated as no key and creates a new deposit', async () => {
+    const firstResponse = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': '   ',
+      },
+      body: { asset_code: 'USDC', amount: '12' },
+    });
+
+    const secondResponse = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': '   ',
+      },
+      body: { asset_code: 'USDC', amount: '12' },
+    });
+
+    expect(firstResponse.status).toBe(201);
+    expect(secondResponse.status).toBe(201);
+    expect(firstResponse.body.id).not.toBe(secondResponse.body.id);
+    expect(firstResponse.body.idempotency_replay).toBeUndefined();
+    expect(secondResponse.body.idempotency_replay).toBeUndefined();
   });
 
   it('7) transaction lookup fetches persisted data', async () => {
