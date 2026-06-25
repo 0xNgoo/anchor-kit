@@ -232,4 +232,24 @@ describe('TransactionWatcher Unit Tests', () => {
     // Stop the watcher
     await customWatcher.stop();
   });
+
+  it('does not create additional polling timer when start() is called twice', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+
+    await transactionWatcher.start();
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+
+    // Clear calls so the second start() doesn't count the first interval
+    setIntervalSpy.mockClear();
+
+    await transactionWatcher.start();
+    // The second start() should NOT create another timer
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    // The tick should still only have been executed once
+    expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
+
+    setIntervalSpy.mockRestore();
+    await transactionWatcher.stop();
+  });
 });
