@@ -174,21 +174,37 @@ describe('Transaction', () => {
   // ============================================
 
   describe('timestamp fields', () => {
-    it('accepts optional timestamps as unix numbers', () => {
-      const now = Date.now();
-      const tx: Transaction = {
-        id: 'txn-001',
-        status: 'completed',
-        kind: 'deposit',
-        started_at: now,
-        completed_at: now + 3600000, // 1 hour later
-      };
+it('accepts optional created_at and updated_at as ISO 8601 strings', () => {
+  const isoTimestamp = new Date().toISOString();
+  const tx: Transaction = {
+    id: 'txn-001',
+    status: 'completed',
+    kind: 'deposit',
+    created_at: isoTimestamp,
+    updated_at: isoTimestamp,
+  };
 
-      expect(tx.started_at).toBeTypeOf('number');
-      expect(tx.completed_at).toBeTypeOf('number');
-      expect(tx.completed_at).toBeGreaterThan(tx.started_at!);
-    });
+  expect(tx.created_at).toBeTypeOf('string');
+  expect(tx.updated_at).toBeTypeOf('string');
+  expect(new Date(tx.created_at!).toISOString()).toBe(tx.created_at);
+  expect(new Date(tx.updated_at!).toISOString()).toBe(tx.updated_at);
+});
+
+it('makes created_at and updated_at optional', () => {
+  const tx: Transaction = {
+    id: 'txn-001',
+    status: 'incomplete',
+    kind: 'deposit',
+  };
+
+expect(tx.created_at).toBeUndefined();
+  expect(tx.updated_at).toBeUndefined();
   });
+
+  }); // ← close describe('timestamp fields')
+
+  // ============================================
+  // Deposit Transaction Example
 
   // ============================================
   // Deposit Transaction Example
