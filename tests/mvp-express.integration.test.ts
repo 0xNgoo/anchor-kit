@@ -1096,4 +1096,82 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge not found');
   });
+
+  // ── Issue #214: missing body fields on POST /auth/token ──────────────────
+
+  it('15) /auth/token with missing account field returns 400', async () => {
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      // account is absent; only challenge is provided
+      body: { challenge: 'some-challenge-xdr' },
+    });
+
+    expect(tokenResponse.status).toBe(400);
+    expect(tokenResponse.body.error).toBe('invalid_request');
+    expect(tokenResponse.body.message).toBe('Body must include account and challenge');
+  });
+
+  it('15b) /auth/token with missing challenge field returns 400', async () => {
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      // challenge is absent; only account is provided
+      body: { account: clientKeypair.publicKey() },
+    });
+
+    expect(tokenResponse.status).toBe(400);
+    expect(tokenResponse.body.error).toBe('invalid_request');
+    expect(tokenResponse.body.message).toBe('Body must include account and challenge');
+  });
+
+  it('15c) /auth/token with both account and challenge missing returns 400', async () => {
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      // entirely empty body
+      body: {},
+    });
+
+    expect(tokenResponse.status).toBe(400);
+    expect(tokenResponse.body.error).toBe('invalid_request');
+    expect(tokenResponse.body.message).toBe('Body must include account and challenge');
+  });
+
+  // ── Non-positive deposit amounts ─────────────────────────────────────────
+
+  it('16) deposit with amount of zero is rejected with 400', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '0' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_amount');
+    expect(response.body.message).toBe('Amount must be a positive number');
+  });
+
+  it('16b) deposit with negative amount is rejected with 400', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '-5' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_amount');
+    expect(response.body.message).toBe('Amount must be a positive number');
+  });
 });
