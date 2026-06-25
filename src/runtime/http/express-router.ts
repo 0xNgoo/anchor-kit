@@ -246,6 +246,7 @@ export class AnchorExpressRouter {
       const responseBody: Record<string, unknown> = {
         name: fullConfig.operational?.name ?? 'Anchor-Kit Anchor',
         network: fullConfig.network.network,
+        network_passphrase: this.networkPassphrase,
         assets: fullConfig.assets.assets,
         version,
       };

@@ -193,6 +193,17 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.interactive_domain).toBe('https://anchor.example.com');
   });
 
+  it('2e) /info includes network_passphrase matching the configured network', async () => {
+    const response = await invoke({ path: '/info' });
+    expect(response.status).toBe(200);
+    expect(typeof response.body.network_passphrase).toBe('string');
+    expect((response.body.network_passphrase as string).length).toBeGreaterThan(0);
+    // testnet network should resolve to the Stellar testnet passphrase
+    expect(response.body.network_passphrase).toBe(
+      'Test SDF Network ; September 2015',
+    );
+  });
+
   it('2b) /info includes support_email when configured', async () => {
     const customDbUrl = makeSqliteDbUrlForTests();
     const customAnchor = createAnchor({
