@@ -328,6 +328,13 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.headers['cache-control']).toBe('no-store');
     // Verify default TTL is used when not configured
     expect(tokenResponse.body.expires_in).toBe(3600);
+    // Verify expires_at is present and consistent
+    const expiresAtStr = tokenResponse.body.expires_at as string;
+    expect(typeof expiresAtStr).toBe('string');
+    const expiresAtTime = new Date(expiresAtStr).getTime();
+    expect(Number.isNaN(expiresAtTime)).toBe(false);
+    const expectedExpiry = Date.now() + 3600 * 1000;
+    expect(Math.abs(expiresAtTime - expectedExpiry)).toBeLessThan(5000);
   });
 
   it('3a) rate limit response body includes retry_after_seconds matching header', async () => {
@@ -461,6 +468,12 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.status).toBe(200);
     expect(tokenResponse.body.expires_in).toBe(7200);
     expect(String(tokenResponse.body.token ?? '').length).toBeGreaterThan(0);
+    const customExpiresAtStr = tokenResponse.body.expires_at as string;
+    expect(typeof customExpiresAtStr).toBe('string');
+    const customExpiresAt = new Date(customExpiresAtStr).getTime();
+    expect(Number.isNaN(customExpiresAt)).toBe(false);
+    const customExpectedExpiry = Date.now() + 7200 * 1000;
+    expect(Math.abs(customExpiresAt - customExpectedExpiry)).toBeLessThan(5000);
 
     // Cleanup
     await customAnchor.shutdown();
