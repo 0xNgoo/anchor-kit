@@ -415,7 +415,7 @@ export class AnchorExpressRouter {
       await this.database.markAuthChallengeConsumed(stored.id);
 
       const tokenLifetime = this.config.get('security').authTokenLifetimeSeconds ?? 3600;
-      const expiresAt = new Date(Date.now() + tokenLifetime * 1000).toISOString();
+      const expiresAt = new Date((Math.floor(Date.now() / 1000) + tokenLifetime) * 1000).toISOString();
 
       const token = jwt.sign(
         {
