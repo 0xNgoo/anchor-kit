@@ -90,6 +90,7 @@ export class AnchorConfig {
               authTokenMax: input.framework.rateLimit?.authTokenMax ?? 30,
               webhookMax: input.framework.rateLimit?.webhookMax ?? 120,
               depositMax: input.framework.rateLimit?.depositMax ?? 60,
+              trustForwardedFor: input.framework.rateLimit?.trustForwardedFor ?? false,
             },
           }
         : undefined,
