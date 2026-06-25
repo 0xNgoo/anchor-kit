@@ -133,8 +133,8 @@ export const AssetSchema = {
 
     // Relationship check: min_amount must not exceed max_amount when both are present
     if (
-      typeof a.min_amount === 'number' &&
-      typeof a.max_amount === 'number' &&
+      a.min_amount !== undefined &&
+      a.max_amount !== undefined &&
       a.min_amount > a.max_amount
     ) {
       return false;
