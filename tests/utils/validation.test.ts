@@ -1,4 +1,10 @@
-import { ValidationUtils } from '../../src/utils/validation';
+import {
+  AnchorKitConfigSchema,
+  NetworkConfigSchema,
+  SecurityConfigSchema,
+  ValidationUtils,
+} from '../../src/utils/validation';
+import type { AnchorKitConfig } from '../../src/types/config';
 
 describe('ValidationUtils', () => {
   describe('isValidEmail', () => {
@@ -93,5 +99,127 @@ describe('ValidationUtils', () => {
       expect(ValidationUtils.isDecimal('')).toBe(false);
       expect(ValidationUtils.isDecimal(' ')).toBe(false);
     });
+  });
+
+  describe('isValidDatabaseUrl', () => {
+    test('should return true for valid database URLs', () => {
+      expect(ValidationUtils.isValidDatabaseUrl('postgresql://localhost:5432/db')).toBe(true);
+      expect(ValidationUtils.isValidDatabaseUrl('postgres://user:pass@host:5432/db')).toBe(true);
+      expect(ValidationUtils.isValidDatabaseUrl('sqlite://path/to/db.sqlite')).toBe(true);
+      expect(ValidationUtils.isValidDatabaseUrl('file:./local.db')).toBe(true);
+    });
+
+    test('should return false for invalid database URLs', () => {
+      expect(ValidationUtils.isValidDatabaseUrl('')).toBe(false);
+      expect(ValidationUtils.isValidDatabaseUrl('not-a-db-url')).toBe(false);
+    });
+  });
+});
+
+describe('NetworkConfigSchema', () => {
+  test('should validate a correct NetworkConfig', () => {
+    expect(() => NetworkConfigSchema.validate({ network: 'testnet' })).not.toThrow();
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'public',
+        horizonUrl: 'https://horizon.stellar.org',
+      }),
+    ).not.toThrow();
+  });
+
+  test('should throw for invalid network name', () => {
+    // @ts-expect-error test case
+    expect(() => NetworkConfigSchema.validate({ network: 'invalidnet' })).toThrow(
+      /Invalid network/,
+    );
+  });
+
+  test('should throw for invalid horizonUrl', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        horizonUrl: 'not-a-url',
+      }),
+    ).toThrow(/Invalid URL format/);
+  });
+});
+
+describe('SecurityConfigSchema', () => {
+  const validSecurityConfig = {
+    sep10SigningKey: 'SD6P3...',
+    interactiveJwtSecret: 'shhh',
+    distributionAccountSecret: 'SD7Q4...',
+  };
+
+  test('should validate a correct SecurityConfig', () => {
+    expect(() => SecurityConfigSchema.validate(validSecurityConfig)).not.toThrow();
+  });
+
+  test('should throw for missing security secrets', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        sep10SigningKey: '',
+      }),
+    ).toThrow(/sep10SigningKey/);
+  });
+
+  test('should throw for invalid authTokenLifetimeSeconds', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        authTokenLifetimeSeconds: 0,
+      }),
+    ).toThrow(/authTokenLifetimeSeconds must be > 0/);
+  });
+
+  test('should throw when authTokenLifetimeSeconds is a string', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        authTokenLifetimeSeconds: '3600' as unknown as number,
+      }),
+    ).toThrow(/authTokenLifetimeSeconds must be > 0/);
+  });
+});
+
+describe('AnchorKitConfigSchema', () => {
+  const validConfig: AnchorKitConfig = {
+    network: { network: 'testnet' },
+    server: { interactiveDomain: 'https://example.com' },
+    security: {
+      sep10SigningKey: 'SD6P3...',
+      interactiveJwtSecret: 'shhh',
+      distributionAccountSecret: 'SD7Q4...',
+    },
+    assets: {
+      assets: [{ code: 'USDC', issuer: 'GD...' }],
+    },
+    framework: {
+      database: { provider: 'sqlite', url: 'file:./test.db' },
+    },
+  };
+
+  test('should validate a correct AnchorKitConfig', () => {
+    expect(() => AnchorKitConfigSchema.validate(validConfig)).not.toThrow();
+  });
+
+  test('should throw for missing secrets', () => {
+    const invalidConfig = {
+      ...validConfig,
+      security: { ...validConfig.security, sep10SigningKey: '' },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/sep10SigningKey/);
+  });
+
+  test('should throw for invalid pollsIntervalMs', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: {
+        ...validConfig.framework,
+        watchers: { pollIntervalMs: 5 }, // Minimum is 10
+      },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/pollIntervalMs/);
   });
 });

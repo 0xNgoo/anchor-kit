@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
 import { AnchorConfig } from '@/core/config.ts';
-import { ConfigurationError } from '@/core/errors.ts';
+import { ConfigError } from '@/core/errors.ts';
 import type { AnchorKitConfig } from '@/types/config.ts';
+import { Networks } from '@stellar/stellar-sdk';
+import { describe, expect, it } from 'vitest';
 
 describe('AnchorConfig', () => {
   const validBaseConfig: AnchorKitConfig = {
@@ -139,7 +140,7 @@ describe('AnchorConfig', () => {
         network: { network: 'futurenet' },
       };
       const config = new AnchorConfig(configFuturenet);
-      expect(config.isNetworkPassphrase('Test SDF Future Network ; Fall 2022')).toBe(true);
+      expect(config.isNetworkPassphrase(Networks.FUTURENET)).toBe(true);
       expect(config.isNetworkPassphrase('Test SDF Network ; September 2015')).toBe(false);
     });
   });
@@ -150,37 +151,37 @@ describe('AnchorConfig', () => {
       expect(() => config.validate()).not.toThrow();
     });
 
-    it('should throw ConfigurationError if top-level network is missing', () => {
+    it('should throw ConfigError if top-level network is missing', () => {
       // @ts-expect-error this is for test cases
       const invalidConfig: AnchorKitConfig = { ...validBaseConfig, network: undefined };
       const config = new AnchorConfig(invalidConfig);
-      expect(() => config.validate()).toThrow(ConfigurationError);
+      expect(() => config.validate()).toThrow(ConfigError);
       expect(() => config.validate()).toThrow(/network/);
     });
 
-    it('should throw ConfigurationError if required secrets are missing', () => {
+    it('should throw ConfigError if required secrets are missing', () => {
       const invalidConfig: AnchorKitConfig = {
         ...validBaseConfig,
         security: { ...validBaseConfig.security, sep10SigningKey: '' },
       };
       const config = new AnchorConfig(invalidConfig);
 
-      expect(() => config.validate()).toThrow(ConfigurationError);
+      expect(() => config.validate()).toThrow(ConfigError);
       expect(() => config.validate()).toThrow(/sep10SigningKey/);
     });
 
-    it('should throw ConfigurationError for missing assets list', () => {
+    it('should throw ConfigError for missing assets list', () => {
       const invalidConfig: AnchorKitConfig = {
         ...validBaseConfig,
         assets: { assets: [] },
       };
       const config = new AnchorConfig(invalidConfig);
 
-      expect(() => config.validate()).toThrow(ConfigurationError);
+      expect(() => config.validate()).toThrow(ConfigError);
       expect(() => config.validate()).toThrow(/asset/);
     });
 
-    it('should throw ConfigurationError for invalid network string', () => {
+    it('should throw ConfigError for invalid network string', () => {
       const invalidConfig: AnchorKitConfig = {
         ...validBaseConfig,
         // @ts-expect-error this is for test cases
@@ -188,7 +189,7 @@ describe('AnchorConfig', () => {
       };
       const config = new AnchorConfig(invalidConfig);
 
-      expect(() => config.validate()).toThrow(ConfigurationError);
+      expect(() => config.validate()).toThrow(ConfigError);
       expect(() => config.validate()).toThrow(/Invalid network: invalidnet/);
     });
 
@@ -200,7 +201,7 @@ describe('AnchorConfig', () => {
       };
       const config = new AnchorConfig(invalidConfig);
 
-      expect(() => config.validate()).toThrow(ConfigurationError);
+      expect(() => config.validate()).toThrow(ConfigError);
       expect(() => config.validate()).toThrow(/database/);
     });
 
@@ -216,7 +217,7 @@ describe('AnchorConfig', () => {
       };
       const config = new AnchorConfig(invalidConfig);
 
-      expect(() => config.validate()).toThrow(ConfigurationError);
+      expect(() => config.validate()).toThrow(ConfigError);
       expect(() => config.validate()).toThrow(/Invalid database URL format/);
     });
 
@@ -227,7 +228,7 @@ describe('AnchorConfig', () => {
       };
       const config = new AnchorConfig(invalidConfig);
 
-      expect(() => config.validate()).toThrow(ConfigurationError);
+      expect(() => config.validate()).toThrow(ConfigError);
       expect(() => config.validate()).toThrow(/Invalid URL format for server\.interactiveDomain/);
     });
 
@@ -243,6 +244,50 @@ describe('AnchorConfig', () => {
       };
       const config = new AnchorConfig(sqliteConfig);
       expect(() => config.validate()).not.toThrow();
+    });
+
+    it('should accept valid auth token lifetime', () => {
+      const configWithTtl: AnchorKitConfig = {
+        ...validBaseConfig,
+        security: {
+          ...validBaseConfig.security,
+          authTokenLifetimeSeconds: 7200,
+        },
+      };
+      const config = new AnchorConfig(configWithTtl);
+      expect(() => config.validate()).not.toThrow();
+      expect(config.get('security').authTokenLifetimeSeconds).toBe(7200);
+    });
+
+    it('should use default TTL when not specified', () => {
+      const config = new AnchorConfig(validBaseConfig);
+      expect(config.get('security').authTokenLifetimeSeconds).toBeUndefined();
+    });
+
+    it('should reject invalid auth token lifetime (zero)', () => {
+      const invalidConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        security: {
+          ...validBaseConfig.security,
+          authTokenLifetimeSeconds: 0,
+        },
+      };
+      const config = new AnchorConfig(invalidConfig);
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/authTokenLifetimeSeconds must be > 0/);
+    });
+
+    it('should reject invalid auth token lifetime (negative)', () => {
+      const invalidConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        security: {
+          ...validBaseConfig.security,
+          authTokenLifetimeSeconds: -100,
+        },
+      };
+      const config = new AnchorConfig(invalidConfig);
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/authTokenLifetimeSeconds must be > 0/);
     });
   });
 });

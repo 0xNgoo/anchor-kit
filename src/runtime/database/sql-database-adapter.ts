@@ -204,7 +204,7 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
       return;
     }
 
-    throw new ConfigError('Database is not connected');
+    throw new ConfigError('Database not connected');
   }
 
   public async insertAuthChallenge(input: {
@@ -214,25 +214,22 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     expiresAt: string;
   }): Promise<void> {
     const createdAt = nowIso();
-
     if (this.sqlite) {
       this.sqlite
         .prepare(
-          'INSERT INTO auth_challenges (id, account, challenge, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO auth_challenges (id, account, challenge, expires_at, consumed_at, created_at) VALUES (?, ?, ?, ?, NULL, ?)',
         )
         .run(input.id, input.account, input.challenge, input.expiresAt, createdAt);
       return;
     }
 
     await this.requirePostgres().query(
-      'INSERT INTO auth_challenges (id, account, challenge, expires_at, created_at) VALUES ($1, $2, $3, $4, $5)',
+      'INSERT INTO auth_challenges (id, account, challenge, expires_at, consumed_at, created_at) VALUES ($1, $2, $3, $4, NULL, $5)',
       [input.id, input.account, input.challenge, input.expiresAt, createdAt],
     );
   }
 
-  public async getAuthChallengeByChallenge(
-    challenge: string,
-  ): Promise<AuthChallengeRecord | null> {
+  public async getAuthChallengeByChallenge(challenge: string): Promise<AuthChallengeRecord | null> {
     if (this.sqlite) {
       const row = this.sqlite
         .prepare('SELECT * FROM auth_challenges WHERE challenge = ? LIMIT 1')
@@ -253,6 +250,7 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
       'SELECT * FROM auth_challenges WHERE challenge = $1 LIMIT 1',
       [challenge],
     );
+
     const row = response.rows[0];
     if (!row) return null;
     return {

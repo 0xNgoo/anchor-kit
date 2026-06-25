@@ -1,5 +1,11 @@
 // Global error handler for AnchorKit
-import { SepProtocolError, RailError, AnchorKitError } from '../core/errors';
+import {
+  SepProtocolError,
+  RailError,
+  AnchorKitError,
+  CryptoError,
+  NetworkError,
+} from '../core/errors';
 
 /**
  * Global error handler for API/server responses.
@@ -27,6 +33,28 @@ export function errorHandler(err: unknown): { status: number; payload: object } 
       payload: {
         error: err.errorCode,
         message: 'A gateway error occurred.',
+      },
+    };
+  }
+
+  // Crypto errors: mask details for security
+  if (err instanceof CryptoError) {
+    return {
+      status: err.statusCode,
+      payload: {
+        error: err.errorCode,
+        message: 'A cryptographic operation failed.',
+      },
+    };
+  }
+
+  // Network errors: mask upstream details
+  if (err instanceof NetworkError) {
+    return {
+      status: err.statusCode,
+      payload: {
+        error: err.errorCode,
+        message: 'An upstream network service is currently unavailable.',
       },
     };
   }
