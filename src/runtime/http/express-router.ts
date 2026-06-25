@@ -670,6 +670,7 @@ export class AnchorExpressRouter {
       sendJson(res, 429, {
         error: 'rate_limited',
         message: 'Too many requests',
+        retry_after_seconds: result.retryAfterSeconds,
       });
       return false;
     }

@@ -314,6 +314,75 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.body.expires_in).toBe(3600);
   });
 
+  it('3a) rate limit response body includes retry_after_seconds matching header', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-rate-limit',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      framework: {
+        database: {
+          provider: 'sqlite',
+          url: customDbUrl,
+        },
+        rateLimit: {
+          windowMs: 60000,
+          authChallengeMax: 1,
+          authTokenMax: 5,
+          webhookMax: 20,
+          depositMax: 20,
+        },
+      },
+    });
+
+    try {
+      await customAnchor.init();
+      const customInvoke = createMountedInvoker(customAnchor);
+      const account = Keypair.random().publicKey();
+      const headers = { 'x-forwarded-for': '203.0.113.232' };
+
+      const firstResponse = await customInvoke({
+        path: `/auth/challenge?account=${account}`,
+        headers,
+      });
+      expect(firstResponse.status).toBe(200);
+
+      const limitedResponse = await customInvoke({
+        path: `/auth/challenge?account=${account}`,
+        headers,
+      });
+
+      expect(limitedResponse.status).toBe(429);
+      expect(limitedResponse.headers['retry-after']).toBeDefined();
+      expect(limitedResponse.body.error).toBe('rate_limited');
+      expect(limitedResponse.body.retry_after_seconds).toBe(
+        Number(limitedResponse.headers['retry-after']),
+      );
+    } finally {
+      await customAnchor.shutdown();
+      try {
+        unlinkSync(customDbPath);
+      } catch {
+        // ignore cleanup errors in CI
+      }
+    }
+  });
+
   it('3b) auth token with custom TTL returns correct expires_in', async () => {
     // Create a new anchor instance with custom TTL using a separate database
     const customDbUrl = makeSqliteDbUrlForTests();
