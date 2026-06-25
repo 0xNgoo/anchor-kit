@@ -121,6 +121,15 @@ export const AssetSchema = {
     if (a.min_amount !== undefined && typeof a.min_amount !== 'number') return false;
     if (a.max_amount !== undefined && typeof a.max_amount !== 'number') return false;
 
+    // Relationship check: min_amount must not exceed max_amount when both are present
+    if (
+      typeof a.min_amount === 'number' &&
+      typeof a.max_amount === 'number' &&
+      a.min_amount > a.max_amount
+    ) {
+      return false;
+    }
+
     return true;
   },
 };
