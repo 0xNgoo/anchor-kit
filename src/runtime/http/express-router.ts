@@ -237,7 +237,7 @@ export class AnchorExpressRouter {
     const method = (req.method ?? 'GET').toUpperCase();
 
     if (method === 'GET' && path === '/health') {
-      sendJson(res, 200, { status: 'ok' });
+      sendJson(res, 200, { status: 'ok', version });
       return;
     }
 
@@ -246,6 +246,7 @@ export class AnchorExpressRouter {
       const responseBody: Record<string, unknown> = {
         name: fullConfig.operational?.name ?? 'Anchor-Kit Anchor',
         network: fullConfig.network.network,
+        network_passphrase: this.networkPassphrase,
         assets: fullConfig.assets.assets,
         version,
       };
@@ -581,6 +582,7 @@ export class AnchorExpressRouter {
           amount: created.amount,
           asset_code: created.assetCode,
           asset_issuer: selectedAsset.issuer,
+          account: created.account,
           interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
           created_at: created.createdAt,
         },
@@ -679,6 +681,7 @@ export class AnchorExpressRouter {
         sendJson(res, 400, {
           error: 'webhook_error',
           message: 'Webhook processing failed',
+          event_id: eventId,
         });
       }
       return;
@@ -701,6 +704,7 @@ export class AnchorExpressRouter {
       sendJson(res, 429, {
         error: 'rate_limited',
         message: 'Too many requests',
+        retry_after_seconds: result.retryAfterSeconds,
       });
       return false;
     }

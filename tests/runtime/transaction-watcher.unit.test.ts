@@ -64,6 +64,13 @@ describe('TransactionWatcher Unit Tests', () => {
     });
   });
 
+  it('treats stop() before start() as a safe no-op', async () => {
+    await expect(transactionWatcher.stop()).resolves.toBeUndefined();
+    expect(mockDatabase.listPendingTransactionsBefore).not.toHaveBeenCalled();
+    expect(mockQueue.enqueue).not.toHaveBeenCalled();
+    expect(mockQueue.stop).not.toHaveBeenCalled();
+  });
+
   it('enqueues expiration jobs for stale pending deposits', async () => {
     const staleTransaction = {
       id: 'stale-tx-1',
@@ -231,5 +238,24 @@ describe('TransactionWatcher Unit Tests', () => {
 
     // Stop the watcher
     await customWatcher.stop();
+  });
+
+  it('does not create additional polling timer when start() is called twice', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+
+    try {
+      await transactionWatcher.start();
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+
+      setIntervalSpy.mockClear();
+
+      await transactionWatcher.start();
+      expect(setIntervalSpy).not.toHaveBeenCalled();
+
+      expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
+    } finally {
+      setIntervalSpy.mockRestore();
+      await transactionWatcher.stop();
+    }
   });
 });
