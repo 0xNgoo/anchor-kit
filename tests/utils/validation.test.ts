@@ -142,6 +142,49 @@ describe('NetworkConfigSchema', () => {
       }),
     ).toThrow(/Invalid URL format/);
   });
+
+  test('should validate a correct NetworkConfig with networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: 'Test SDF Network ; September 2015',
+      }),
+    ).not.toThrow();
+  });
+
+  test('should throw for empty networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: '',
+      }),
+    ).toThrow(/non-empty string/);
+  });
+
+  test('should throw for non-string networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        // @ts-expect-error testing non-string value
+        networkPassphrase: 123,
+      }),
+    ).toThrow(/non-empty string/);
+  });
+
+  test('should accept undefined or null networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: undefined,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: null as unknown as string,
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe('SecurityConfigSchema', () => {

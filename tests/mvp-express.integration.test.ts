@@ -608,6 +608,22 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.message).toContain('asset_code and amount');
   });
 
+  it('5f-case) deposit with differently-cased asset_code is rejected', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'usdc', amount: '10' }, // configured as USDC
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_asset');
+    expect(response.body.id).toBeUndefined();
+  });
+
   it('5e) deposit with deposits_enabled: false asset is rejected', async () => {
     const disabledDbUrl = makeSqliteDbUrlForTests();
     const disabledAnchor = createAnchor({
@@ -677,6 +693,89 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('5f) deposit route returns 429 after exceeding configured depositMax', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-rate-limit',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: true,
+            min_amount: 10,
+            max_amount: 100,
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: customDbUrl },
+        rateLimit: { windowMs: 60000, depositMax: 2 },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+    const account = clientKeypair.publicKey();
+
+    const challengeResponse = await customInvoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.1' },
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+
+    const tokenResponse = await customInvoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+      body: { account, challenge: challengeTx.toXDR() },
+    });
+    expect(tokenResponse.status).toBe(200);
+    const customToken = String(tokenResponse.body.token ?? '');
+
+    const depositRequest = {
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${customToken}`,
+        'x-forwarded-for': '10.0.0.1',
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    };
+
+    const firstResponse = await customInvoke(depositRequest);
+    expect(firstResponse.status).toBe(201);
+
+    const secondResponse = await customInvoke(depositRequest);
+    expect(secondResponse.status).toBe(201);
+
+    const thirdResponse = await customInvoke(depositRequest);
+    expect(thirdResponse.status).toBe(429);
+    expect(thirdResponse.body.error).toBe('rate_limited');
+    expect(thirdResponse.headers['retry-after']).toBeDefined();
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
   it('5b) deposit at max_amount boundary is accepted', async () => {
     const response = await invoke({
       method: 'POST',
@@ -713,6 +812,7 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.asset_issuer).toBe(
       'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
     );
+    expect(response.body.account).toBe(clientKeypair.publicKey());
     expect(response.body).not.toHaveProperty('idempotency_replay');
   });
 
@@ -748,6 +848,7 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.id).toBe(transactionId);
     expect(response.body.interactive_url).toBe(depositInteractiveUrl);
     expect(response.body.status).toBe('pending_user_transfer_start');
+    expect(response.body.account).toBe(clientKeypair.publicKey());
     expect(response.body.idempotency_replay).toBe(true);
   });
 
@@ -1379,6 +1480,7 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(firstResponse.status).toBe(201);
+    expect(firstResponse.body.account).toBe(clientKeypair.publicKey());
     const firstTxId = firstResponse.body.id;
 
     const secondResponse = await invoke({

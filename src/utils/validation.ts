@@ -166,6 +166,11 @@ export const NetworkConfigSchema = {
     if (config.horizonUrl && !ValidationUtils.isValidUrl(config.horizonUrl)) {
       throw new Error('Invalid URL format for network.horizonUrl');
     }
+    if (config.networkPassphrase !== undefined && config.networkPassphrase !== null) {
+      if (typeof config.networkPassphrase !== 'string' || config.networkPassphrase.length === 0) {
+        throw new Error('Invalid network.networkPassphrase: must be a non-empty string');
+      }
+    }
   },
 };
 

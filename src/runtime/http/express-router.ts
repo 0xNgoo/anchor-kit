@@ -539,6 +539,7 @@ export class AnchorExpressRouter {
           amount: created.amount,
           asset_code: created.assetCode,
           asset_issuer: selectedAsset.issuer,
+          account: created.account,
           interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
           created_at: created.createdAt,
         },
