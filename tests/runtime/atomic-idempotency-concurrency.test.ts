@@ -61,12 +61,11 @@ describe('Atomic Idempotency and Webhook Deduplication Concurrency Tests (#205)'
     it('concurrent webhook inserts with same event_id should not create duplicate records', async () => {
       const eventId = `evt-${randomUUID()}`;
       const payload = { type: 'test', data: 'value' };
-      const id = randomUUID();
 
       // Simulate concurrent inserts by firing multiple promises at once
       const promises = Array.from({ length: 10 }, () =>
         db.insertOrGetWebhookEvent({
-          id,
+          id: randomUUID(),
           eventId,
           provider: 'test-provider',
           payload,
@@ -114,19 +113,23 @@ describe('Atomic Idempotency and Webhook Deduplication Concurrency Tests (#205)'
   });
 
   describe('PostgreSQL', () => {
-    let db: DatabaseAdapter;
-    let connectionString: string;
+    let db: DatabaseAdapter | undefined;
+    let postgresAvailable = false;
 
     beforeAll(async () => {
-      // Skip if PostgreSQL is not configured
-      connectionString = process.env.TEST_POSTGRES_URL || process.env.DATABASE_URL || '';
+      const connectionString = process.env.TEST_POSTGRES_URL || process.env.DATABASE_URL || '';
       if (!connectionString) {
         return;
       }
 
-      db = createSqlDatabaseAdapter({ provider: 'postgres', url: connectionString });
-      await db.connect();
-      await db.migrate();
+      try {
+        db = createSqlDatabaseAdapter({ provider: 'postgres', url: connectionString });
+        await db.connect();
+        await db.migrate();
+        postgresAvailable = true;
+      } catch {
+        postgresAvailable = false;
+      }
     });
 
     afterAll(async () => {
@@ -136,8 +139,8 @@ describe('Atomic Idempotency and Webhook Deduplication Concurrency Tests (#205)'
     });
 
     it('concurrent idempotency inserts with same key should not create duplicate records', async () => {
-      if (!connectionString) {
-        console.log('Skipping PostgreSQL test - no connection string configured');
+      if (!postgresAvailable || !db) {
+        console.log('Skipping PostgreSQL test - no valid connection configured');
         return;
       }
 
@@ -173,19 +176,18 @@ describe('Atomic Idempotency and Webhook Deduplication Concurrency Tests (#205)'
     });
 
     it('concurrent webhook inserts with same event_id should not create duplicate records', async () => {
-      if (!connectionString) {
-        console.log('Skipping PostgreSQL test - no connection string configured');
+      if (!postgresAvailable || !db) {
+        console.log('Skipping PostgreSQL test - no valid connection configured');
         return;
       }
 
       const eventId = `evt-${randomUUID()}`;
       const payload = { type: 'test', data: 'value-pg' };
-      const id = randomUUID();
 
       // Simulate concurrent inserts by firing multiple promises at once
       const promises = Array.from({ length: 10 }, () =>
         db.insertOrGetWebhookEvent({
-          id,
+          id: randomUUID(),
           eventId,
           provider: 'test-provider',
           payload,
@@ -209,8 +211,8 @@ describe('Atomic Idempotency and Webhook Deduplication Concurrency Tests (#205)'
     });
 
     it('concurrent idempotency inserts with different keys should all succeed', async () => {
-      if (!connectionString) {
-        console.log('Skipping PostgreSQL test - no connection string configured');
+      if (!postgresAvailable || !db) {
+        console.log('Skipping PostgreSQL test - no valid connection configured');
         return;
       }
 

@@ -84,6 +84,12 @@ export interface DatabaseAdapter {
     statusCode: number;
     responseBody: string;
   }): Promise<IdempotencyRecord>;
+  updateIdempotencyRecord(input: {
+    scope: string;
+    idempotencyKey: string;
+    statusCode: number;
+    responseBody: string;
+  }): Promise<void>;
 
   insertOrGetWebhookEvent(input: {
     id: string;

@@ -472,6 +472,27 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     return this.mapIdempotencyRow(row);
   }
 
+  public async updateIdempotencyRecord(input: {
+    scope: string;
+    idempotencyKey: string;
+    statusCode: number;
+    responseBody: string;
+  }): Promise<void> {
+    if (this.sqlite) {
+      this.sqlite
+        .prepare(
+          'UPDATE idempotency_keys SET status_code = ?, response_body = ? WHERE scope = ? AND idempotency_key = ?',
+        )
+        .run(input.statusCode, input.responseBody, input.scope, input.idempotencyKey);
+      return;
+    }
+
+    await this.requirePostgres().query(
+      'UPDATE idempotency_keys SET status_code = $1, response_body = $2 WHERE scope = $3 AND idempotency_key = $4',
+      [input.statusCode, input.responseBody, input.scope, input.idempotencyKey],
+    );
+  }
+
   public async insertOrGetWebhookEvent(input: {
     id: string;
     eventId: string;

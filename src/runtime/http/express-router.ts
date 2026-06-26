@@ -527,21 +527,26 @@ export class AnchorExpressRouter {
             status: 'pending_user_transfer_start',
           });
 
-          const response: JsonResponse = {
-            status: 201,
-            body: {
-              id: created.id,
-              kind: created.kind,
-              status: created.status,
-              amount: created.amount,
-              asset_code: created.assetCode,
-              asset_issuer: selectedAsset.issuer,
-              interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
-              created_at: created.createdAt,
-            },
+          const responseBody = {
+            id: created.id,
+            kind: created.kind,
+            status: created.status,
+            amount: created.amount,
+            asset_code: created.assetCode,
+            asset_issuer: selectedAsset.issuer,
+            account: created.account,
+            interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
+            created_at: created.createdAt,
           };
 
-          sendJson(res, response.status, response.body);
+          await this.database.updateIdempotencyRecord({
+            scope,
+            idempotencyKey,
+            statusCode: 201,
+            responseBody: JSON.stringify(responseBody),
+          });
+
+          sendJson(res, 201, responseBody);
           return;
         }
 
