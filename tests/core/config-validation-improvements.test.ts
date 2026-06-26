@@ -97,7 +97,13 @@ describe('Config Validation Improvements (#124, #125)', () => {
   });
 
   it('should reject non-numeric rateLimit values (#250)', () => {
-    const nonNumericCases = ['windowMs', 'authChallengeMax', 'authTokenMax', 'webhookMax', 'depositMax'];
+    const nonNumericCases = [
+      'windowMs',
+      'authChallengeMax',
+      'authTokenMax',
+      'webhookMax',
+      'depositMax',
+    ];
     for (const key of nonNumericCases) {
       const config = new AnchorConfig({
         ...validBaseConfig,
@@ -116,7 +122,13 @@ describe('Config Validation Improvements (#124, #125)', () => {
       ...validBaseConfig,
       framework: {
         ...validBaseConfig.framework,
-        rateLimit: { windowMs: 60000, authChallengeMax: 30, authTokenMax: 30, webhookMax: 120, depositMax: 60 },
+        rateLimit: {
+          windowMs: 60000,
+          authChallengeMax: 30,
+          authTokenMax: 30,
+          webhookMax: 120,
+          depositMax: 60,
+        },
       },
     });
     expect(() => config.validate()).not.toThrow();
