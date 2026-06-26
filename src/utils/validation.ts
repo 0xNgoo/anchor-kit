@@ -256,6 +256,22 @@ export const AnchorKitConfigSchema = {
     ) {
       throw new Error('framework.watchers.pollIntervalMs must be >= 10');
     }
+    if (
+      framework.watchers?.transactionTimeoutMs !== undefined &&
+      (typeof framework.watchers.transactionTimeoutMs !== 'number' ||
+        !isFinite(framework.watchers.transactionTimeoutMs) ||
+        framework.watchers.transactionTimeoutMs <= 0)
+    ) {
+      throw new Error('framework.watchers.transactionTimeoutMs must be a finite number > 0');
+    }
+    if (
+      framework.watchers?.retentionDays !== undefined &&
+      (typeof framework.watchers.retentionDays !== 'number' ||
+        !isFinite(framework.watchers.retentionDays) ||
+        framework.watchers.retentionDays <= 0)
+    ) {
+      throw new Error('framework.watchers.retentionDays must be a finite number > 0');
+    }
     if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {
       throw new Error('framework.http.maxBodyBytes must be >= 1024');
     }
