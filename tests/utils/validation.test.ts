@@ -142,6 +142,49 @@ describe('NetworkConfigSchema', () => {
       }),
     ).toThrow(/Invalid URL format/);
   });
+
+  test('should validate a correct NetworkConfig with networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: 'Test SDF Network ; September 2015',
+      }),
+    ).not.toThrow();
+  });
+
+  test('should throw for empty networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: '',
+      }),
+    ).toThrow(/non-empty string/);
+  });
+
+  test('should throw for non-string networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        // @ts-expect-error testing non-string value
+        networkPassphrase: 123,
+      }),
+    ).toThrow(/non-empty string/);
+  });
+
+  test('should accept undefined or null networkPassphrase', () => {
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: undefined,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      NetworkConfigSchema.validate({
+        network: 'testnet',
+        networkPassphrase: null as unknown as string,
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe('SecurityConfigSchema', () => {
@@ -221,5 +264,69 @@ describe('AnchorKitConfigSchema', () => {
       },
     };
     expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/pollIntervalMs/);
+  });
+
+  test('should throw for non-positive transactionTimeoutMs', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: 0 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/transactionTimeoutMs/);
+  });
+
+  test('should throw for negative transactionTimeoutMs', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: -1 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/transactionTimeoutMs/);
+  });
+
+  test('should throw for non-finite transactionTimeoutMs', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: Infinity } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/transactionTimeoutMs/);
+  });
+
+  test('should accept valid transactionTimeoutMs', () => {
+    const cfg = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: 300000 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(cfg)).not.toThrow();
+  });
+
+  test('should throw for non-positive retentionDays', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: 0 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/retentionDays/);
+  });
+
+  test('should throw for negative retentionDays', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: -5 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/retentionDays/);
+  });
+
+  test('should throw for non-finite retentionDays', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: NaN } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/retentionDays/);
+  });
+
+  test('should accept valid retentionDays', () => {
+    const cfg = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: 90 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(cfg)).not.toThrow();
   });
 });
