@@ -64,9 +64,8 @@ function httpRequest(
 describe('Integration: malformed bearer token', () => {
   it('rejects a non-JWT Authorization: Bearer header with 401', async () => {
     const server = await startTestServer();
-    // @ts-expect-error - address can be string or object depending on platform
-    const addr: { port: number } | string = server.address() as { port: number } | string;
-    const port = typeof addr === 'object' ? addr.port : addr;
+    const addr = server.address() as { port: number };
+    const port = addr.port;
 
     try {
       const res = await httpRequest(port, {
@@ -81,9 +80,8 @@ describe('Integration: malformed bearer token', () => {
 
   it('allows a well-formed (dot-separated) token with 200', async () => {
     const server = await startTestServer();
-    // @ts-expect-error - address can be string or object depending on platform
-    const addr: { port: number } | string = server.address() as { port: number } | string;
-    const port = typeof addr === 'object' ? addr.port : addr;
+    const addr = server.address() as { port: number };
+    const port = addr.port;
 
     try {
       const res = await httpRequest(port, {
