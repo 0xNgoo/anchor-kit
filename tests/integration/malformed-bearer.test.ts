@@ -40,14 +40,19 @@ function startTestServer() {
   });
 }
 
-function httpRequest(port: number, opts: { method?: string; path?: string; headers?: Record<string, string> }) {
+function httpRequest(
+  port: number,
+  opts: { method?: string; path?: string; headers?: Record<string, string> },
+) {
   return new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
     const request = http.request(
       { port, method: opts.method || 'GET', path: opts.path || '/', headers: opts.headers },
       (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (c) => chunks.push(Buffer.from(c)));
-        res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: Buffer.concat(chunks).toString() }));
+        res.on('end', () =>
+          resolve({ statusCode: res.statusCode || 0, body: Buffer.concat(chunks).toString() }),
+        );
       },
     );
 
@@ -59,12 +64,15 @@ function httpRequest(port: number, opts: { method?: string; path?: string; heade
 describe('Integration: malformed bearer token', () => {
   it('rejects a non-JWT Authorization: Bearer header with 401', async () => {
     const server = await startTestServer();
-    // @ts-ignore - address can be string or object depending on platform
-    const addr: any = server.address();
+    // @ts-expect-error - address can be string or object depending on platform
+    const addr: { port: number } | string = server.address() as { port: number } | string;
     const port = typeof addr === 'object' ? addr.port : addr;
 
     try {
-      const res = await httpRequest(port, { path: '/protected', headers: { Authorization: 'Bearer not-a-jwt' } });
+      const res = await httpRequest(port, {
+        path: '/protected',
+        headers: { Authorization: 'Bearer not-a-jwt' },
+      });
       expect(res.statusCode).toBe(401);
     } finally {
       server.close();
@@ -73,12 +81,15 @@ describe('Integration: malformed bearer token', () => {
 
   it('allows a well-formed (dot-separated) token with 200', async () => {
     const server = await startTestServer();
-    // @ts-ignore
-    const addr: any = server.address();
+    // @ts-expect-error - address can be string or object depending on platform
+    const addr: { port: number } | string = server.address() as { port: number } | string;
     const port = typeof addr === 'object' ? addr.port : addr;
 
     try {
-      const res = await httpRequest(port, { path: '/protected', headers: { Authorization: 'Bearer a.b.c' } });
+      const res = await httpRequest(port, {
+        path: '/protected',
+        headers: { Authorization: 'Bearer a.b.c' },
+      });
       expect(res.statusCode).toBe(200);
     } finally {
       server.close();

@@ -55,13 +55,33 @@ export interface KycData {
 export type { KycData as CustomerKycData };
 
 /**
- * Error returned when a transaction cannot be found or accessed.
- * Included in SEP-24 transaction responses as an error branch.
+ * Common error codes used across Stellar Ecosystem Proposals (SEPs).
  */
-export interface TransactionNotFoundError {
-  /** Discriminator to allow narrowing on error responses */
-  type: 'error';
+export type SepErrorCode =
+  | 'bad_request'
+  | 'transaction_not_found'
+  | 'customer_info_needed'
+  | 'verification_required'
+  | 'not_found'
+  | 'invalid_asset'
+  | 'unsupported_asset'
+  | 'invalid_request'
+  | 'forbidden'
+  | string;
 
-  /** Human readable error message */
-  error: string;
+/**
+ * RouteDefinition - Defines an API route to be injected by a plugin.
+ */
+export interface RouteDefinition {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;
+  handler: (ctx: unknown) => Promise<unknown> | unknown;
+}
+
+/**
+ * SchemaDefinition - Defines database schema extensions for a plugin.
+ */
+export interface SchemaDefinition {
+  name: string;
+  tables: unknown[];
 }

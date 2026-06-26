@@ -9,15 +9,23 @@ Anchor-Kit is designed to be the "Rails" for Stellar Anchors—opinionated but f
 3.  **Strict State Machines**: Financial transactions follow rigid, unidirectional state transitions to prevent race conditions and double-spending.
 4.  **Developer Experience (DX)**: Inspired by tools like Better-Auth, providing a fluent, clear API.
 
-## Module Breakdown
+## Current Implementation (Foundation)
 
 ### `src/core`
 
-The heart of the SDK.
+- `createAnchor()` and `AnchorInstance` lifecycle (`use`, `init`, plugin registry).
+- `AnchorConfig` for defaults, immutability, and validation.
+- Domain error hierarchy.
 
-- `createAnchor()`: The factory function that initializes the server.
-- **Auth**: SEP-10 implementation details.
-- **Database**: Abstract adapters (Prisma, Postgres) to manage transaction state.
+### `src/types`
+
+- Unified configuration interfaces.
+- Transaction lifecycle and SEP-24 response typing.
+- Foundation and plugin interfaces.
+
+### `src/utils`
+
+- Validation, decimal arithmetic, idempotency handling, crypto/JWT helpers, and Stellar helpers.
 
 ### `src/plugins`
 
@@ -39,11 +47,11 @@ Shared internal services.
 ```
 anchor-kit/
 ├── src/
-│   ├── core/           # Core SDK logic (auth, server factory)
-│   ├── services/       # Shared services (Stellar, Logger, Queue)
+│   ├── core/           # Factory, config, errors, planned protocol stubs
+│   ├── services/       # Planned service layer (currently stubs)
 │   ├── plugins/        # SEP implementations and Rail adapters
-│   ├── utils/          # Helper functions (XDR parsing, etc.)
-│   ├── types/          # TypeScript definitions
+│   ├── utils/          # Runtime utilities
+│   ├── types/          # Public type definitions
 │   └── index.ts        # Public API export
 ├── examples/           # implementing example servers
 ├── tests/              # Vitest test suite

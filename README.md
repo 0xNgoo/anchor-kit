@@ -12,51 +12,192 @@ Designed for **Bun** and **TypeScript**, Anchor-Kit aims to make Stellar Anchors
 
 ## Features
 
-- 🏗 **SEP-24 Out of the Box**: Hosted deposit and withdrawal flows with minimal configuration.
-- 🔐 **SEP-10 Authentication**: Built-in Stellar Web Authentication handling.
-- 🧩 **Modular Architecture**: Plugin system for different payment rails (Flutterwave, Paystack, etc.).
+- 🔐 **SEP-10 Authentication**: Built-in challenge/token flow.
+- 🏗 **SEP-24 Interactive Deposits**: Minimal deposit flow endpoints.
+- 🌐 **Express Integration**: Mount routes with `anchor.getExpressRouter()`.
+- 🪝 **Webhook Endpoint**: Signature verification and callback hook support.
+- 🗄 **SQL Persistence**: SQLite for local/dev and PostgreSQL support path.
+- ⚙️ **Background Processing**: In-process queue and transaction watcher lifecycle.
 - 🛡 **Type-Safe**: Built with TypeScript for a robust developer experience.
-- ⚡ **Bun Optimized**: Fast runtime performance.
 
-## Installation
+## MVP Status
+
+This repository now ships a usable MVP with:
+
+- Express-style router mounting via `anchor.getExpressRouter()`
+- SEP-10 minimal challenge/token flow
+- SEP-24 minimal interactive deposit flow
+- Webhook endpoint with signature verification + callback hook
+- Real SQL persistence (SQLite implemented for local/dev tests, PostgreSQL path supported)
+- In-process queue + watcher lifecycle (`startBackgroundJobs` / `stopBackgroundJobs`)
+
+The SDK does not own `listen()` and does not bind network ports.
+
+## Install
 
 ```bash
 bun add anchor-kit
 ```
 
-## Quick Start (Dream API)
+## Quick Start
 
-```typescript
+```ts
+import express from 'express';
 import { createAnchor } from 'anchor-kit';
-import { sep24 } from 'anchor-kit/plugins/sep24';
-import { postgresAdapter } from 'anchor-kit/adapters/postgres';
+
+const app = express();
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as { rawBody?: string }).rawBody = buf.toString('utf8');
+    },
+  }),
+);
 
 const anchor = createAnchor({
-  network: 'testnet',
-  database: postgresAdapter({
-    url: process.env.DATABASE_URL,
-  }),
-  secrets: {
-    sep10SigningKey: process.env.SEP10_SIGNING_KEY,
-    distributionAccountSecret: process.env.DISTRIBUTION_SECRET,
+  network: { network: 'testnet' },
+  server: { interactiveDomain: 'https://anchor.example.com' },
+  security: {
+    sep10SigningKey: process.env.SEP10_SIGNING_KEY!,
+    interactiveJwtSecret: process.env.INTERACTIVE_JWT_SECRET!,
+    distributionAccountSecret: process.env.DISTRIBUTION_ACCOUNT_SECRET!,
+    webhookSecret: process.env.WEBHOOK_SECRET,
+    verifyWebhookSignatures: true,
   },
-  plugins: [
-    sep24({
-      assetCode: 'USDC',
-      issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
-    }),
-  ],
+  assets: {
+    assets: [
+      {
+        code: 'USDC',
+        issuer: process.env.USDC_ISSUER!,
+        deposits_enabled: true,
+      },
+    ],
+  },
+  framework: {
+    database: {
+      provider: 'postgres',
+      url: process.env.DATABASE_URL!,
+    },
+    queue: {
+      backend: 'memory',
+      concurrency: 5,
+    },
+    watchers: {
+      enabled: true,
+      pollIntervalMs: 15000,
+      transactionTimeoutMs: 300000,
+    },
+  },
+  webhooks: {
+    onEvent: async (event, ctx) => {
+      console.log('webhook event', event.eventId, ctx.receivedAt);
+    },
+  },
 });
 
-anchor.listen(3000);
-console.log('⚓ Anchor service running on port 3000');
+await anchor.init();
+await anchor.startBackgroundJobs();
+
+app.use('/anchor', anchor.getExpressRouter());
+
+app.listen(3000);
 ```
 
-## Documentation
+### Webhook raw body capture
+
+Webhook signature verification signs the exact request body bytes, so Anchor-Kit must receive the unmodified raw body. If Express parses or normalizes JSON before the SDK can verify the signature, an otherwise valid `x-anchor-signature` can fail.
+
+When mounting Anchor-Kit behind Express, configure `express.json()` with a `verify` hook before `anchor.getExpressRouter()` and store `req.rawBody`, as shown in the Quick Start. Verify the webhook signature before parsing, transforming, or rebuilding the body for any custom middleware.
+
+## Background Job Lifecycle
+
+Background processing is explicit and host-controlled.
+
+1. Call `await anchor.init()` before mounting routes or starting jobs.
+2. Call `await anchor.startBackgroundJobs()` once during app startup.
+3. Call `await anchor.shutdown()` during graceful shutdown (which automatically stops background jobs).
+
+`startBackgroundJobs()` and `stopBackgroundJobs()` are idempotent and safe to call more than once.
+
+## Testing
+
+For tests and local development, `makeSqliteDbUrlForTests` creates a temporary SQLite database URL that you can import directly from `anchor-kit`.
+
+```ts
+import { makeSqliteDbUrlForTests } from 'anchor-kit';
+
+const databaseUrl = makeSqliteDbUrlForTests();
+```
+
+## Endpoints
+
+Mounted under your chosen base path (for example `/anchor`):
+
+- `GET /health`
+- `GET /info`
+- `GET /auth/challenge`
+- `POST /auth/token` (expects wallet-signed SEP-10 challenge XDR)
+- `POST /transactions/deposit/interactive` (Bearer auth)
+- `GET /transactions/:id` (Bearer auth)
+- `POST /webhooks/events`
+
+## curl Examples
+
+Assume your host app mounts the router at `/anchor` on `http://localhost:3000`.
+
+### SEP-10 challenge/token flow
+
+Get a challenge for a Stellar account:
+
+```bash
+ACCOUNT="G...YOUR_STELLAR_ACCOUNT"
+curl -s "http://localhost:3000/anchor/auth/challenge?account=${ACCOUNT}"
+```
+
+Exchange a wallet-signed challenge XDR for a bearer token:
+
+```bash
+ACCOUNT="G...YOUR_STELLAR_ACCOUNT"
+SIGNED_CHALLENGE_XDR="AAAA...wallet-signed-challenge-xdr"
+
+curl -s \
+  -X POST http://localhost:3000/anchor/auth/token \
+  -H 'content-type: application/json' \
+  -d "{\"account\":\"${ACCOUNT}\",\"challenge\":\"${SIGNED_CHALLENGE_XDR}\"}"
+```
+
+### Interactive deposit and transaction lookup
+
+Create a deposit transaction:
+
+```bash
+TOKEN="eyJ...sep10-access-token"
+
+curl -s \
+  -X POST http://localhost:3000/anchor/transactions/deposit/interactive \
+  -H "authorization: Bearer ${TOKEN}" \
+  -H 'content-type: application/json' \
+  -d '{"asset_code":"USDC","amount":"25"}'
+```
+
+Look up a transaction by id:
+
+```bash
+TOKEN="eyJ...sep10-access-token"
+TX_ID="replace-with-transaction-id"
+
+curl -s \
+  -H "authorization: Bearer ${TOKEN}" \
+  "http://localhost:3000/anchor/transactions/${TX_ID}"
+```
+
+## Docs
 
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Roadmap](./ROADMAP.md)
+
+The root package also exports public TypeScript transaction helpers, including `Transaction`, `TransactionKind`, and `TransactionStatus`.
 
 ## Contributing
 
@@ -64,4 +205,4 @@ We welcome contributions! Please see our [Contributing Guide](./CONTRIBUTING.md)
 
 ## License
 
-MIT © [0xNgoo](https://github.com/0xNgoo)
+MIT
