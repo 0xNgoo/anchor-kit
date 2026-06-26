@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeSqliteDbUrlForTests, SqlDatabaseAdapter } from '@/runtime/database/sql-database-adapter.ts';
+import { Database } from 'bun:sqlite';
+import {
+  makeSqliteDbUrlForTests,
+  SqlDatabaseAdapter,
+} from '@/runtime/database/sql-database-adapter.ts';
 
 describe('SqlDatabaseAdapter (sqlite)', () => {
   let adapter: SqlDatabaseAdapter;
@@ -67,10 +71,16 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
       status: 'completed',
     });
 
-    const sqlite = (adapter as any).sqlite;
-    sqlite.prepare('UPDATE interactive_transactions SET created_at = ? WHERE id = ?').run(firstTimestamp, 'tx-old');
-    sqlite.prepare('UPDATE interactive_transactions SET created_at = ? WHERE id = ?').run(secondTimestamp, 'tx-new');
-    sqlite.prepare('UPDATE interactive_transactions SET created_at = ? WHERE id = ?').run(secondTimestamp, 'tx-completed');
+    const sqlite = (adapter as unknown as { sqlite: Database }).sqlite;
+    sqlite
+      .prepare('UPDATE interactive_transactions SET created_at = ? WHERE id = ?')
+      .run(firstTimestamp, 'tx-old');
+    sqlite
+      .prepare('UPDATE interactive_transactions SET created_at = ? WHERE id = ?')
+      .run(secondTimestamp, 'tx-new');
+    sqlite
+      .prepare('UPDATE interactive_transactions SET created_at = ? WHERE id = ?')
+      .run(secondTimestamp, 'tx-completed');
 
     const pending = await adapter.listPendingTransactionsBefore(cutoffTimestamp);
     expect(pending).toHaveLength(1);
