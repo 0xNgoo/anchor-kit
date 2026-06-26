@@ -158,7 +158,7 @@ describe('Bearer token signed with wrong secret', () => {
     try {
       unlinkSync(dbPath);
     } catch {
-      // ignore
+      // ignore cleanup errors
     }
   });
 
