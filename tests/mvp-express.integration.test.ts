@@ -189,6 +189,14 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body).toEqual({ error: 'not_found', message: 'Endpoint not found' });
   });
 
+  it('1b) wrong HTTP method on supported path returns 404', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/health',
+    });
+
+    expect(response.status).toBe(404);
+  });
   it('2) /info returns configured assets and package version', async () => {
     const response = await invoke({ path: '/info' });
     expect(response.status).toBe(200);
@@ -265,6 +273,7 @@ describe('MVP Express-mounted integration', () => {
           },
         ],
       },
+
       framework: {
         database: {
           provider: 'sqlite',
