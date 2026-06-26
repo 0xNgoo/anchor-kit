@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Account, Keypair, MuxedAccount } from '@stellar/stellar-sdk';
+import { Account, Keypair, MuxedAccount, Transaction, Networks } from '@stellar/stellar-sdk';
 import { StellarUtils } from '@/utils/stellar.ts';
 
 interface ParsedPaymentOperation {
@@ -175,6 +175,24 @@ describe('StellarUtils', () => {
 
     it('should throw when parsing invalid XDR', () => {
       expect(() => StellarUtils.parseXdrTransaction('invalid-xdr')).toThrow(/Failed to parse XDR/);
+    });
+
+    it('should build a payment using the public network passphrase', async () => {
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '2.5',
+        assetCode: 'XLM',
+        network: 'public' as const,
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      expect(typeof xdr).toBe('string');
+
+      const tx = new Transaction(xdr, Networks.PUBLIC);
+      expect(tx.networkPassphrase).toBe(Networks.PUBLIC);
+      expect(tx.source).toBe(params.source);
+      expect(tx.operations.length).toBe(1);
     });
   });
 });

@@ -69,5 +69,15 @@ describe('CryptoUtils', () => {
     it('should throw error for malformed token', async () => {
       await expect(CryptoUtils.verifyJwt('invalid-token', secret)).rejects.toThrow();
     });
+
+    it('should reject an expired token', async () => {
+      // generate a token that expires in 1 second
+      const token = await CryptoUtils.generateJwt(payload, secret, { expiresIn: 1 });
+
+      // wait just over 1 second to ensure expiration (keeps test fast)
+      await new Promise((r) => setTimeout(r, 1100));
+
+      await expect(CryptoUtils.verifyJwt(token, secret)).rejects.toThrow();
+    });
   });
 });
