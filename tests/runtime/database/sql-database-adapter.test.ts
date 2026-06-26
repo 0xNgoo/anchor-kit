@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Database } from 'bun:sqlite';
 import {
   makeSqliteDbUrlForTests,
@@ -17,7 +17,6 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
 
   afterEach(async () => {
     await adapter.disconnect();
-    vi.useRealTimers();
   });
 
   it('persists and consumes auth challenges correctly', async () => {

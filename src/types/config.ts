@@ -77,6 +77,18 @@ export interface ServerConfig {
    * @optional
    */
   interactiveDomain?: string;
+
+  /**
+   * Allowed origins for CORS
+   * @optional
+   */
+  corsOrigins?: string[];
+
+  /**
+   * Request timeout in milliseconds
+   * @optional - defaults to 30000
+   */
+  requestTimeout?: number;
 }
 
 /**

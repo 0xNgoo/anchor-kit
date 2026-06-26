@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { Keypair } from '@stellar/stellar-sdk';
 import { AnchorConfig } from '../../src/core/config';
 import { ConfigError } from '../../src/core/errors';
 import { createAnchor, makeSqliteDbUrlForTests } from '../../src/core/factory';
 import type { AnchorKitConfig } from '../../src/types/config';
 
 describe('Config Validation Improvements (#124, #125)', () => {
+  const testSep10SigningKey = Keypair.random().secret();
   const validBaseConfig: AnchorKitConfig = {
     network: { network: 'testnet' },
     server: { port: 3000 },
     security: {
-      sep10SigningKey: 'secret-key-10',
+      sep10SigningKey: testSep10SigningKey,
       interactiveJwtSecret: 'jwt-secret',
       distributionAccountSecret: 'dist-secret',
     },
@@ -169,7 +171,7 @@ describe('Config Validation Improvements (#124, #125)', () => {
         },
       };
       const anchor = createAnchor(memoryConfig);
-      await expect(anchor.init()).resolves.not.toThrow();
+      await anchor.init();
       await anchor.shutdown();
     });
 
@@ -185,7 +187,7 @@ describe('Config Validation Improvements (#124, #125)', () => {
         },
       };
       const anchor = createAnchor(defaultConfig);
-      await expect(anchor.init()).resolves.not.toThrow();
+      await anchor.init();
       await anchor.shutdown();
     });
   });
