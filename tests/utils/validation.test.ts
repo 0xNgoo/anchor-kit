@@ -1,6 +1,7 @@
 import {
   AnchorKitConfigSchema,
   NetworkConfigSchema,
+  SecurityConfigSchema,
   ValidationUtils,
 } from '../../src/utils/validation';
 import type { AnchorKitConfig } from '../../src/types/config';
@@ -143,6 +144,45 @@ describe('NetworkConfigSchema', () => {
   });
 });
 
+describe('SecurityConfigSchema', () => {
+  const validSecurityConfig = {
+    sep10SigningKey: 'SD6P3...',
+    interactiveJwtSecret: 'shhh',
+    distributionAccountSecret: 'SD7Q4...',
+  };
+
+  test('should validate a correct SecurityConfig', () => {
+    expect(() => SecurityConfigSchema.validate(validSecurityConfig)).not.toThrow();
+  });
+
+  test('should throw for missing security secrets', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        sep10SigningKey: '',
+      }),
+    ).toThrow(/sep10SigningKey/);
+  });
+
+  test('should throw for invalid authTokenLifetimeSeconds', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        authTokenLifetimeSeconds: 0,
+      }),
+    ).toThrow(/authTokenLifetimeSeconds must be > 0/);
+  });
+
+  test('should throw when authTokenLifetimeSeconds is a string', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        authTokenLifetimeSeconds: '3600' as unknown as number,
+      }),
+    ).toThrow(/authTokenLifetimeSeconds must be > 0/);
+  });
+});
+
 describe('AnchorKitConfigSchema', () => {
   const validConfig: AnchorKitConfig = {
     network: { network: 'testnet' },
@@ -181,5 +221,69 @@ describe('AnchorKitConfigSchema', () => {
       },
     };
     expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/pollIntervalMs/);
+  });
+
+  test('should throw for non-positive transactionTimeoutMs', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: 0 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/transactionTimeoutMs/);
+  });
+
+  test('should throw for negative transactionTimeoutMs', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: -1 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/transactionTimeoutMs/);
+  });
+
+  test('should throw for non-finite transactionTimeoutMs', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: Infinity } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/transactionTimeoutMs/);
+  });
+
+  test('should accept valid transactionTimeoutMs', () => {
+    const cfg = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { transactionTimeoutMs: 300000 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(cfg)).not.toThrow();
+  });
+
+  test('should throw for non-positive retentionDays', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: 0 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/retentionDays/);
+  });
+
+  test('should throw for negative retentionDays', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: -5 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/retentionDays/);
+  });
+
+  test('should throw for non-finite retentionDays', () => {
+    const invalidConfig = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: NaN } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/retentionDays/);
+  });
+
+  test('should accept valid retentionDays', () => {
+    const cfg = {
+      ...validConfig,
+      framework: { ...validConfig.framework, watchers: { retentionDays: 90 } },
+    };
+    expect(() => AnchorKitConfigSchema.validate(cfg)).not.toThrow();
   });
 });

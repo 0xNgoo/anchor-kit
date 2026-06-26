@@ -15,6 +15,7 @@ export class TransactionWatcher implements Watcher {
   private readonly pollIntervalMs: number;
   private readonly transactionTimeoutMs: number;
   private readonly retentionDays: number;
+  private isTickInProgress = false;
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(database: DatabaseAdapter, queue: QueueAdapter, options: TransactionWatcherOptions) {
@@ -41,36 +42,46 @@ export class TransactionWatcher implements Watcher {
   }
 
   private async tick(): Promise<void> {
-    const cutoff = new Date(Date.now() - this.transactionTimeoutMs).toISOString();
-    const pendingTransactions = await this.database.listPendingTransactionsBefore(cutoff);
-
-    for (const transaction of pendingTransactions) {
-      await this.queue.enqueue({
-        type: 'expire_transaction',
-        payload: { transactionId: transaction.id },
-      });
+    if (this.isTickInProgress) {
+      return;
     }
 
-    const watcherTaskId = randomUUID();
-    await this.database.insertWatcherTask({
-      id: watcherTaskId,
-      watcherName: this.name,
-      payload: {
-        pendingTransactionsChecked: pendingTransactions.length,
-        checkedAt: new Date().toISOString(),
-      },
-    });
+    this.isTickInProgress = true;
 
-    await this.queue.enqueue({
-      type: 'process_watcher_task',
-      payload: { watcherTaskId },
-    });
+    try {
+      const cutoff = new Date(Date.now() - this.transactionTimeoutMs).toISOString();
+      const pendingTransactions = await this.database.listPendingTransactionsBefore(cutoff);
 
-    await this.queue.enqueue({
-      type: 'cleanup_records',
-      payload: {
-        retentionDays: this.retentionDays,
-      },
-    });
+      for (const transaction of pendingTransactions) {
+        await this.queue.enqueue({
+          type: 'expire_transaction',
+          payload: { transactionId: transaction.id },
+        });
+      }
+
+      const watcherTaskId = randomUUID();
+      await this.database.insertWatcherTask({
+        id: watcherTaskId,
+        watcherName: this.name,
+        payload: {
+          pendingTransactionsChecked: pendingTransactions.length,
+          checkedAt: new Date().toISOString(),
+        },
+      });
+
+      await this.queue.enqueue({
+        type: 'process_watcher_task',
+        payload: { watcherTaskId },
+      });
+
+      await this.queue.enqueue({
+        type: 'cleanup_records',
+        payload: {
+          retentionDays: this.retentionDays,
+        },
+      });
+    } finally {
+      this.isTickInProgress = false;
+    }
   }
 }

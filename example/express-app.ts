@@ -9,6 +9,21 @@ export interface ExampleApp {
   shutdown: () => Promise<void>;
 }
 
+function getChallengeExpirationSeconds(): number {
+  const rawValue = process.env.CHALLENGE_EXPIRATION_SECONDS;
+
+  if (!rawValue) {
+    return 300;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return 300;
+  }
+
+  return parsedValue;
+}
+
 function getWatchersEnabled(): boolean {
   return process.env.WATCHERS_ENABLED !== 'false';
 }
@@ -30,7 +45,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
         process.env.DISTRIBUTION_ACCOUNT_SECRET ?? 'example-distribution-secret',
       webhookSecret: process.env.WEBHOOK_SECRET,
       verifyWebhookSignatures: process.env.WEBHOOK_SECRET ? true : false,
-      challengeExpirationSeconds: 300,
+      challengeExpirationSeconds: getChallengeExpirationSeconds(),
     },
     assets: {
       assets: [

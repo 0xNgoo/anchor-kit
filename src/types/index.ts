@@ -3,13 +3,23 @@
  * This is the main entry point for all type exports
  */
 
-export { TRANSACTION_STATUSES } from './transaction-status.ts';
-export type { TransactionStatus } from './transaction-status.ts';
+export {
+  TRANSACTION_STATUSES,
+  isPendingTransactionStatus,
+  isTerminalTransactionStatus,
+  isTransactionStatus,
+} from './transaction-status.ts';
+export type {
+  PendingTransactionStatus,
+  TerminalTransactionStatus,
+  TransactionStatus,
+} from './transaction-status.ts';
 
 export type { Customer } from './customer.ts';
 
 export type {
   Transaction,
+  TransactionKind,
   Amount,
   RailTransactionData,
   StellarTransactionData,

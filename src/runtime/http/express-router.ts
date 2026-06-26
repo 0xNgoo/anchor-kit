@@ -13,6 +13,7 @@ import {
 } from '@stellar/stellar-sdk';
 import jwt from 'jsonwebtoken';
 import { createHash, randomUUID } from 'node:crypto';
+import { IdempotencyUtils } from '@/utils/idempotency.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type ExpressLikeMiddleware = (
@@ -236,7 +237,7 @@ export class AnchorExpressRouter {
     const method = (req.method ?? 'GET').toUpperCase();
 
     if (method === 'GET' && path === '/health') {
-      sendJson(res, 200, { status: 'ok' });
+      sendJson(res, 200, { status: 'ok', version });
       return;
     }
 
@@ -251,6 +252,10 @@ export class AnchorExpressRouter {
 
       if (fullConfig.server.interactiveDomain) {
         responseBody.interactive_domain = fullConfig.server.interactiveDomain;
+      }
+
+      if (fullConfig.operational?.supportEmail) {
+        responseBody.support_email = fullConfig.operational.supportEmail;
       }
 
       sendJson(res, 200, responseBody);
@@ -489,11 +494,14 @@ export class AnchorExpressRouter {
         return;
       }
 
-      const idempotencyKey = req.headers['idempotency-key'];
+      const idempotencyKey = IdempotencyUtils.extractIdempotencyHeader(
+        req.headers,
+        'idempotency-key',
+      );
       const scope = `deposit:${auth.account}`;
       const requestHash = sha256(JSON.stringify({ assetCode, amount }));
 
-      if (typeof idempotencyKey === 'string' && idempotencyKey.length > 0) {
+      if (idempotencyKey !== null) {
         const existing = await this.database.getIdempotencyRecord(scope, idempotencyKey);
         if (existing) {
           if (existing.requestHash !== requestHash) {
@@ -575,8 +583,9 @@ export class AnchorExpressRouter {
         return;
       }
 
+      const serverConfig = this.config.get('server');
       const selectedAsset = this.config.getAsset(transaction.assetCode);
-      sendJson(res, 200, {
+      const responseData: Record<string, unknown> & { more_info_url?: string } = {
         id: transaction.id,
         kind: transaction.kind,
         status: transaction.status,
@@ -584,10 +593,17 @@ export class AnchorExpressRouter {
         asset_code: transaction.assetCode,
         asset_issuer: selectedAsset?.issuer,
         account: transaction.account,
-        interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
+        interactive_url: `${serverConfig.interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
         created_at: transaction.createdAt,
         updated_at: transaction.updatedAt,
-      });
+      };
+
+      // Add more_info_url only when interactive domain is configured
+      if (serverConfig.interactiveDomain) {
+        responseData.more_info_url = `${serverConfig.interactiveDomain}/deposit/${transaction.id}`;
+      }
+
+      sendJson(res, 200, responseData);
       return;
     }
 
@@ -602,7 +618,13 @@ export class AnchorExpressRouter {
       const eventId =
         typeof eventIdField === 'string' && eventIdField.length > 0 ? eventIdField : randomUUID();
       const providerHeader = req.headers['x-webhook-provider'];
-      const provider = typeof providerHeader === 'string' ? providerHeader : 'generic';
+      const providerBody = payload.provider;
+      const provider =
+        typeof providerHeader === 'string' && providerHeader.length > 0
+          ? providerHeader
+          : typeof providerBody === 'string' && providerBody.length > 0
+            ? providerBody
+            : 'generic';
       const signatureHeader = req.headers['x-anchor-signature'];
       const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
 
@@ -626,6 +648,7 @@ export class AnchorExpressRouter {
         sendJson(res, 400, {
           error: 'webhook_error',
           message: 'Webhook processing failed',
+          event_id: eventId,
         });
       }
       return;
@@ -648,6 +671,7 @@ export class AnchorExpressRouter {
       sendJson(res, 429, {
         error: 'rate_limited',
         message: 'Too many requests',
+        retry_after_seconds: result.retryAfterSeconds,
       });
       return false;
     }

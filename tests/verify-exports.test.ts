@@ -1,7 +1,22 @@
-import { AssetSchema, DatabaseUrlSchema, utils } from '../src/index';
+import {
+  AssetSchema,
+  DatabaseUrlSchema,
+  SecurityConfigSchema,
+  makeSqliteDbUrlForTests,
+  utils,
+} from '../src/index';
+import type { TransactionKind } from '../src/index';
 import { describe, expect, it } from 'vitest';
 
 describe('Export Verification', () => {
+  it('should export TransactionKind at the top level', () => {
+    const deposit: TransactionKind = 'deposit';
+    const withdrawal: TransactionKind = 'withdrawal';
+
+    expect(deposit).toBe('deposit');
+    expect(withdrawal).toBe('withdrawal');
+  });
+
   it('should export AssetSchema at the top level', () => {
     expect(AssetSchema).toBeDefined();
     expect(typeof AssetSchema.isValid).toBe('function');
@@ -12,9 +27,25 @@ describe('Export Verification', () => {
     expect(typeof DatabaseUrlSchema.isValid).toBe('function');
   });
 
+  it('should export SecurityConfigSchema at the top level', () => {
+    expect(SecurityConfigSchema).toBeDefined();
+    expect(typeof SecurityConfigSchema.validate).toBe('function');
+  });
+
   it('should still be available through utils.AssetSchema', () => {
     expect(utils.AssetSchema).toBeDefined();
     expect(utils.AssetSchema).toBe(AssetSchema);
+  });
+
+  it('should still be available through utils.SecurityConfigSchema', () => {
+    expect(utils.SecurityConfigSchema).toBeDefined();
+    expect(utils.SecurityConfigSchema).toBe(SecurityConfigSchema);
+  });
+
+  it('should export makeSqliteDbUrlForTests at the top level', () => {
+    expect(makeSqliteDbUrlForTests).toBeDefined();
+    expect(typeof makeSqliteDbUrlForTests).toBe('function');
+    expect(makeSqliteDbUrlForTests()).toMatch(/^file:/);
   });
 });
 

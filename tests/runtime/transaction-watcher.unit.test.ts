@@ -64,6 +64,13 @@ describe('TransactionWatcher Unit Tests', () => {
     });
   });
 
+  it('treats stop() before start() as a safe no-op', async () => {
+    await expect(transactionWatcher.stop()).resolves.toBeUndefined();
+    expect(mockDatabase.listPendingTransactionsBefore).not.toHaveBeenCalled();
+    expect(mockQueue.enqueue).not.toHaveBeenCalled();
+    expect(mockQueue.stop).not.toHaveBeenCalled();
+  });
+
   it('enqueues expiration jobs for stale pending deposits', async () => {
     const staleTransaction = {
       id: 'stale-tx-1',
@@ -187,6 +194,29 @@ describe('TransactionWatcher Unit Tests', () => {
     await transactionWatcher.stop();
   });
 
+  it('prevents overlapping ticks when called concurrently', async () => {
+    let resolveTick!: (value: unknown[]) => void;
+    const tickPromise = new Promise<unknown[]>((resolve) => {
+      resolveTick = resolve;
+    });
+
+    mockDatabase.listPendingTransactionsBefore = vi.fn().mockReturnValue(tickPromise);
+
+    // Start two ticks concurrently
+    // Accessing private method for testing purposes
+    const watcherWithTick = transactionWatcher as unknown as { tick: () => Promise<void> };
+    const tick1 = watcherWithTick.tick();
+    const tick2 = watcherWithTick.tick();
+
+    // Resolve the database call
+    resolveTick!([]);
+
+    await Promise.all([tick1, tick2]);
+
+    // Database should only be called once because the second tick should have returned early
+    expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
+  });
+
   it('enqueues a cleanup_records job with the configured retention days', async () => {
     const retentionDays = 45;
     const customWatcher = new TransactionWatcher(mockDatabase, mockQueue, {
@@ -208,5 +238,24 @@ describe('TransactionWatcher Unit Tests', () => {
 
     // Stop the watcher
     await customWatcher.stop();
+  });
+
+  it('does not create additional polling timer when start() is called twice', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+
+    try {
+      await transactionWatcher.start();
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+
+      setIntervalSpy.mockClear();
+
+      await transactionWatcher.start();
+      expect(setIntervalSpy).not.toHaveBeenCalled();
+
+      expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
+    } finally {
+      setIntervalSpy.mockRestore();
+      await transactionWatcher.stop();
+    }
   });
 });

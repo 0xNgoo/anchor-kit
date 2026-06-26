@@ -1,4 +1,4 @@
-import type { AnchorKitConfig, NetworkConfig } from '@/types/config.ts';
+import type { AnchorKitConfig, NetworkConfig, SecurityConfig } from '@/types/config.ts';
 import DOMPurify from 'isomorphic-dompurify';
 
 /**
@@ -170,6 +170,35 @@ export const NetworkConfigSchema = {
 };
 
 /**
+ * SecurityConfigSchema - Public validation helper for security configuration.
+ */
+export const SecurityConfigSchema = {
+  /**
+   * Validates a SecurityConfig object.
+   * Throws an error if validation fails.
+   *
+   * @param config The SecurityConfig object to validate.
+   */
+  validate(config: SecurityConfig): void {
+    if (!config) throw new Error('Missing required field: security');
+    if (!config.sep10SigningKey)
+      throw new Error('Missing required secret: security.sep10SigningKey');
+    if (!config.interactiveJwtSecret)
+      throw new Error('Missing required secret: security.interactiveJwtSecret');
+    if (!config.distributionAccountSecret)
+      throw new Error('Missing required secret: security.distributionAccountSecret');
+    if (
+      config.authTokenLifetimeSeconds !== undefined &&
+      (typeof config.authTokenLifetimeSeconds !== 'number' ||
+        !Number.isFinite(config.authTokenLifetimeSeconds) ||
+        config.authTokenLifetimeSeconds <= 0)
+    ) {
+      throw new Error('security.authTokenLifetimeSeconds must be > 0');
+    }
+  },
+};
+
+/**
  * AnchorKitConfigSchema - Public validation helper for the top-level configuration object.
  */
 export const AnchorKitConfigSchema = {
@@ -195,15 +224,7 @@ export const AnchorKitConfigSchema = {
     NetworkConfigSchema.validate(network);
 
     // Security Section
-    if (!security.sep10SigningKey)
-      throw new Error('Missing required secret: security.sep10SigningKey');
-    if (!security.interactiveJwtSecret)
-      throw new Error('Missing required secret: security.interactiveJwtSecret');
-    if (!security.distributionAccountSecret)
-      throw new Error('Missing required secret: security.distributionAccountSecret');
-    if (security.authTokenLifetimeSeconds !== undefined && security.authTokenLifetimeSeconds <= 0) {
-      throw new Error('security.authTokenLifetimeSeconds must be > 0');
-    }
+    SecurityConfigSchema.validate(security);
 
     // Assets Section
     if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
@@ -235,6 +256,22 @@ export const AnchorKitConfigSchema = {
     ) {
       throw new Error('framework.watchers.pollIntervalMs must be >= 10');
     }
+    if (
+      framework.watchers?.transactionTimeoutMs !== undefined &&
+      (typeof framework.watchers.transactionTimeoutMs !== 'number' ||
+        !isFinite(framework.watchers.transactionTimeoutMs) ||
+        framework.watchers.transactionTimeoutMs <= 0)
+    ) {
+      throw new Error('framework.watchers.transactionTimeoutMs must be a finite number > 0');
+    }
+    if (
+      framework.watchers?.retentionDays !== undefined &&
+      (typeof framework.watchers.retentionDays !== 'number' ||
+        !isFinite(framework.watchers.retentionDays) ||
+        framework.watchers.retentionDays <= 0)
+    ) {
+      throw new Error('framework.watchers.retentionDays must be a finite number > 0');
+    }
     if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {
       throw new Error('framework.http.maxBodyBytes must be >= 1024');
     }
@@ -261,3 +298,97 @@ export const AnchorKitConfigSchema = {
     }
   },
 };
+
+// ---------------------------------------------------------------------------
+// ServerConfigSchema
+// ---------------------------------------------------------------------------
+
+import type { ServerConfig } from '../types/config.ts';
+
+export interface SchemaField {
+  type: string;
+  required: boolean;
+  description: string;
+  validate: (value: unknown) => boolean;
+}
+
+/**
+ * ServerConfigSchema
+ * Runtime schema for validating partial ServerConfig objects.
+ *
+ * @example
+ * import { ServerConfigSchema } from 'anchor-kit';
+ * ServerConfigSchema.port.validate(3000); // true
+ */
+export const ServerConfigSchema: Record<keyof Required<ServerConfig>, SchemaField> = {
+  host: {
+    type: 'string',
+    required: false,
+    description: 'Server host address. Defaults to 0.0.0.0',
+    validate: (value) => typeof value === 'string' && value.length > 0,
+  },
+  port: {
+    type: 'number',
+    required: false,
+    description: 'Server port number. Defaults to 3000.',
+    validate: (value) =>
+      typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535,
+  },
+  debug: {
+    type: 'boolean',
+    required: false,
+    description: 'Enable debug mode for verbose logging. Defaults to false.',
+    validate: (value) => typeof value === 'boolean',
+  },
+  interactiveDomain: {
+    type: 'string',
+    required: false,
+    description: 'Interactive web portal domain/URL for SEP-24 flows.',
+    validate: (value) => {
+      if (typeof value !== 'string' || value.length === 0) return false;
+      try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    },
+  },
+  corsOrigins: {
+    type: 'string[]',
+    required: false,
+    description: 'Allowed origins for CORS.',
+    validate: (value) =>
+      Array.isArray(value) &&
+      value.every((origin) => typeof origin === 'string' && origin.length > 0),
+  },
+  requestTimeout: {
+    type: 'number',
+    required: false,
+    description: 'Request timeout in milliseconds. Defaults to 30000.',
+    validate: (value) => typeof value === 'number' && Number.isFinite(value) && value > 0,
+  },
+};
+
+/**
+ * validateServerConfig
+ * Validates a partial ServerConfig object. Returns array of error strings.
+ *
+ * @example
+ * validateServerConfig({ port: -1 }); // ['port: invalid value']
+ */
+export function validateServerConfig(config: Partial<ServerConfig>): string[] {
+  const errors: string[] = [];
+  for (const [key, field] of Object.entries(ServerConfigSchema) as [
+    keyof ServerConfig,
+    SchemaField,
+  ][]) {
+    const value = config[key];
+    if (value === undefined || value === null) {
+      if (field.required) errors.push(`${key}: is required`);
+      continue;
+    }
+    if (!field.validate(value)) errors.push(`${key}: invalid value`);
+  }
+  return errors;
+}
