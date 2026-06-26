@@ -199,9 +199,7 @@ describe('MVP Express-mounted integration', () => {
     expect(typeof response.body.network_passphrase).toBe('string');
     expect((response.body.network_passphrase as string).length).toBeGreaterThan(0);
     // testnet network should resolve to the Stellar testnet passphrase
-    expect(response.body.network_passphrase).toBe(
-      'Test SDF Network ; September 2015',
-    );
+    expect(response.body.network_passphrase).toBe('Test SDF Network ; September 2015');
   });
 
   it('2b) /info includes support_email when configured', async () => {
