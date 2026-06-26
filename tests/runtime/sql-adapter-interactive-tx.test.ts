@@ -65,4 +65,9 @@ describe('SqlDatabaseAdapter – interactive transaction status updates', () => 
       globalThis.Date = RealDate;
     }
   });
+
+  it('returns null for getInteractiveTransactionById when the transaction does not exist', async () => {
+    const fetched = await db.getInteractiveTransactionById(randomUUID());
+    expect(fetched).toBeNull();
+  });
 });
