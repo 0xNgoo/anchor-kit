@@ -180,8 +180,23 @@ describe('MVP Express-mounted integration', () => {
     const response = await invoke({ path: '/health' });
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('ok');
+    expect(response.body.version).toBe(version);
   });
 
+  it('1b) unknown endpoint returns 404 not_found', async () => {
+    const response = await invoke({ path: '/does-not-exist' });
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: 'not_found', message: 'Endpoint not found' });
+  });
+
+  it('1b) wrong HTTP method on supported path returns 404', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/health',
+    });
+
+    expect(response.status).toBe(404);
+  });
   it('2) /info returns configured assets and package version', async () => {
     const response = await invoke({ path: '/info' });
     expect(response.status).toBe(200);
@@ -258,6 +273,7 @@ describe('MVP Express-mounted integration', () => {
           },
         ],
       },
+
       framework: {
         database: {
           provider: 'sqlite',
@@ -312,6 +328,75 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.headers['cache-control']).toBe('no-store');
     // Verify default TTL is used when not configured
     expect(tokenResponse.body.expires_in).toBe(3600);
+  });
+
+  it('3a) rate limit response body includes retry_after_seconds matching header', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-rate-limit',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      framework: {
+        database: {
+          provider: 'sqlite',
+          url: customDbUrl,
+        },
+        rateLimit: {
+          windowMs: 60000,
+          authChallengeMax: 1,
+          authTokenMax: 5,
+          webhookMax: 20,
+          depositMax: 20,
+        },
+      },
+    });
+
+    try {
+      await customAnchor.init();
+      const customInvoke = createMountedInvoker(customAnchor);
+      const account = Keypair.random().publicKey();
+      const headers = { 'x-forwarded-for': '203.0.113.232' };
+
+      const firstResponse = await customInvoke({
+        path: `/auth/challenge?account=${account}`,
+        headers,
+      });
+      expect(firstResponse.status).toBe(200);
+
+      const limitedResponse = await customInvoke({
+        path: `/auth/challenge?account=${account}`,
+        headers,
+      });
+
+      expect(limitedResponse.status).toBe(429);
+      expect(limitedResponse.headers['retry-after']).toBeDefined();
+      expect(limitedResponse.body.error).toBe('rate_limited');
+      expect(limitedResponse.body.retry_after_seconds).toBe(
+        Number(limitedResponse.headers['retry-after']),
+      );
+    } finally {
+      await customAnchor.shutdown();
+      try {
+        unlinkSync(customDbPath);
+      } catch {
+        // ignore cleanup errors in CI
+      }
+    }
   });
 
   it('3b) auth token with custom TTL returns correct expires_in', async () => {
@@ -413,6 +498,22 @@ describe('MVP Express-mounted integration', () => {
     expect(thirdResponse.status).toBe(429);
     expect(thirdResponse.body.error).toBe('rate_limited');
     expect(thirdResponse.headers['retry-after']).toBeDefined();
+  });
+
+  it('3c) auth token rejects invalid account', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': '10.0.0.6',
+      },
+      body: { account: 'not-a-stellar-key', challenge: 'some-challenge' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toBe('account must be a valid Stellar public key');
   });
 
   it('4) unauthorized deposit interactive rejected', async () => {
@@ -832,6 +933,101 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('8c) webhook is rejected when verification is enabled without configured secret', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    let misconfiguredWebhookCallbackCount = 0;
+
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-webhook-misconfigured',
+        distributionAccountSecret: 'distribution-test-secret',
+        verifyWebhookSignatures: true,
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: true,
+          },
+        ],
+      },
+      framework: {
+        database: {
+          provider: 'sqlite',
+          url: customDbUrl,
+        },
+      },
+      webhooks: {
+        onEvent: async () => {
+          misconfiguredWebhookCallbackCount += 1;
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    const payload = {
+      id: 'evt_misconfigured',
+      type: 'deposit.completed',
+      transaction_id: 'tx_misconfigured',
+    };
+
+    const unsignedResponse = await customInvoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+      },
+      body: payload,
+    });
+
+    expect(unsignedResponse.status).toBe(400);
+    expect(unsignedResponse.body).toEqual({
+      error: 'webhook_error',
+      event_id: 'evt_misconfigured',
+      message: 'Webhook processing failed',
+    });
+
+    const signature = createHmac('sha256', 'any-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const signedResponse = await customInvoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(signedResponse.status).toBe(400);
+    expect(signedResponse.body).toEqual({
+      error: 'webhook_error',
+      event_id: 'evt_misconfigured',
+      message: 'Webhook processing failed',
+    });
+    expect(misconfiguredWebhookCallbackCount).toBe(0);
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
   it('8b) webhook route uses default provider when no header provided', async () => {
     const payload = {
       id: 'evt_2',
@@ -890,6 +1086,26 @@ describe('MVP Express-mounted integration', () => {
     expect((response.body.event_id as string).length).toBeGreaterThan(0);
   });
 
+  it('8f) webhook route accepts an empty body and generates event_id for signed empty payloads', async () => {
+    const signature = createHmac('sha256', 'webhook-test-secret').update('').digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(response.body.duplicate).toBe(false);
+    expect(typeof response.body.event_id).toBe('string');
+    expect((response.body.event_id as string).length).toBeGreaterThan(0);
+  });
+
   it('8e) webhook success response includes received_at ISO timestamp', async () => {
     const payload = {
       id: 'evt_received_at_check',
@@ -917,6 +1133,69 @@ describe('MVP Express-mounted integration', () => {
     expect(typeof response.body.received_at).toBe('string');
     const parsed = Date.parse(response.body.received_at as string);
     expect(Number.isNaN(parsed)).toBe(false);
+  });
+
+  it('8f) failed webhook error response includes event_id', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: {},
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-error-event-id',
+        distributionAccountSecret: 'distribution-test-secret',
+        webhookSecret: 'webhook-test-secret',
+        verifyWebhookSignatures: true,
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: customDbUrl },
+      },
+      webhooks: {
+        onEvent: async () => {
+          throw new Error('simulated processing failure');
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    const payload = { id: 'evt_err_1', type: 'deposit.completed' };
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await customInvoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('webhook_error');
+    expect(response.body.event_id).toBe('evt_err_1');
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
   });
 
   it('9) queue worker/watcher processes at least one watch task', async () => {
