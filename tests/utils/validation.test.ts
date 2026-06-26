@@ -163,9 +163,9 @@ describe('NetworkConfigSchema', () => {
 
   test('should throw for non-string networkPassphrase', () => {
     expect(() =>
-      // @ts-expect-error test case
       NetworkConfigSchema.validate({
         network: 'testnet',
+        // @ts-expect-error testing non-string value
         networkPassphrase: 123,
       }),
     ).toThrow(/non-empty string/);
