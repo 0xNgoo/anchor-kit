@@ -1,8 +1,7 @@
-import { AnchorKitConfigSchema } from '@/utils/validation.ts';
 import { ConfigError } from '@/core/errors.ts';
 import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
+import { AnchorKitConfigSchema, DatabaseUrlSchema } from '@/utils/validation.ts';
 import { Networks } from '@stellar/stellar-sdk';
-import { DatabaseUrlSchema } from '@/utils/validation.ts';
 
 /**
  * AnchorConfig
@@ -48,10 +47,6 @@ export class AnchorConfig {
       website: operationalInput?.website,
       supportEmail: operationalInput?.supportEmail,
       address: operationalInput?.address,
-      webhooksEnabled: operationalInput?.webhooksEnabled ?? true,
-      queueBackend: operationalInput?.queueBackend ?? 'memory',
-      redisUrl: operationalInput?.redisUrl,
-      corsEnabled: operationalInput?.corsEnabled ?? true,
       transactionRetentionDays: operationalInput?.transactionRetentionDays ?? 90,
     } as AnchorKitConfig['operational'];
 

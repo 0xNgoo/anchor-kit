@@ -77,18 +77,6 @@ export interface ServerConfig {
    * @optional
    */
   interactiveDomain?: string;
-
-  /**
-   * Allowed origins for CORS
-   * @optional
-   */
-  corsOrigins?: string[];
-
-  /**
-   * Request timeout in milliseconds
-   * @optional - defaults to 30000
-   */
-  requestTimeout?: number;
 }
 
 /**
@@ -304,30 +292,6 @@ export interface OperationalConfig {
    * @optional
    */
   address?: OperationalAddress;
-
-  /**
-   * Enable transaction webhook notifications
-   * @optional - defaults to true
-   */
-  webhooksEnabled?: boolean;
-
-  /**
-   * Background job queue backend ('memory' | 'redis' | 'postgres')
-   * @optional - defaults to 'memory'
-   */
-  queueBackend?: 'memory' | 'redis' | 'postgres';
-
-  /**
-   * Redis connection URL (required if queueBackend is 'redis')
-   * @optional
-   */
-  redisUrl?: string;
-
-  /**
-   * Enable cross-origin requests
-   * @optional - defaults to true
-   */
-  corsEnabled?: boolean;
 
   /**
    * Transaction retention period in days

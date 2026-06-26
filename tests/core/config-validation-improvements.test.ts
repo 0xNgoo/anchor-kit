@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest';
 import { AnchorConfig } from '../../src/core/config';
 import { ConfigError } from '../../src/core/errors';
+import { createAnchor, makeSqliteDbUrlForTests } from '../../src/core/factory';
 import type { AnchorKitConfig } from '../../src/types/config';
-import { describe, expect, it } from 'vitest';
 
 describe('Config Validation Improvements (#124, #125)', () => {
   const validBaseConfig: AnchorKitConfig = {
@@ -111,6 +112,81 @@ describe('Config Validation Improvements (#124, #125)', () => {
         },
       });
       expect(() => config.validate()).not.toThrow();
+    });
+  });
+
+  describe('Runtime Config Validation (#207)', () => {
+    it('should reject redis queue backend during initialization', async () => {
+      const redisConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+          queue: {
+            backend: 'redis' as any, // testing invalid queue backend
+          },
+        },
+      };
+      const anchor = createAnchor(redisConfig);
+      await expect(anchor.init()).rejects.toThrow(ConfigError);
+      await expect(anchor.init()).rejects.toThrow(/Unsupported queue backend: "redis"/);
+    });
+
+    it('should reject postgres queue backend during initialization', async () => {
+      const postgresConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+          queue: {
+            backend: 'postgres' as any, // testing invalid queue backend
+          },
+        },
+      };
+      const anchor = createAnchor(postgresConfig);
+      await expect(anchor.init()).rejects.toThrow(ConfigError);
+      await expect(anchor.init()).rejects.toThrow(/Unsupported queue backend: "postgres"/);
+    });
+
+    it('should accept memory queue backend during initialization', async () => {
+      const memoryConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+          queue: {
+            backend: 'memory',
+          },
+        },
+      };
+      const anchor = createAnchor(memoryConfig);
+      await expect(anchor.init()).resolves.not.toThrow();
+      await anchor.shutdown();
+    });
+
+    it('should default to memory queue backend when not specified', async () => {
+      const defaultConfig: AnchorKitConfig = {
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+        },
+      };
+      const anchor = createAnchor(defaultConfig);
+      await expect(anchor.init()).resolves.not.toThrow();
+      await anchor.shutdown();
     });
   });
 });
