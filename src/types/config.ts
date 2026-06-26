@@ -300,6 +300,18 @@ export interface OperationalConfig {
   supportEmail?: string;
 
   /**
+   * Enable webhook event processing
+   * @optional
+   */
+  webhooksEnabled?: boolean;
+
+  /**
+   * Enable CORS for HTTP endpoints
+   * @optional
+   */
+  corsEnabled?: boolean;
+
+  /**
    * Operational address
    * @optional
    */

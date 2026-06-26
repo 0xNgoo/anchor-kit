@@ -119,7 +119,7 @@ describe('Config Validation Improvements (#124, #125)', () => {
 
   describe('Runtime Config Validation (#207)', () => {
     it('should reject redis queue backend during initialization', async () => {
-      const redisConfig: AnchorKitConfig = {
+      const redisConfig = {
         ...validBaseConfig,
         framework: {
           ...validBaseConfig.framework,
@@ -128,17 +128,17 @@ describe('Config Validation Improvements (#124, #125)', () => {
             url: makeSqliteDbUrlForTests(),
           },
           queue: {
-            backend: 'redis' as any, // testing invalid queue backend
+            backend: 'redis',
           },
         },
-      };
+      } as unknown as AnchorKitConfig;
       const anchor = createAnchor(redisConfig);
       await expect(anchor.init()).rejects.toThrow(ConfigError);
       await expect(anchor.init()).rejects.toThrow(/Unsupported queue backend: "redis"/);
     });
 
     it('should reject postgres queue backend during initialization', async () => {
-      const postgresConfig: AnchorKitConfig = {
+      const postgresConfig = {
         ...validBaseConfig,
         framework: {
           ...validBaseConfig.framework,
@@ -147,10 +147,10 @@ describe('Config Validation Improvements (#124, #125)', () => {
             url: makeSqliteDbUrlForTests(),
           },
           queue: {
-            backend: 'postgres' as any, // testing invalid queue backend
+            backend: 'postgres',
           },
         },
-      };
+      } as unknown as AnchorKitConfig;
       const anchor = createAnchor(postgresConfig);
       await expect(anchor.init()).rejects.toThrow(ConfigError);
       await expect(anchor.init()).rejects.toThrow(/Unsupported queue backend: "postgres"/);
