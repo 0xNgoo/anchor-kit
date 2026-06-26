@@ -591,7 +591,9 @@ describe('MVP Express-mounted integration', () => {
     expect(thirdResponse.headers['retry-after']).toBeDefined();
 
     await customAnchor.shutdown();
-    const customDbPath = customDbUrl.startsWith('file:') ? customDbUrl.slice('file:'.length) : customDbUrl;
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
     try {
       unlinkSync(customDbPath);
     } catch {
