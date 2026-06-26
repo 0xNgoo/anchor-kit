@@ -26,8 +26,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
   const middleware = anchor.getExpressRouter();
 
   return async (options: TestRequestOptions): Promise<TestResponse> => {
-    const serializedBody =
-      options.rawBody ?? (options.body ? JSON.stringify(options.body) : '');
+    const serializedBody = options.rawBody ?? (options.body ? JSON.stringify(options.body) : '');
 
     const req = Readable.from(serializedBody ? [serializedBody] : []) as IncomingMessage & {
       method: string;
