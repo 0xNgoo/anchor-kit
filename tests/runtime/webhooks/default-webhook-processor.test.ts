@@ -126,7 +126,9 @@ describe('DefaultWebhookProcessor', () => {
         rawBody: '{}',
         signature: 'invalid-signature',
       }),
-    ).rejects.toThrow('Webhook signature verification is enabled but no webhook secret is configured');
+    ).rejects.toThrow(
+      'Webhook signature verification is enabled but no webhook secret is configured',
+    );
 
     expect(callbackInvokedCount).toBe(0);
   });
