@@ -108,7 +108,11 @@ describe('Atomic Idempotency and Webhook Deduplication Concurrency Tests (#205)'
       expect(ids.size).toBe(10);
 
       // All should be marked as inserted (our own record)
-      expect(results.every((r) => r.id === results.find((res) => res.idempotencyKey === r.idempotencyKey)?.id)).toBe(true);
+      expect(
+        results.every(
+          (r) => r.id === results.find((res) => res.idempotencyKey === r.idempotencyKey)?.id,
+        ),
+      ).toBe(true);
     });
   });
 
@@ -235,7 +239,11 @@ describe('Atomic Idempotency and Webhook Deduplication Concurrency Tests (#205)'
       expect(ids.size).toBe(10);
 
       // All should be marked as inserted (our own record)
-      expect(results.every((r) => r.id === results.find((res) => res.idempotencyKey === r.idempotencyKey)?.id)).toBe(true);
+      expect(
+        results.every(
+          (r) => r.id === results.find((res) => res.idempotencyKey === r.idempotencyKey)?.id,
+        ),
+      ).toBe(true);
     });
   });
 });
