@@ -389,6 +389,19 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('3c) auth token rejects invalid account', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      body: { account: 'not-a-stellar-key', challenge: 'some-challenge' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toBe('account must be a valid Stellar public key');
+  });
+
   it('4) unauthorized deposit interactive rejected', async () => {
     const response = await invoke({
       method: 'POST',
