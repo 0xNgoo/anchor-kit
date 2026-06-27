@@ -181,6 +181,11 @@ export const NetworkConfigSchema = {
     if (config.horizonUrl && !ValidationUtils.isValidUrl(config.horizonUrl)) {
       throw new Error('Invalid URL format for network.horizonUrl');
     }
+    if (config.networkPassphrase !== undefined && config.networkPassphrase !== null) {
+      if (typeof config.networkPassphrase !== 'string' || config.networkPassphrase.length === 0) {
+        throw new Error('Invalid network.networkPassphrase: must be a non-empty string');
+      }
+    }
   },
 };
 
@@ -270,6 +275,22 @@ export const AnchorKitConfigSchema = {
       framework.watchers.pollIntervalMs < 10
     ) {
       throw new Error('framework.watchers.pollIntervalMs must be >= 10');
+    }
+    if (
+      framework.watchers?.transactionTimeoutMs !== undefined &&
+      (typeof framework.watchers.transactionTimeoutMs !== 'number' ||
+        !isFinite(framework.watchers.transactionTimeoutMs) ||
+        framework.watchers.transactionTimeoutMs <= 0)
+    ) {
+      throw new Error('framework.watchers.transactionTimeoutMs must be a finite number > 0');
+    }
+    if (
+      framework.watchers?.retentionDays !== undefined &&
+      (typeof framework.watchers.retentionDays !== 'number' ||
+        !isFinite(framework.watchers.retentionDays) ||
+        framework.watchers.retentionDays <= 0)
+    ) {
+      throw new Error('framework.watchers.retentionDays must be a finite number > 0');
     }
     if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {
       throw new Error('framework.http.maxBodyBytes must be >= 1024');
