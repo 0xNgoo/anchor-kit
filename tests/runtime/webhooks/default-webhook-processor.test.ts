@@ -22,7 +22,7 @@ describe('DefaultWebhookProcessor', () => {
     };
 
     mockDatabase = {
-      insertWebhookEvent: async (input) => {
+      insertOrGetWebhookEvent: async (input) => {
         if (input.eventId === 'evt_duplicate') {
           return { record: existingRecord, inserted: false };
         }

@@ -1,7 +1,3 @@
-import { randomUUID } from 'node:crypto';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { Database } from 'bun:sqlite';
 import { ConfigError } from '@/core/errors.ts';
 import type {
   AuthChallengeRecord,
@@ -12,6 +8,10 @@ import type {
   WebhookEventRecord,
 } from '@/runtime/interfaces.ts';
 import type { FrameworkConfig } from '@/types/config.ts';
+import { Database } from 'bun:sqlite';
+import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 type SqliteLike = Database;
 
@@ -408,20 +408,21 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     return row ? this.mapIdempotencyRow(row) : null;
   }
 
-  public async insertIdempotencyRecord(input: {
+  public async insertOrGetIdempotencyRecord(input: {
     id: string;
     scope: string;
     idempotencyKey: string;
     requestHash: string;
     statusCode: number;
     responseBody: string;
-  }): Promise<void> {
+  }): Promise<IdempotencyRecord> {
     const createdAt = nowIso();
 
     if (this.sqlite) {
+      // SQLite: INSERT ... ON CONFLICT DO NOTHING, then SELECT
       this.sqlite
         .prepare(
-          'INSERT INTO idempotency_keys (id, scope, idempotency_key, request_hash, status_code, response_body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO idempotency_keys (id, scope, idempotency_key, request_hash, status_code, response_body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(scope, idempotency_key) DO NOTHING',
         )
         .run(
           input.id,
@@ -432,11 +433,21 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
           input.responseBody,
           createdAt,
         );
-      return;
+
+      const row = this.sqlite
+        .prepare('SELECT * FROM idempotency_keys WHERE scope = ? AND idempotency_key = ? LIMIT 1')
+        .get(input.scope, input.idempotencyKey) as Record<string, unknown>;
+
+      if (!row) {
+        throw new ConfigError('Failed to insert or retrieve idempotency record');
+      }
+
+      return this.mapIdempotencyRow(row);
     }
 
+    // PostgreSQL: INSERT ... ON CONFLICT DO NOTHING, then SELECT
     await this.requirePostgres().query(
-      'INSERT INTO idempotency_keys (id, scope, idempotency_key, request_hash, status_code, response_body, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      'INSERT INTO idempotency_keys (id, scope, idempotency_key, request_hash, status_code, response_body, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(scope, idempotency_key) DO NOTHING',
       [
         input.id,
         input.scope,
@@ -447,9 +458,42 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
         createdAt,
       ],
     );
+
+    const response = await this.requirePostgres().query<Record<string, unknown>>(
+      'SELECT * FROM idempotency_keys WHERE scope = $1 AND idempotency_key = $2 LIMIT 1',
+      [input.scope, input.idempotencyKey],
+    );
+
+    const row = response.rows[0];
+    if (!row) {
+      throw new ConfigError('Failed to insert or retrieve idempotency record');
+    }
+
+    return this.mapIdempotencyRow(row);
   }
 
-  public async insertWebhookEvent(input: {
+  public async updateIdempotencyRecord(input: {
+    scope: string;
+    idempotencyKey: string;
+    statusCode: number;
+    responseBody: string;
+  }): Promise<void> {
+    if (this.sqlite) {
+      this.sqlite
+        .prepare(
+          'UPDATE idempotency_keys SET status_code = ?, response_body = ? WHERE scope = ? AND idempotency_key = ?',
+        )
+        .run(input.statusCode, input.responseBody, input.scope, input.idempotencyKey);
+      return;
+    }
+
+    await this.requirePostgres().query(
+      'UPDATE idempotency_keys SET status_code = $1, response_body = $2 WHERE scope = $3 AND idempotency_key = $4',
+      [input.statusCode, input.responseBody, input.scope, input.idempotencyKey],
+    );
+  }
+
+  public async insertOrGetWebhookEvent(input: {
     id: string;
     eventId: string;
     provider: string;
@@ -458,16 +502,10 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     const createdAt = nowIso();
 
     if (this.sqlite) {
-      const existing = this.sqlite
-        .prepare('SELECT * FROM webhook_events WHERE event_id = ? LIMIT 1')
-        .get(input.eventId) as Record<string, unknown> | null;
-      if (existing) {
-        return { record: this.mapWebhookRow(existing), inserted: false };
-      }
-
+      // SQLite: INSERT ... ON CONFLICT DO NOTHING, then SELECT
       this.sqlite
         .prepare(
-          'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)',
+          'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?) ON CONFLICT(event_id) DO NOTHING',
         )
         .run(
           input.id,
@@ -478,28 +516,22 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
           createdAt,
         );
 
-      const inserted = this.sqlite
-        .prepare('SELECT * FROM webhook_events WHERE id = ? LIMIT 1')
-        .get(input.id) as Record<string, unknown> | null;
+      const row = this.sqlite
+        .prepare('SELECT * FROM webhook_events WHERE event_id = ? LIMIT 1')
+        .get(input.eventId) as Record<string, unknown>;
 
-      if (!inserted) {
-        throw new ConfigError('Failed to insert webhook event');
+      if (!row) {
+        throw new ConfigError('Failed to insert or retrieve webhook event');
       }
 
-      return { record: this.mapWebhookRow(inserted), inserted: true };
+      // Check if this is the record we just inserted (id matches) or an existing one
+      const inserted = row.id === input.id;
+      return { record: this.mapWebhookRow(row), inserted };
     }
 
-    const existingPg = await this.requirePostgres().query<Record<string, unknown>>(
-      'SELECT * FROM webhook_events WHERE event_id = $1 LIMIT 1',
-      [input.eventId],
-    );
-
-    if (existingPg.rows[0]) {
-      return { record: this.mapWebhookRow(existingPg.rows[0]), inserted: false };
-    }
-
+    // PostgreSQL: INSERT ... ON CONFLICT DO NOTHING, then SELECT
     await this.requirePostgres().query(
-      'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES ($1, $2, $3, $4::jsonb, $5, NULL, NULL, $6)',
+      'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES ($1, $2, $3, $4::jsonb, $5, NULL, NULL, $6) ON CONFLICT(event_id) DO NOTHING',
       [
         input.id,
         input.eventId,
@@ -510,17 +542,19 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
       ],
     );
 
-    const insertedPg = await this.requirePostgres().query<Record<string, unknown>>(
-      'SELECT * FROM webhook_events WHERE id = $1 LIMIT 1',
-      [input.id],
+    const response = await this.requirePostgres().query<Record<string, unknown>>(
+      'SELECT * FROM webhook_events WHERE event_id = $1 LIMIT 1',
+      [input.eventId],
     );
 
-    const row = insertedPg.rows[0];
+    const row = response.rows[0];
     if (!row) {
-      throw new ConfigError('Failed to insert webhook event');
+      throw new ConfigError('Failed to insert or retrieve webhook event');
     }
 
-    return { record: this.mapWebhookRow(row), inserted: true };
+    // Check if this is the record we just inserted (id matches) or an existing one
+    const inserted = row.id === input.id;
+    return { record: this.mapWebhookRow(row), inserted };
   }
 
   public async updateWebhookEventStatus(input: {

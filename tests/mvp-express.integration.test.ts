@@ -208,6 +208,15 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.interactive_domain).toBe('https://anchor.example.com');
   });
 
+  it('2e) /info includes network_passphrase matching the configured network', async () => {
+    const response = await invoke({ path: '/info' });
+    expect(response.status).toBe(200);
+    expect(typeof response.body.network_passphrase).toBe('string');
+    expect((response.body.network_passphrase as string).length).toBeGreaterThan(0);
+    // testnet network should resolve to the Stellar testnet passphrase
+    expect(response.body.network_passphrase).toBe('Test SDF Network ; September 2015');
+  });
+
   it('2b) /info includes support_email when configured', async () => {
     const customDbUrl = makeSqliteDbUrlForTests();
     const customAnchor = createAnchor({
@@ -406,6 +415,17 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('3c) invalid account public key returns 400 response', async () => {
+    const invalidAccount = 'not_a_valid_stellar_public_key';
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${invalidAccount}`,
+      headers: { 'x-forwarded-for': '10.0.0.5' },
+    });
+
+    expect(challengeResponse.status).toBe(400);
+    expect(challengeResponse.body.error).toBe('invalid_request');
+  });
+
   it('3b) auth token with custom TTL returns correct expires_in', async () => {
     // Create a new anchor instance with custom TTL using a separate database
     const customDbUrl = makeSqliteDbUrlForTests();
@@ -491,7 +511,10 @@ describe('MVP Express-mounted integration', () => {
     const response = await invoke({
       method: 'POST',
       path: '/auth/token',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': '10.0.0.5',
+      },
       body: { account: 'not-a-stellar-key', challenge: 'some-challenge' },
     });
 
@@ -553,6 +576,22 @@ describe('MVP Express-mounted integration', () => {
         authorization: `Bearer ${accessToken}`,
       },
       body: { asset_code: 'XYZ', amount: '10' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_asset');
+    expect(response.body.id).toBeUndefined();
+  });
+
+  it('5f) deposit with differently-cased asset_code is rejected', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'usdc', amount: '10' }, // configured as USDC
     });
 
     expect(response.status).toBe(400);
@@ -748,6 +787,7 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.asset_issuer).toBe(
       'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
     );
+    expect(response.body.account).toBe(clientKeypair.publicKey());
     expect(response.body).not.toHaveProperty('idempotency_replay');
   });
 
@@ -783,6 +823,7 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.id).toBe(transactionId);
     expect(response.body.interactive_url).toBe(depositInteractiveUrl);
     expect(response.body.status).toBe('pending_user_transfer_start');
+    expect(response.body.account).toBe(clientKeypair.publicKey());
     expect(response.body.idempotency_replay).toBe(true);
   });
 
@@ -1384,6 +1425,7 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(firstResponse.status).toBe(201);
+    expect(firstResponse.body.account).toBe(clientKeypair.publicKey());
     const firstTxId = firstResponse.body.id;
 
     const secondResponse = await invoke({

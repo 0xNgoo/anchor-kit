@@ -93,6 +93,62 @@ describe('StellarUtils', () => {
       expect(parseFloat(operation.amount)).toBe(parseFloat(params.amount));
     });
 
+    it('should preserve an id memo', async () => {
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '5',
+        assetCode: 'USDC',
+        issuer: validAccountId,
+        memo: { value: '123456', type: 'id' as const },
+        network: 'testnet',
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      const parsed = StellarUtils.parseXdrTransaction(xdr);
+      expect(parsed.memo?.type).toBe('id');
+      expect(parsed.memo?.value).toBe(params.memo.value);
+    });
+
+    it('should preserve a hash memo', async () => {
+      const hashValue = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '5',
+        assetCode: 'USDC',
+        issuer: validAccountId,
+        memo: { value: hashValue, type: 'hash' as const },
+        network: 'testnet',
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      const tx = new Transaction(xdr, Networks.TESTNET);
+      expect(tx.memo.type).toBe('hash');
+      const parsedHex = Buffer.from(tx.memo.value as Buffer).toString('hex');
+      expect(parsedHex).toBe(hashValue);
+    });
+
+    it('should preserve a return memo', async () => {
+      // Use a 32-byte (64-hex) value for return memo as required by Stellar SDK
+      const returnValue = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '5',
+        assetCode: 'USDC',
+        issuer: validAccountId,
+        memo: { value: returnValue, type: 'return' as const },
+        network: 'testnet',
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      const tx = new Transaction(xdr, Networks.TESTNET);
+      expect(tx.memo.type).toBe('return');
+      const parsedHex = Buffer.from(tx.memo.value as Buffer).toString('hex');
+      expect(parsedHex).toBe(returnValue);
+    });
+
     it('should fail early for an invalid source public key', async () => {
       await expect(
         StellarUtils.buildPaymentXdr({
