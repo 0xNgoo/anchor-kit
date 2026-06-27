@@ -1,5 +1,5 @@
 import type { AnchorConfig } from '@/core/config.ts';
-import { ValidationError } from '@/core/errors.ts';
+import { PayloadTooLargeError, ValidationError } from '@/core/errors.ts';
 import { InMemoryRateLimiter, type RateLimitRule } from '@/runtime/http/rate-limiter.ts';
 import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts';
 import { IdempotencyUtils } from '@/utils/idempotency.ts';
@@ -63,7 +63,7 @@ async function readRawBody(req: IncomingMessage, maxBodyBytes: number): Promise<
   const reqWithRaw = req as IncomingMessage & RawBodyCarrier;
   if (typeof reqWithRaw.rawBody === 'string') {
     if (getBodyByteLength(reqWithRaw.rawBody) > maxBodyBytes) {
-      throw new ValidationError(`Request body too large. Max ${maxBodyBytes} bytes`);
+      throw new PayloadTooLargeError(`Request body too large. Max ${maxBodyBytes} bytes`);
     }
     return reqWithRaw.rawBody;
   }
@@ -73,7 +73,7 @@ async function readRawBody(req: IncomingMessage, maxBodyBytes: number): Promise<
     const serialized =
       typeof bodyFromFramework === 'string' ? bodyFromFramework : JSON.stringify(bodyFromFramework);
     if (getBodyByteLength(serialized) > maxBodyBytes) {
-      throw new ValidationError(`Request body too large. Max ${maxBodyBytes} bytes`);
+      throw new PayloadTooLargeError(`Request body too large. Max ${maxBodyBytes} bytes`);
     }
     return serialized;
   }
@@ -84,7 +84,7 @@ async function readRawBody(req: IncomingMessage, maxBodyBytes: number): Promise<
     const chunkBuffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
     totalBytes += chunkBuffer.byteLength;
     if (totalBytes > maxBodyBytes) {
-      throw new ValidationError(`Request body too large. Max ${maxBodyBytes} bytes`);
+      throw new PayloadTooLargeError(`Request body too large. Max ${maxBodyBytes} bytes`);
     }
     chunks.push(chunkBuffer);
   }
@@ -94,12 +94,51 @@ async function readRawBody(req: IncomingMessage, maxBodyBytes: number): Promise<
 function jsonParseObject(rawBody: string): Record<string, unknown> {
   if (!rawBody) return {};
 
-  const parsed: unknown = JSON.parse(rawBody);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    throw new ValidationError('Request body must be valid JSON');
+  }
+
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new ValidationError('Request JSON body must be an object');
   }
 
   return parsed as Record<string, unknown>;
+}
+
+async function parsePostJsonBody(
+  req: IncomingMessage,
+  res: ServerResponse,
+  maxBodyBytes: number,
+): Promise<{ rawBody: string; body: Record<string, unknown> } | null> {
+  let rawBody: string;
+  try {
+    rawBody = await readRawBody(req, maxBodyBytes);
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) {
+      sendJson(res, 413, {
+        error: 'payload_too_large',
+        message: error.message,
+      });
+      return null;
+    }
+    throw error;
+  }
+
+  try {
+    return { rawBody, body: jsonParseObject(rawBody) };
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: error.message,
+      });
+      return null;
+    }
+    throw error;
+  }
 }
 
 function sha256(input: string): string {
@@ -335,8 +374,11 @@ export class AnchorExpressRouter {
         return;
       }
 
-      const rawBody = await readRawBody(req, this.maxBodyBytes);
-      const body = jsonParseObject(rawBody);
+      const parsedBody = await parsePostJsonBody(req, res, this.maxBodyBytes);
+      if (!parsedBody) {
+        return;
+      }
+      const { body } = parsedBody;
       const account = typeof body.account === 'string' ? body.account : '';
       const signedChallenge = typeof body.challenge === 'string' ? body.challenge : '';
 
@@ -454,8 +496,11 @@ export class AnchorExpressRouter {
         return;
       }
 
-      const rawBody = await readRawBody(req, this.maxBodyBytes);
-      const body = jsonParseObject(rawBody);
+      const parsedBody = await parsePostJsonBody(req, res, this.maxBodyBytes);
+      if (!parsedBody) {
+        return;
+      }
+      const { body } = parsedBody;
       const assetCode = typeof body.asset_code === 'string' ? body.asset_code : '';
       const amountRaw = body.amount;
       const amount =
@@ -657,8 +702,11 @@ export class AnchorExpressRouter {
         return;
       }
 
-      const rawBody = await readRawBody(req, this.maxBodyBytes);
-      const payload = jsonParseObject(rawBody);
+      const parsedBody = await parsePostJsonBody(req, res, this.maxBodyBytes);
+      if (!parsedBody) {
+        return;
+      }
+      const { rawBody, body: payload } = parsedBody;
       const eventIdField = payload.id;
       const eventId =
         typeof eventIdField === 'string' && eventIdField.length > 0 ? eventIdField : randomUUID();

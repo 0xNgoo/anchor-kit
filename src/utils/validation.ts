@@ -118,8 +118,23 @@ export const AssetSchema = {
     if (a.deposits_enabled !== undefined && typeof a.deposits_enabled !== 'boolean') return false;
     if (a.withdrawals_enabled !== undefined && typeof a.withdrawals_enabled !== 'boolean')
       return false;
-    if (a.min_amount !== undefined && typeof a.min_amount !== 'number') return false;
-    if (a.max_amount !== undefined && typeof a.max_amount !== 'number') return false;
+
+    // min_amount, if provided, must be a finite, non-negative number
+    if (a.min_amount !== undefined) {
+      if (typeof a.min_amount !== 'number') return false;
+      if (!Number.isFinite(a.min_amount) || a.min_amount < 0) return false;
+    }
+
+    // max_amount, if provided, must be a finite, non-negative number
+    if (a.max_amount !== undefined) {
+      if (typeof a.max_amount !== 'number') return false;
+      if (!Number.isFinite(a.max_amount) || a.max_amount < 0) return false;
+    }
+
+    // Relationship check: min_amount must not exceed max_amount when both are present
+    if (a.min_amount !== undefined && a.max_amount !== undefined && a.min_amount > a.max_amount) {
+      return false;
+    }
 
     return true;
   },
