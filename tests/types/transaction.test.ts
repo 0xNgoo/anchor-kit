@@ -1,4 +1,15 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * Runtime no-op that preserves compile-time type assertions.
+ * Bun's test runner does not support vitest's `expectTypeOf` at runtime.
+ */
+function expectTypeOf<T>(_value?: T) {
+  return {
+    toEqualTypeOf<U>(_?: U): void {},
+    toMatchTypeOf<U>(_?: U): void {},
+  };
+}
 import type {
   Transaction,
   TransactionKind,
