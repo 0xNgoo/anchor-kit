@@ -18,6 +18,9 @@ interface ExampleAppRuntime {
           enabled?: boolean;
         };
       };
+      get: (key: 'security') => {
+        authTokenLifetimeSeconds?: number;
+      };
     };
   };
   shutdown: () => Promise<void>;
@@ -120,6 +123,7 @@ async function createExampleAppHarness(
   options: {
     challengeExpirationSeconds?: string;
     watchersEnabled?: string;
+    authTokenLifetimeSeconds?: string;
   } = {},
 ): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
@@ -128,11 +132,13 @@ async function createExampleAppHarness(
   const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
   const originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
   const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
+  const originalAuthTokenLifetimeSeconds = process.env.AUTH_TOKEN_LIFETIME_SECONDS;
 
   setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
   setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
   setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', options.challengeExpirationSeconds);
   setOptionalEnvVar('WATCHERS_ENABLED', options.watchersEnabled);
+  setOptionalEnvVar('AUTH_TOKEN_LIFETIME_SECONDS', options.authTokenLifetimeSeconds);
 
   const runtime = await createExampleApp();
 
@@ -145,6 +151,7 @@ async function createExampleAppHarness(
       setOptionalEnvVar('SEP10_SIGNING_KEY', originalSep10SigningKey);
       setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', originalChallengeExpirationSeconds);
       setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
+      setOptionalEnvVar('AUTH_TOKEN_LIFETIME_SECONDS', originalAuthTokenLifetimeSeconds);
       removeFileIfPresent(dbPath);
     },
   };
@@ -214,6 +221,10 @@ describe('example/express-app', () => {
   it('keeps watchers enabled when the env var is absent', () => {
     expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(true);
   });
+
+  it('uses the default auth token lifetime when the env var is absent', () => {
+    expect(harness.runtime.anchor.config.get('security').authTokenLifetimeSeconds).toBe(3600);
+  });
 });
 
 describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
@@ -257,5 +268,21 @@ describe('example/express-app WATCHERS_ENABLED', () => {
 
   it('disables watchers when configured through the environment', () => {
     expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(false);
+  });
+});
+
+describe('example/express-app AUTH_TOKEN_LIFETIME_SECONDS', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness({ authTokenLifetimeSeconds: '15' });
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('uses the configured auth token lifetime from the environment', () => {
+    expect(harness.runtime.anchor.config.get('security').authTokenLifetimeSeconds).toBe(15);
   });
 });

@@ -28,6 +28,28 @@ function getWatchersEnabled(): boolean {
   return process.env.WATCHERS_ENABLED !== 'false';
 }
 
+/**
+ * SDK default auth token lifetime in seconds, kept in sync with the core
+ * router default so the example matches the out-of-the-box behaviour when the
+ * env var is not provided.
+ */
+const DEFAULT_AUTH_TOKEN_LIFETIME_SECONDS = 3600;
+
+function getAuthTokenLifetimeSeconds(): number {
+  const rawValue = process.env.AUTH_TOKEN_LIFETIME_SECONDS;
+
+  if (!rawValue) {
+    return DEFAULT_AUTH_TOKEN_LIFETIME_SECONDS;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return DEFAULT_AUTH_TOKEN_LIFETIME_SECONDS;
+  }
+
+  return parsedValue;
+}
+
 export async function createExampleApp(): Promise<ExampleApp> {
   const databaseUrl =
     process.env.DATABASE_URL ?? `file:/tmp/anchor-kit-example-${randomUUID()}.sqlite`;
@@ -46,6 +68,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
       webhookSecret: process.env.WEBHOOK_SECRET,
       verifyWebhookSignatures: process.env.WEBHOOK_SECRET ? true : false,
       challengeExpirationSeconds: getChallengeExpirationSeconds(),
+      authTokenLifetimeSeconds: getAuthTokenLifetimeSeconds(),
     },
     assets: {
       assets: [

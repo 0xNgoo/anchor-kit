@@ -22,6 +22,7 @@ Server starts on `http://localhost:3000` by default.
 
 - `DATABASE_URL`: overrides the example database location
 - `CHALLENGE_EXPIRATION_SECONDS`: overrides the SEP-10 challenge lifetime in seconds. Defaults to `300`.
+- `AUTH_TOKEN_LIFETIME_SECONDS`: overrides the access token lifetime in seconds exposed by the SDK through `security.authTokenLifetimeSeconds`. Must be greater than `0`. Defaults to `3600`.
 - `WATCHERS_ENABLED`: set to `false` to disable background watchers. Defaults to enabled.
 
 ## Quick check
