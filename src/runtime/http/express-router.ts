@@ -127,11 +127,14 @@ function endpointPath(req: IncomingMessage): string {
   return parseUrl(req).pathname;
 }
 
-function extractClientIdentifier(req: IncomingMessage): string {
-  const forwardedFor = req.headers['x-forwarded-for'];
-  const leftMost = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : null;
+function extractClientIdentifier(req: IncomingMessage, trustForwardedFor: boolean): string {
   const socketIp = req.socket?.remoteAddress;
-  return leftMost || socketIp || 'unknown';
+  if (trustForwardedFor) {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const leftMost = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : null;
+    return leftMost || socketIp || 'unknown';
+  }
+  return socketIp || 'unknown';
 }
 
 function hasValidSignature(transaction: Transaction, publicKey: string): boolean {
@@ -700,7 +703,8 @@ export class AnchorExpressRouter {
     res: ServerResponse,
     endpoint: 'auth_challenge' | 'auth_token' | 'webhook' | 'deposit',
   ): boolean {
-    const clientId = extractClientIdentifier(req);
+    const trustForwardedFor = this.config.get('framework')?.rateLimit?.trustForwardedFor ?? false;
+    const clientId = extractClientIdentifier(req, trustForwardedFor);
     const key = `${endpoint}:${clientId}`;
     const result = this.rateLimiter.hit(key, this.rateRules[endpoint]);
 

@@ -142,6 +142,7 @@ describe('MVP Express-mounted integration', () => {
           authTokenMax: 5,
           webhookMax: 20,
           depositMax: 20,
+          trustForwardedFor: true,
         },
         queue: {
           backend: 'memory',

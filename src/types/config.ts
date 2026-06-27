@@ -486,6 +486,13 @@ export interface FrameworkConfig {
      * @optional - defaults to 60
      */
     depositMax?: number;
+
+    /**
+     * Trust x-forwarded-for header for client IP identification.
+     * Only set this to true if you're behind a trusted proxy.
+     * @optional - defaults to false
+     */
+    trustForwardedFor?: boolean;
   };
 
   /**
