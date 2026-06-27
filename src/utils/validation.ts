@@ -297,15 +297,22 @@ export const AnchorKitConfigSchema = {
     }
 
     if (framework.rateLimit) {
-      const rateValues = [
-        framework.rateLimit.windowMs,
-        framework.rateLimit.authChallengeMax,
-        framework.rateLimit.authTokenMax,
-        framework.rateLimit.webhookMax,
-        framework.rateLimit.depositMax,
+      const numericKeys = [
+        'windowMs',
+        'authChallengeMax',
+        'authTokenMax',
+        'webhookMax',
+        'depositMax',
       ];
-      if (rateValues.some((value) => value !== undefined && value <= 0)) {
-        throw new Error('framework.rateLimit values must be > 0');
+      for (const key of numericKeys) {
+        const value = (framework.rateLimit as Record<string, unknown>)[key];
+        if (value === undefined) continue;
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          throw new Error(`framework.rateLimit.${key} must be a finite number`);
+        }
+        if (value <= 0) {
+          throw new Error('framework.rateLimit values must be > 0');
+        }
       }
     }
 

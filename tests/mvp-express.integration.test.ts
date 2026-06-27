@@ -142,6 +142,7 @@ describe('MVP Express-mounted integration', () => {
           authTokenMax: 5,
           webhookMax: 20,
           depositMax: 20,
+          trustForwardedFor: true,
         },
         queue: {
           backend: 'memory',
@@ -308,6 +309,16 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('3a) /auth/challenge without account query param returns 400', async () => {
+    const response = await invoke({
+      path: '/auth/challenge',
+      headers: { 'x-forwarded-for': '10.0.0.5' },
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toBe('Query param account is required');
+  });
+
   it('3) challenge -> token happy path', async () => {
     const account = clientKeypair.publicKey();
     const challengeResponse = await invoke({
@@ -337,6 +348,13 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.headers['cache-control']).toBe('no-store');
     // Verify default TTL is used when not configured
     expect(tokenResponse.body.expires_in).toBe(3600);
+    // Verify expires_at is present and consistent
+    const expiresAtStr = tokenResponse.body.expires_at as string;
+    expect(typeof expiresAtStr).toBe('string');
+    const expiresAtTime = new Date(expiresAtStr).getTime();
+    expect(Number.isNaN(expiresAtTime)).toBe(false);
+    const expectedExpiry = Date.now() + 3600 * 1000;
+    expect(Math.abs(expiresAtTime - expectedExpiry)).toBeLessThan(5000);
   });
 
   it('3a) rate limit response body includes retry_after_seconds matching header', async () => {
@@ -481,6 +499,12 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.status).toBe(200);
     expect(tokenResponse.body.expires_in).toBe(7200);
     expect(String(tokenResponse.body.token ?? '').length).toBeGreaterThan(0);
+    const customExpiresAtStr = tokenResponse.body.expires_at as string;
+    expect(typeof customExpiresAtStr).toBe('string');
+    const customExpiresAt = new Date(customExpiresAtStr).getTime();
+    expect(Number.isNaN(customExpiresAt)).toBe(false);
+    const customExpectedExpiry = Date.now() + 7200 * 1000;
+    expect(Math.abs(customExpiresAt - customExpectedExpiry)).toBeLessThan(5000);
 
     // Cleanup
     await customAnchor.shutdown();
@@ -494,13 +518,39 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('3a) auth challenge route returns 429 when authChallengeMax is exceeded', async () => {
+    const account = Keypair.random().publicKey();
+    const headers = { 'x-forwarded-for': '10.0.0.99' };
+
+    const firstResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers,
+    });
+    expect(firstResponse.status).toBe(200);
+
+    const secondResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers,
+    });
+    expect(secondResponse.status).toBe(200);
+
+    const thirdResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers,
+    });
+
+    expect(thirdResponse.status).toBe(429);
+    expect(thirdResponse.body.error).toBe('rate_limited');
+    expect(thirdResponse.headers['retry-after']).toBeDefined();
+  });
+
   it('3c) auth token rejects invalid account', async () => {
     const response = await invoke({
       method: 'POST',
       path: '/auth/token',
       headers: {
         'content-type': 'application/json',
-        'x-forwarded-for': '10.0.0.5',
+        'x-forwarded-for': '10.0.0.6',
       },
       body: { account: 'not-a-stellar-key', challenge: 'some-challenge' },
     });
@@ -570,7 +620,39 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.id).toBeUndefined();
   });
 
-  it('5f) deposit with differently-cased asset_code is rejected', async () => {
+  it('5f) deposit missing asset_code returns invalid_request', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { amount: '10' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toContain('asset_code and amount');
+  });
+
+  it('5g) deposit missing amount returns invalid_request', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toContain('asset_code and amount');
+  });
+
+  it('5f-case) deposit with differently-cased asset_code is rejected', async () => {
     const response = await invoke({
       method: 'POST',
       path: '/transactions/deposit/interactive',
@@ -812,6 +894,36 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.status).toBe('pending_user_transfer_start');
     expect(response.body.account).toBe(clientKeypair.publicKey());
     expect(response.body.idempotency_replay).toBe(true);
+  });
+
+  it('6d) empty Idempotency-Key header is treated as no key and creates a new deposit', async () => {
+    const firstResponse = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': '   ',
+      },
+      body: { asset_code: 'USDC', amount: '12' },
+    });
+
+    const secondResponse = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': '   ',
+      },
+      body: { asset_code: 'USDC', amount: '12' },
+    });
+
+    expect(firstResponse.status).toBe(201);
+    expect(secondResponse.status).toBe(201);
+    expect(firstResponse.body.id).not.toBe(secondResponse.body.id);
+    expect(firstResponse.body.idempotency_replay).toBeUndefined();
+    expect(secondResponse.body.idempotency_replay).toBeUndefined();
   });
 
   it('7) transaction lookup fetches persisted data', async () => {
