@@ -129,6 +129,18 @@ Mounted under your chosen base path (for example `/anchor`):
 - `GET /transactions/:id` (Bearer auth)
 - `POST /webhooks/events`
 
+### `POST /webhooks/events`
+
+```bash
+curl -s -X POST http://localhost:3000/anchor/webhooks/events \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Provider: flutterwave" \
+  -H "X-Anchor-Signature: <signature>" \
+  -d '{"id":"evt-123","type":"transfer.completed","amount":1000}'
+```
+
+Posts a webhook event for processing. `X-Webhook-Provider` identifies the provider (falls back to the `provider` field in the body, then `generic`). `X-Anchor-Signature` carries the provider signature used for verification when `webhookSecret`/`verifyWebhookSignatures` is configured in the example app.
+
 ## Docs
 
 - [Architecture Overview](./ARCHITECTURE.md)
