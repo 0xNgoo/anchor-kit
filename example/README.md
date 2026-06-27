@@ -23,6 +23,7 @@ Server starts on `http://localhost:3000` by default.
 - `DATABASE_URL`: overrides the example database location
 - `CHALLENGE_EXPIRATION_SECONDS`: overrides the SEP-10 challenge lifetime in seconds. Defaults to `300`.
 - `WATCHERS_ENABLED`: set to `false` to disable background watchers. Defaults to enabled.
+- `MAX_BODY_BYTES`: overrides the request body byte limit exposed by the SDK through `framework.http.maxBodyBytes`. Must be at least `1024`. Defaults to `1048576` (1 MiB).
 
 ## Quick check
 

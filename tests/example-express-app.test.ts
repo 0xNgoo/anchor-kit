@@ -14,6 +14,9 @@ interface ExampleAppRuntime {
   anchor: {
     config: {
       get: (key: 'framework') => {
+        http?: {
+          maxBodyBytes?: number;
+        };
         watchers?: {
           enabled?: boolean;
         };
@@ -120,6 +123,7 @@ async function createExampleAppHarness(
   options: {
     challengeExpirationSeconds?: string;
     watchersEnabled?: string;
+    maxBodyBytes?: string;
   } = {},
 ): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
@@ -128,11 +132,13 @@ async function createExampleAppHarness(
   const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
   const originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
   const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
+  const originalMaxBodyBytes = process.env.MAX_BODY_BYTES;
 
   setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
   setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
   setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', options.challengeExpirationSeconds);
   setOptionalEnvVar('WATCHERS_ENABLED', options.watchersEnabled);
+  setOptionalEnvVar('MAX_BODY_BYTES', options.maxBodyBytes);
 
   const runtime = await createExampleApp();
 
@@ -145,6 +151,7 @@ async function createExampleAppHarness(
       setOptionalEnvVar('SEP10_SIGNING_KEY', originalSep10SigningKey);
       setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', originalChallengeExpirationSeconds);
       setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
+      setOptionalEnvVar('MAX_BODY_BYTES', originalMaxBodyBytes);
       removeFileIfPresent(dbPath);
     },
   };
@@ -214,6 +221,10 @@ describe('example/express-app', () => {
   it('keeps watchers enabled when the env var is absent', () => {
     expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(true);
   });
+
+  it('uses the default max body bytes when the env var is absent', () => {
+    expect(harness.runtime.anchor.config.get('framework').http?.maxBodyBytes).toBe(1024 * 1024);
+  });
 });
 
 describe('example/express-app CHALLENGE_EXPIRATION_SECONDS', () => {
@@ -257,5 +268,21 @@ describe('example/express-app WATCHERS_ENABLED', () => {
 
   it('disables watchers when configured through the environment', () => {
     expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(false);
+  });
+});
+
+describe('example/express-app MAX_BODY_BYTES', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness({ maxBodyBytes: '2048' });
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('uses the configured max body bytes from the environment', () => {
+    expect(harness.runtime.anchor.config.get('framework').http?.maxBodyBytes).toBe(2048);
   });
 });

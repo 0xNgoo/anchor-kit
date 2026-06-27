@@ -28,6 +28,28 @@ function getWatchersEnabled(): boolean {
   return process.env.WATCHERS_ENABLED !== 'false';
 }
 
+/**
+ * SDK default request body byte limit, kept in sync with the core config
+ * default so the example matches the out-of-the-box behaviour when the env var
+ * is not provided.
+ */
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
+
+function getMaxBodyBytes(): number {
+  const rawValue = process.env.MAX_BODY_BYTES;
+
+  if (!rawValue) {
+    return DEFAULT_MAX_BODY_BYTES;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue < 1024) {
+    return DEFAULT_MAX_BODY_BYTES;
+  }
+
+  return parsedValue;
+}
+
 export async function createExampleApp(): Promise<ExampleApp> {
   const databaseUrl =
     process.env.DATABASE_URL ?? `file:/tmp/anchor-kit-example-${randomUUID()}.sqlite`;
@@ -61,6 +83,9 @@ export async function createExampleApp(): Promise<ExampleApp> {
       database: {
         provider: databaseUrl.startsWith('file:') ? 'sqlite' : 'postgres',
         url: databaseUrl,
+      },
+      http: {
+        maxBodyBytes: getMaxBodyBytes(),
       },
       queue: {
         backend: 'memory',
