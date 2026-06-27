@@ -627,6 +627,16 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body).toEqual({ error: 'not_found', message: 'Transaction not found' });
   });
 
+  it('7c) transaction lookup without a bearer token is rejected with 401', async () => {
+    const response = await invoke({
+      method: 'GET',
+      path: `/transactions/${transactionId}`,
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'unauthorized', message: 'Missing or invalid bearer token' });
+  });
+
   it('8) webhook route stores event and invokes configured callback', async () => {
     const payload = {
       id: 'evt_1',
