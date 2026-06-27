@@ -29,10 +29,10 @@ describe('ValidationUtils', () => {
     });
 
     test('should return false for invalid phone numbers', () => {
-      expect(ValidationUtils.isValidPhoneNumber('1234567890')).toBe(false); // Missing +
-      expect(ValidationUtils.isValidPhoneNumber('+0123456789')).toBe(false); // Leading zero after +
-      expect(ValidationUtils.isValidPhoneNumber('+123')).toBe(true); // Minimum length is not strictly enforced by SEP usually, but pattern says 1-14 digits
-      expect(ValidationUtils.isValidPhoneNumber('+1234567890123456')).toBe(false); // Too long (>15 digits)
+      expect(ValidationUtils.isValidPhoneNumber('1234567890')).toBe(false);
+      expect(ValidationUtils.isValidPhoneNumber('+0123456789')).toBe(false);
+      expect(ValidationUtils.isValidPhoneNumber('+123')).toBe(true);
+      expect(ValidationUtils.isValidPhoneNumber('+1234567890123456')).toBe(false);
     });
   });
 
@@ -265,7 +265,7 @@ describe('AnchorKitConfigSchema', () => {
       distributionAccountSecret: 'SD7Q4...',
     },
     assets: {
-      assets: [{ code: 'USDC', issuer: 'GD...' }],
+      assets: [{ code: 'USDC', issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5' }],
     },
     framework: {
       database: { provider: 'sqlite', url: 'file:./test.db' },
@@ -289,7 +289,7 @@ describe('AnchorKitConfigSchema', () => {
       ...validConfig,
       framework: {
         ...validConfig.framework,
-        watchers: { pollIntervalMs: 5 }, // Minimum is 10
+        watchers: { pollIntervalMs: 5 },
       },
     };
     expect(() => AnchorKitConfigSchema.validate(invalidConfig)).toThrow(/pollIntervalMs/);

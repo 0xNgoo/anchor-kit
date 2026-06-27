@@ -309,6 +309,16 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
     throw new Error('At least one asset must be configured in assets.assets');
   }
 
+  for (let i = 0; i < assets.assets.length; i++) {
+    const asset = assets.assets[i];
+    if (!AssetSchema.isValid(asset)) {
+      const code = (asset as Record<string, unknown>)?.code;
+      throw new Error(
+        `Invalid asset at index ${i} ${code ? `(code: "${code}")` : ''}: asset.code must be a non-empty string and asset.issuer must be a valid Stellar public key.`,
+      );
+    }
+  }
+
   validateFrameworkConfig(framework, server, metadata);
 
   return true;
