@@ -6,6 +6,7 @@ import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import jwt from 'jsonwebtoken';
 import { version } from '../package.json';
 
 interface TestResponse {
@@ -398,6 +399,36 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(response.status).toBe(401);
+  });
+
+  it('4a) expired access token is rejected with 401', async () => {
+    // Issue a token that is already expired by using a negative expiration,
+    // so the test stays deterministic without relying on a long sleep.
+    const expiredToken = jwt.sign(
+      {
+        sub: clientKeypair.publicKey(),
+        scope: 'anchor_api',
+        typ: 'access_token',
+      },
+      'jwt-test-secret',
+      { expiresIn: '-1s' },
+    );
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${expiredToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({
+      error: 'unauthorized',
+      message: 'Missing or invalid bearer token',
+    });
   });
 
   it('5) deposit above max_amount is rejected', async () => {
