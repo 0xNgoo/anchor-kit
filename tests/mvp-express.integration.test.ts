@@ -534,6 +534,24 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.status).toBe('pending_user_transfer_start');
   });
 
+  it('5f) deposit with non-numeric amount is rejected with 400', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: 'abc' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: 'invalid_amount',
+      message: 'Amount must be a positive number',
+    });
+  });
+
   it('6) authorized deposit interactive creates persistent transaction', async () => {
     const response = await invoke({
       method: 'POST',
