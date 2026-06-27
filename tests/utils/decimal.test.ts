@@ -32,6 +32,10 @@ describe('DecimalUtils', () => {
       expect(DecimalUtils.divide('1', '3', 2)).toBe('0.33');
       expect(DecimalUtils.divide('10', '2', 2)).toBe('5.00');
     });
+
+    test('should throw when dividing by zero', () => {
+      expect(() => DecimalUtils.divide('1', '0')).toThrow('[big.js] Division by zero');
+    });
   });
 
   describe('applyFee', () => {

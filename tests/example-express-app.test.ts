@@ -7,6 +7,7 @@ import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Keypair, Transaction } from '@stellar/stellar-sdk';
 import { createExampleApp } from '../example/express-app.ts';
+import { version } from '../package.json';
 
 interface ExampleAppRuntime {
   app: Express;
@@ -164,7 +165,7 @@ describe('example/express-app', () => {
   it('mounts /anchor and serves /health', async () => {
     const response = await invokeExpress(harness.runtime.app, { path: '/anchor/health' });
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ status: 'ok' });
+    expect(response.body).toEqual({ status: 'ok', version });
   });
 
   it('runs challenge -> token flow', async () => {
