@@ -35,9 +35,7 @@ class BunSqliteDatabase {
   /** bun:sqlite db.query() returns an iterable of rows — we return an array */
   query(sql: string, params?: unknown[]): Row[] {
     const stmt = this.db.prepare(sql);
-    return params && params.length > 0
-      ? (stmt.all(...params) as Row[])
-      : (stmt.all() as Row[]);
+    return params && params.length > 0 ? (stmt.all(...params) as Row[]) : (stmt.all() as Row[]);
   }
 
   prepare(sql: string) {
