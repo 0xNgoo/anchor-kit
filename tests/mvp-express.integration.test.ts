@@ -1007,6 +1007,22 @@ describe('MVP Express-mounted integration', () => {
     expect(secondResponse.body.idempotency_replay).toBeUndefined();
   });
 
+  it('6e) deposit with amount as a JSON number creates a transaction', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: 15 },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.id).toBeTruthy();
+    expect(response.body.status).toBe('pending_user_transfer_start');
+  });
+
   it('7) transaction lookup fetches persisted data', async () => {
     const response = await invoke({
       method: 'GET',
