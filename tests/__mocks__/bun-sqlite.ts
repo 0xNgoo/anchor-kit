@@ -9,7 +9,7 @@
  *   db.prepare(sql)         — available natively in better-sqlite3
  *   db.close()              — available natively in better-sqlite3
  */
-import BetterSqlite3 from 'better-sqlite3';
+import BetterSqlite3, { type Statement } from 'better-sqlite3';
 
 type Row = Record<string, unknown>;
 
@@ -38,7 +38,7 @@ class BunSqliteDatabase {
     return params && params.length > 0 ? (stmt.all(...params) as Row[]) : (stmt.all() as Row[]);
   }
 
-  prepare(sql: string) {
+  prepare(sql: string): Statement {
     return this.db.prepare(sql);
   }
 
