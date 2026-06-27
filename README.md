@@ -129,6 +129,14 @@ Mounted under your chosen base path (for example `/anchor`):
 - `GET /transactions/:id` (Bearer auth)
 - `POST /webhooks/events`
 
+### `GET /info`
+
+```bash
+curl -s http://localhost:3000/anchor/info | jq
+```
+
+Returns the anchor's advertised config, including `name`, `network`, supported `assets`, and the SDK `version`.
+
 ## Docs
 
 - [Architecture Overview](./ARCHITECTURE.md)
