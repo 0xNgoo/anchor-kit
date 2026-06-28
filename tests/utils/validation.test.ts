@@ -200,6 +200,15 @@ describe('SecurityConfigSchema', () => {
     expect(() => SecurityConfigSchema.validate(validSecurityConfig)).not.toThrow();
   });
 
+  test('should validate a correct SecurityConfig with challengeExpirationSeconds', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        challengeExpirationSeconds: 300,
+      }),
+    ).not.toThrow();
+  });
+
   test('should throw for missing security secrets', () => {
     expect(() =>
       SecurityConfigSchema.validate({
@@ -216,6 +225,24 @@ describe('SecurityConfigSchema', () => {
         authTokenLifetimeSeconds: 0,
       }),
     ).toThrow(/authTokenLifetimeSeconds must be > 0/);
+  });
+
+  test('should throw for invalid challengeExpirationSeconds', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        challengeExpirationSeconds: 0,
+      }),
+    ).toThrow(/challengeExpirationSeconds must be > 0/);
+  });
+
+  test('should throw when challengeExpirationSeconds is a string', () => {
+    expect(() =>
+      SecurityConfigSchema.validate({
+        ...validSecurityConfig,
+        challengeExpirationSeconds: '300' as unknown as number,
+      }),
+    ).toThrow(/challengeExpirationSeconds must be > 0/);
   });
 
   test('should throw when authTokenLifetimeSeconds is a string', () => {
