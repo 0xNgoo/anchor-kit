@@ -142,7 +142,7 @@ describe('MVP Express-mounted integration', () => {
           authChallengeMax: 2,
           authTokenMax: 5,
           webhookMax: 20,
-          depositMax: 20,
+          depositMax: 30,
           trustForwardedFor: true,
         },
         queue: {
@@ -1786,6 +1786,22 @@ describe('MVP Express-mounted integration', () => {
         authorization: `Bearer ${accessToken}`,
       },
       body: { asset_code: 'USDC', amount: '-5' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_amount');
+    expect(response.body.message).toBe('Amount must be a positive number');
+  });
+
+  it('16c) deposit with non-numeric amount is rejected with 400', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: 'abc' },
     });
 
     expect(response.status).toBe(400);
