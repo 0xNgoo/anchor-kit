@@ -1459,6 +1459,47 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.error).toBe('unauthorized');
   });
 
+  it('10e) expired access token is rejected with 401', async () => {
+    // Mint an expired access token (issued in the past with a 1s lifetime, now past).
+    const jwt = (await import('jsonwebtoken')).default;
+    const account = clientKeypair.publicKey();
+    const expiredToken = jwt.sign(
+      {
+        sub: account,
+        scope: 'anchor_api',
+        typ: 'access_token',
+      },
+      'jwt-test-secret',
+      { expiresIn: 1 },
+    );
+
+    // Deterministic: force the token into the past without a long sleep.
+    vi.useFakeTimers();
+    let advanced = false;
+    try {
+      vi.advanceTimersByTime(1500);
+      advanced = true;
+    } finally {
+      // keep timers faked during the request so jwt.verify sees the advanced clock
+      void advanced;
+    }
+
+    const response = await invoke({
+      method: 'GET',
+      path: `/transactions/${transactionId}`,
+      headers: {
+        authorization: `Bearer ${expiredToken}`,
+      },
+    });
+
+    try {
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe('unauthorized');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('10c) malformed challenge XDR is rejected', async () => {
     const account = clientKeypair.publicKey();
     const invalidChallengeXdr = 'AAAAinvalid_xdr_string_that_is_not_a_valid_transaction';
