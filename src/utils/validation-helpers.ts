@@ -312,9 +312,10 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
   for (let i = 0; i < assets.assets.length; i++) {
     const asset = assets.assets[i];
     if (!AssetSchema.isValid(asset)) {
-      const code = (asset as Record<string, unknown>)?.code;
+      const code = (asset as unknown as Record<string, unknown>)?.code;
+      const codeStr = typeof code === 'string' && code ? ` (code: "${code}")` : '';
       throw new Error(
-        `Invalid asset at index ${i} ${code ? `(code: "${code}")` : ''}: asset.code must be a non-empty string and asset.issuer must be a valid Stellar public key.`,
+        `Invalid asset at index ${i}${codeStr}: asset.code must be a non-empty string and asset.issuer must be a valid Stellar public key.`,
       );
     }
   }

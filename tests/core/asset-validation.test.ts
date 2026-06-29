@@ -187,9 +187,7 @@ describe('Asset Validation (#254)', () => {
     const config: AnchorKitConfig = {
       ...baseConfig,
       assets: {
-        assets: [
-          'not-an-object' as unknown as { code: string; issuer: string },
-        ],
+        assets: ['not-an-object' as unknown as { code: string; issuer: string }],
       },
     };
     const anchor = new AnchorConfig(config);
