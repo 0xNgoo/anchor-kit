@@ -17,6 +17,9 @@ interface ExampleAppRuntime {
         watchers?: {
           enabled?: boolean;
         };
+        http?: {
+          maxBodyBytes?: number;
+        };
       };
     };
   };
@@ -120,6 +123,7 @@ async function createExampleAppHarness(
   options: {
     challengeExpirationSeconds?: string;
     watchersEnabled?: string;
+    maxBodyBytes?: string;
   } = {},
 ): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
@@ -128,11 +132,13 @@ async function createExampleAppHarness(
   const originalSep10SigningKey = process.env.SEP10_SIGNING_KEY;
   const originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
   const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
+  const originalMaxBodyBytes = process.env.MAX_BODY_BYTES;
 
   setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
   setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
   setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', options.challengeExpirationSeconds);
   setOptionalEnvVar('WATCHERS_ENABLED', options.watchersEnabled);
+  setOptionalEnvVar('MAX_BODY_BYTES', options.maxBodyBytes);
 
   const runtime = await createExampleApp();
 
@@ -145,6 +151,7 @@ async function createExampleAppHarness(
       setOptionalEnvVar('SEP10_SIGNING_KEY', originalSep10SigningKey);
       setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', originalChallengeExpirationSeconds);
       setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
+      setOptionalEnvVar('MAX_BODY_BYTES', originalMaxBodyBytes);
       removeFileIfPresent(dbPath);
     },
   };
@@ -213,6 +220,26 @@ describe('example/express-app', () => {
 
   it('keeps watchers enabled when the env var is absent', () => {
     expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(true);
+  });
+
+  it('preserves the SDK default max body bytes when the env var is absent', () => {
+    expect(harness.runtime.anchor.config.get('framework').http?.maxBodyBytes).toBe(1048576);
+  });
+});
+
+describe('example/express-app MAX_BODY_BYTES', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness({ maxBodyBytes: '204800' });
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('uses the configured max body bytes from the environment', () => {
+    expect(harness.runtime.anchor.config.get('framework').http?.maxBodyBytes).toBe(204800);
   });
 });
 
