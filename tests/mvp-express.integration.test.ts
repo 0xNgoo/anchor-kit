@@ -1759,6 +1759,19 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  // ── Unauthenticated transaction lookup ───────────────────────────────────
+
+  it('17) GET /transactions/:id without bearer token returns 401', async () => {
+    const response = await invoke({
+      method: 'GET',
+      path: `/transactions/${transactionId}`,
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+    expect(response.body.message).toBe('Missing or invalid bearer token');
+  });
+
   // ── Non-positive deposit amounts ─────────────────────────────────────────
 
   it('16) deposit with amount of zero is rejected with 400', async () => {
