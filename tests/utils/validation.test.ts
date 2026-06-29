@@ -44,7 +44,9 @@ describe('ValidationUtils', () => {
 
     test('should return false for invalid URLs', () => {
       expect(ValidationUtils.isValidUrl('not-a-url')).toBe(false);
-      expect(ValidationUtils.isValidUrl('ftp://invalid')).toBe(true); // Technically a valid URL structure
+      expect(ValidationUtils.isValidUrl('ftp://invalid')).toBe(false);
+      expect(ValidationUtils.isValidUrl('javascript:alert(1)')).toBe(false);
+      expect(ValidationUtils.isValidUrl('file:///etc/passwd')).toBe(false);
       expect(ValidationUtils.isValidUrl('')).toBe(false);
     });
   });

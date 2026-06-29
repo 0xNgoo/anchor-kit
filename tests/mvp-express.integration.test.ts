@@ -310,6 +310,86 @@ describe('MVP Express-mounted integration', () => {
     }
   });
 
+  it('2e) /transactions/deposit/interactive returns server_misconfigured when interactiveDomain is missing', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { port: 3002 },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-no-domain-2',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: true,
+            min_amount: 10,
+            max_amount: 100,
+          },
+        ],
+      },
+      framework: {
+        database: {
+          provider: 'sqlite',
+          url: customDbUrl,
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    const testKeypair = Keypair.random();
+    const account = testKeypair.publicKey();
+    const challengeResponse = await customInvoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.1' },
+    });
+    expect(challengeResponse.status).toBe(200);
+
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(testKeypair);
+
+    const tokenResponse = await customInvoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+      body: { account, challenge: challengeTx.toXDR() },
+    });
+    expect(tokenResponse.status).toBe(200);
+
+    const accessToken = String(tokenResponse.body.token ?? '');
+    const depositResponse = await customInvoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'x-forwarded-for': '10.0.0.1',
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(depositResponse.status).toBe(500);
+    expect(depositResponse.body.error).toBe('server_misconfigured');
+    expect(depositResponse.body).not.toHaveProperty('interactive_url');
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore
+    }
+  });
+
   it('3a) /auth/challenge without account query param returns 400', async () => {
     const response = await invoke({
       path: '/auth/challenge',

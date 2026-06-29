@@ -496,6 +496,15 @@ export class AnchorExpressRouter {
         return;
       }
 
+      const serverConfig = this.config.get('server');
+      if (!serverConfig.interactiveDomain) {
+        sendJson(res, 500, {
+          error: 'server_misconfigured',
+          message: 'server.interactiveDomain must be configured for interactive flows',
+        });
+        return;
+      }
+
       const parsedBody = await parsePostJsonBody(req, res, this.maxBodyBytes);
       if (!parsedBody) {
         return;
@@ -587,7 +596,7 @@ export class AnchorExpressRouter {
             asset_code: created.assetCode,
             asset_issuer: selectedAsset.issuer,
             account: created.account,
-            interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
+            interactive_url: `${serverConfig.interactiveDomain}/deposit/${created.id}`,
             created_at: created.createdAt,
           };
 
@@ -640,7 +649,7 @@ export class AnchorExpressRouter {
           asset_code: created.assetCode,
           asset_issuer: selectedAsset.issuer,
           account: created.account,
-          interactive_url: `${this.config.get('server').interactiveDomain ?? 'http://localhost:3000'}/deposit/${created.id}`,
+          interactive_url: `${serverConfig.interactiveDomain}/deposit/${created.id}`,
           created_at: created.createdAt,
         },
       };
@@ -683,13 +692,12 @@ export class AnchorExpressRouter {
         asset_code: transaction.assetCode,
         asset_issuer: selectedAsset?.issuer,
         account: transaction.account,
-        interactive_url: `${serverConfig.interactiveDomain ?? 'http://localhost:3000'}/deposit/${transaction.id}`,
         created_at: transaction.createdAt,
         updated_at: transaction.updatedAt,
       };
 
-      // Add more_info_url only when interactive domain is configured
       if (serverConfig.interactiveDomain) {
+        responseData.interactive_url = `${serverConfig.interactiveDomain}/deposit/${transaction.id}`;
         responseData.more_info_url = `${serverConfig.interactiveDomain}/deposit/${transaction.id}`;
       }
 
