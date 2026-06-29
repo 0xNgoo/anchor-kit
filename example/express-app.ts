@@ -43,6 +43,21 @@ function getMaxBodyBytes(): number | undefined {
   return parsedValue;
 }
 
+function getAuthTokenLifetimeSeconds(): number | undefined {
+  const rawValue = process.env.AUTH_TOKEN_LIFETIME_SECONDS;
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return undefined;
+  }
+
+  return parsedValue;
+}
+
 export async function createExampleApp(): Promise<ExampleApp> {
   const databaseUrl =
     process.env.DATABASE_URL ?? `file:/tmp/anchor-kit-example-${randomUUID()}.sqlite`;
@@ -61,6 +76,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
       webhookSecret: process.env.WEBHOOK_SECRET,
       verifyWebhookSignatures: process.env.WEBHOOK_SECRET ? true : false,
       challengeExpirationSeconds: getChallengeExpirationSeconds(),
+      authTokenLifetimeSeconds: getAuthTokenLifetimeSeconds(),
     },
     assets: {
       assets: [

@@ -124,6 +124,7 @@ async function createExampleAppHarness(
     challengeExpirationSeconds?: string;
     watchersEnabled?: string;
     maxBodyBytes?: string;
+    authTokenLifetimeSeconds?: string;
   } = {},
 ): Promise<ExampleAppHarness> {
   const sep10ServerKeypair = Keypair.random();
@@ -133,12 +134,14 @@ async function createExampleAppHarness(
   const originalChallengeExpirationSeconds = process.env.CHALLENGE_EXPIRATION_SECONDS;
   const originalWatchersEnabled = process.env.WATCHERS_ENABLED;
   const originalMaxBodyBytes = process.env.MAX_BODY_BYTES;
+  const originalAuthTokenLifetimeSeconds = process.env.AUTH_TOKEN_LIFETIME_SECONDS;
 
   setOptionalEnvVar('DATABASE_URL', `file:${dbPath}`);
   setOptionalEnvVar('SEP10_SIGNING_KEY', sep10ServerKeypair.secret());
   setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', options.challengeExpirationSeconds);
   setOptionalEnvVar('WATCHERS_ENABLED', options.watchersEnabled);
   setOptionalEnvVar('MAX_BODY_BYTES', options.maxBodyBytes);
+  setOptionalEnvVar('AUTH_TOKEN_LIFETIME_SECONDS', options.authTokenLifetimeSeconds);
 
   const runtime = await createExampleApp();
 
@@ -152,6 +155,7 @@ async function createExampleAppHarness(
       setOptionalEnvVar('CHALLENGE_EXPIRATION_SECONDS', originalChallengeExpirationSeconds);
       setOptionalEnvVar('WATCHERS_ENABLED', originalWatchersEnabled);
       setOptionalEnvVar('MAX_BODY_BYTES', originalMaxBodyBytes);
+      setOptionalEnvVar('AUTH_TOKEN_LIFETIME_SECONDS', originalAuthTokenLifetimeSeconds);
       removeFileIfPresent(dbPath);
     },
   };
@@ -284,5 +288,75 @@ describe('example/express-app WATCHERS_ENABLED', () => {
 
   it('disables watchers when configured through the environment', () => {
     expect(harness.runtime.anchor.config.get('framework').watchers?.enabled).toBe(false);
+  });
+});
+
+const DEFAULT_AUTH_TOKEN_LIFETIME_SECONDS = 3600;
+
+function decodeJwtPayload(token: string): { exp?: number; iat?: number } {
+  const payload = token.split('.')[1] ?? '';
+  const json = Buffer.from(payload, 'base64url').toString('utf8');
+  return JSON.parse(json) as { exp?: number; iat?: number };
+}
+
+async function fetchAuthToken(app: Express): Promise<string> {
+  const clientKeypair = Keypair.random();
+  const account = clientKeypair.publicKey();
+
+  const challengeResponse = await invokeExpress(app, {
+    path: `/anchor/auth/challenge?account=${account}`,
+  });
+  expect(challengeResponse.status).toBe(200);
+  const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+  const challengeTx = new Transaction(String(challengeResponse.body.challenge), networkPassphrase);
+  challengeTx.sign(clientKeypair);
+
+  const tokenResponse = await invokeExpress(app, {
+    method: 'POST',
+    path: '/anchor/auth/token',
+    headers: { 'content-type': 'application/json' },
+    body: { account, challenge: challengeTx.toXDR() },
+  });
+  expect(tokenResponse.status).toBe(200);
+  return String(tokenResponse.body.token);
+}
+
+describe('example/express-app AUTH_TOKEN_LIFETIME_SECONDS', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness();
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('uses the default auth token lifetime when the env var is absent', async () => {
+    const token = await fetchAuthToken(harness.runtime.app);
+    const { exp, iat } = decodeJwtPayload(token);
+    expect(exp).toBeDefined();
+    expect(iat).toBeDefined();
+    expect(Number(exp) - Number(iat)).toBe(DEFAULT_AUTH_TOKEN_LIFETIME_SECONDS);
+  });
+});
+
+describe('example/express-app AUTH_TOKEN_LIFETIME_SECONDS configured', () => {
+  let harness: ExampleAppHarness;
+
+  beforeAll(async () => {
+    harness = await createExampleAppHarness({ authTokenLifetimeSeconds: '60' });
+  });
+
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+
+  it('uses the configured auth token lifetime from the environment', async () => {
+    const token = await fetchAuthToken(harness.runtime.app);
+    const { exp, iat } = decodeJwtPayload(token);
+    expect(exp).toBeDefined();
+    expect(iat).toBeDefined();
+    expect(Number(exp) - Number(iat)).toBe(60);
   });
 });
