@@ -145,6 +145,14 @@ Mounted under your chosen base path (for example `/anchor`):
 
 Assume your host app mounts the router at `/anchor` on `http://localhost:3000`.
 
+### Advertised anchor info
+
+Get the anchor's advertised config (network, passphrase, supported assets, version):
+
+```bash
+curl -s http://localhost:3000/anchor/info
+```
+
 ### SEP-10 challenge/token flow
 
 Get a challenge for a Stellar account:
