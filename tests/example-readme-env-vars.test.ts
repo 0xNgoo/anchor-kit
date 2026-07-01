@@ -26,8 +26,9 @@ describe('example README documents all env vars', () => {
     }
 
     // Table documents the default behavior for each variable.
-    expect(readme).toContain('| `PORT` | `3000` |');
-    expect(readme).toContain('| `CHALLENGE_EXPIRATION_SECONDS` | `300` |');
-    expect(readme).toContain('| `WATCHERS_ENABLED` | enabled |');
+    // Use regex so assertions survive Prettier's table-column padding.
+    expect(readme).toMatch(/\| `PORT`\s+\| `3000`/);
+    expect(readme).toMatch(/\| `CHALLENGE_EXPIRATION_SECONDS`\s+\| `300`/);
+    expect(readme).toMatch(/\| `WATCHERS_ENABLED`\s+\| enabled/);
   });
 });
