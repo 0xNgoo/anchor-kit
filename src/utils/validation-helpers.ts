@@ -264,6 +264,14 @@ export const SecurityConfigSchema = {
     if (!config.distributionAccountSecret)
       throw new Error('Missing required secret: security.distributionAccountSecret');
     if (
+      config.challengeExpirationSeconds !== undefined &&
+      (typeof config.challengeExpirationSeconds !== 'number' ||
+        !Number.isFinite(config.challengeExpirationSeconds) ||
+        config.challengeExpirationSeconds <= 0)
+    ) {
+      throw new Error('security.challengeExpirationSeconds must be > 0');
+    }
+    if (
       config.authTokenLifetimeSeconds !== undefined &&
       (typeof config.authTokenLifetimeSeconds !== 'number' ||
         !Number.isFinite(config.authTokenLifetimeSeconds) ||
