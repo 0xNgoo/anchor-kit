@@ -917,6 +917,23 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.status).toBe('pending_user_transfer_start');
   });
 
+  it('5h) deposit with numeric amount within limits is accepted', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': 'deposit-numeric-amount',
+      },
+      body: { asset_code: 'USDC', amount: 50 },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.id).toBeTruthy();
+    expect(response.body.status).toBe('pending_user_transfer_start');
+  });
+
   it('6) authorized deposit interactive creates persistent transaction', async () => {
     const response = await invoke({
       method: 'POST',
@@ -1005,6 +1022,22 @@ describe('MVP Express-mounted integration', () => {
     expect(firstResponse.body.id).not.toBe(secondResponse.body.id);
     expect(firstResponse.body.idempotency_replay).toBeUndefined();
     expect(secondResponse.body.idempotency_replay).toBeUndefined();
+  });
+
+  it('6e) deposit with amount as a JSON number creates a transaction', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: 15 },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.id).toBeTruthy();
+    expect(response.body.status).toBe('pending_user_transfer_start');
   });
 
   it('7) transaction lookup fetches persisted data', async () => {
