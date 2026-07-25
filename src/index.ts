@@ -11,6 +11,7 @@ export { AnchorInstance, createAnchor, makeSqliteDbUrlForTests } from './core/fa
 export * from './core/errors';
 export * as utils from './utils';
 export { AssetSchema, DatabaseUrlSchema, SecurityConfigSchema } from './utils';
+export type { Memo } from './utils';
 export type {
   DatabaseAdapter,
   QueueAdapter,
