@@ -222,6 +222,7 @@ curl -s \
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Roadmap](./ROADMAP.md)
+- [Releasing & Publishing](./docs/releasing.md)
 
 The root package also exports public TypeScript transaction helpers, including `Transaction`, `TransactionKind`, and `TransactionStatus`.
 
