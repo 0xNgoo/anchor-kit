@@ -10,7 +10,7 @@ export * from './types';
 export { AnchorInstance, createAnchor, makeSqliteDbUrlForTests } from './core/factory';
 export * from './core/errors';
 export * as utils from './utils';
-export { AssetSchema, DatabaseUrlSchema, SecurityConfigSchema } from './utils';
+export { AssetSchema, DatabaseUrlSchema, SecurityConfigSchema, ValidationUtils } from './utils';
 export type {
   DatabaseAdapter,
   QueueAdapter,

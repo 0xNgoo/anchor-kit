@@ -2,6 +2,7 @@ import {
   AssetSchema,
   DatabaseUrlSchema,
   SecurityConfigSchema,
+  ValidationUtils,
   makeSqliteDbUrlForTests,
   utils,
 } from '../src/index';
@@ -30,6 +31,17 @@ describe('Export Verification', () => {
   it('should export SecurityConfigSchema at the top level', () => {
     expect(SecurityConfigSchema).toBeDefined();
     expect(typeof SecurityConfigSchema.validate).toBe('function');
+  });
+
+  it('should export ValidationUtils at the top level', () => {
+    expect(ValidationUtils).toBeDefined();
+    expect(typeof ValidationUtils.isValidEmail).toBe('function');
+    expect(typeof ValidationUtils.isValidStellarAddress).toBe('function');
+  });
+
+  it('should still be available through utils.ValidationUtils', () => {
+    expect(utils.ValidationUtils).toBeDefined();
+    expect(utils.ValidationUtils).toBe(ValidationUtils);
   });
 
   it('should still be available through utils.AssetSchema', () => {
