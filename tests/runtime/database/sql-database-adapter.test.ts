@@ -85,4 +85,35 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
     expect(pending).toHaveLength(1);
     expect(pending[0]?.id).toBe('tx-old');
   });
+
+  it('connects and migrates a sqlite URL', async () => {
+    const sqlitePath = makeSqliteDbUrlForTests().slice('file:'.length);
+    const sqliteAdapter = new SqlDatabaseAdapter({
+      provider: 'sqlite',
+      url: `sqlite:${sqlitePath}`,
+    });
+
+    try {
+      await sqliteAdapter.connect();
+      await sqliteAdapter.migrate();
+      await sqliteAdapter.insertAuthChallenge({
+        id: 'sqlite-url-challenge',
+        account: 'GB7W6F6S6LFQXCNHZVKI53ZJHULPF4E66YW2LJ3F4PAEPGZF5FY2B7ZB',
+        challenge: 'sqlite-url-test',
+        expiresAt: '2099-12-31T23:59:59.000Z',
+      });
+
+      await expect(sqliteAdapter.getAuthChallengeByChallenge('sqlite-url-test')).resolves.toEqual(
+        expect.objectContaining({ challenge: 'sqlite-url-test' }),
+      );
+    } finally {
+      await sqliteAdapter.disconnect();
+      const { unlinkSync } = await import('node:fs');
+      try {
+        unlinkSync(sqlitePath);
+      } catch {
+        // The temporary database may not exist for in-memory adapters.
+      }
+    }
+  });
 });
