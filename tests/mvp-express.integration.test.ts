@@ -408,6 +408,14 @@ describe('MVP Express-mounted integration', () => {
     });
     expect(challengeResponse.status).toBe(200);
     expect(challengeResponse.headers['cache-control']).toBe('no-store');
+    expect(challengeResponse.body).toEqual(
+      expect.objectContaining({
+        challenge: expect.any(String),
+        network_passphrase: expect.any(String),
+        expires_at: expect.any(String),
+        expires_in: 300,
+      }),
+    );
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     expect(challengeXdr.length).toBeGreaterThan(0);
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
@@ -530,7 +538,7 @@ describe('MVP Express-mounted integration', () => {
         distributionAccountSecret: 'distribution-test-secret',
         webhookSecret: 'webhook-test-secret',
         verifyWebhookSignatures: true,
-        challengeExpirationSeconds: 300,
+        challengeExpirationSeconds: 45,
         authTokenLifetimeSeconds: 7200, // 2 hours
       },
       assets: {
@@ -561,6 +569,14 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(challengeResponse.status).toBe(200);
+    expect(challengeResponse.body).toEqual(
+      expect.objectContaining({
+        challenge: expect.any(String),
+        network_passphrase: expect.any(String),
+        expires_at: expect.any(String),
+        expires_in: 45,
+      }),
+    );
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
 
@@ -956,6 +972,47 @@ describe('MVP Express-mounted integration', () => {
     );
     expect(response.body.account).toBe(clientKeypair.publicKey());
     expect(response.body).not.toHaveProperty('idempotency_replay');
+  });
+
+  it('6a) decimal deposit amounts preserve their exact string formatting through create, persist, and lookup', async () => {
+    const submittedAmount = '25.5000';
+    const createResponse = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+        'idempotency-key': 'deposit-decimal-format',
+      },
+      body: { asset_code: 'USDC', amount: submittedAmount },
+    });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.amount).toBe(submittedAmount);
+
+    const persistedTransaction = await (
+      anchor as unknown as {
+        database: {
+          getInteractiveTransactionById(id: string): Promise<{
+            id: string;
+            amount: string;
+          } | null>;
+        };
+      }
+    ).database.getInteractiveTransactionById(String(createResponse.body.id ?? ''));
+
+    expect(persistedTransaction?.amount).toBe(submittedAmount);
+
+    const lookupResponse = await invoke({
+      method: 'GET',
+      path: `/transactions/${createResponse.body.id}`,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    expect(lookupResponse.status).toBe(200);
+    expect(lookupResponse.body.amount).toBe(submittedAmount);
   });
 
   it('6b) deposit with SAME idempotency-key but DIFFERENT body is rejected', async () => {

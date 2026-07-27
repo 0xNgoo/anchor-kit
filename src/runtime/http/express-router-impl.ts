@@ -342,6 +342,7 @@ async function handleAuthChallenge(
     challenge: challengeXdr,
     network_passphrase: context.networkPassphrase,
     expires_at: expiresAt,
+    expires_in: expirationSeconds,
   });
 }
 
