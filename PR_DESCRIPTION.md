@@ -3,6 +3,7 @@
 ## What does this PR do?
 
 Adds runtime support and tests for queue and sqlite behavior:
+
 - Introduces an in-memory queue adapter with a guard against double-start processing.
 - Adds a sqlite runtime database adapter with auth challenge persistence and transaction filtering.
 - Covers sqlite auth challenge lifecycle and pending transaction cutoff filtering with focused tests.
