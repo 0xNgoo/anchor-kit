@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Database } from 'bun:sqlite';
+import { unlinkSync } from 'node:fs';
 import {
   makeSqliteDbUrlForTests,
   SqlDatabaseAdapter,
@@ -17,6 +18,25 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
 
   afterEach(async () => {
     await adapter.disconnect();
+  });
+
+  it('allows repeated disconnect calls and cleans up its database file', async () => {
+    const sqliteUrl = makeSqliteDbUrlForTests();
+    const dbPath = sqliteUrl.slice('file:'.length);
+    const localAdapter = new SqlDatabaseAdapter({ provider: 'sqlite', url: sqliteUrl });
+
+    try {
+      await localAdapter.connect();
+      await localAdapter.migrate();
+      await expect(localAdapter.disconnect()).resolves.toBeUndefined();
+      await expect(localAdapter.disconnect()).resolves.toBeUndefined();
+    } finally {
+      try {
+        unlinkSync(dbPath);
+      } catch {
+        // Ignore cleanup errors when SQLite did not create a file.
+      }
+    }
   });
 
   it('persists and consumes auth challenges correctly', async () => {
@@ -109,5 +129,54 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
       statusCode: 201,
       responseBody: '{"status":"complete"}',
     });
+  });
+
+  it('preserves records when migrations run twice', async () => {
+    await adapter.insertAuthChallenge({
+      id: 'migration-challenge',
+      account: 'GB7W6F6S6LFQXCNHZVKI53ZJHULPF4E66YW2LJ3F4PAEPGZF5FY2B7ZB',
+      challenge: 'migration-test-challenge',
+      expiresAt: '2099-12-31T23:59:59.000Z',
+    });
+
+    await expect(adapter.migrate()).resolves.toBeUndefined();
+
+    await expect(adapter.getAuthChallengeByChallenge('migration-test-challenge')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'migration-challenge',
+        challenge: 'migration-test-challenge',
+      }),
+    );
+  });
+
+  it('connects and migrates a sqlite URL', async () => {
+    const sqlitePath = makeSqliteDbUrlForTests().slice('file:'.length);
+    const sqliteAdapter = new SqlDatabaseAdapter({
+      provider: 'sqlite',
+      url: `sqlite:${sqlitePath}`,
+    });
+
+    try {
+      await sqliteAdapter.connect();
+      await sqliteAdapter.migrate();
+      await sqliteAdapter.insertAuthChallenge({
+        id: 'sqlite-url-challenge',
+        account: 'GB7W6F6S6LFQXCNHZVKI53ZJHULPF4E66YW2LJ3F4PAEPGZF5FY2B7ZB',
+        challenge: 'sqlite-url-test',
+        expiresAt: '2099-12-31T23:59:59.000Z',
+      });
+
+      await expect(sqliteAdapter.getAuthChallengeByChallenge('sqlite-url-test')).resolves.toEqual(
+        expect.objectContaining({ challenge: 'sqlite-url-test' }),
+      );
+    } finally {
+      await sqliteAdapter.disconnect();
+      const { unlinkSync } = await import('node:fs');
+      try {
+        unlinkSync(sqlitePath);
+      } catch {
+        // The temporary database may not exist for in-memory adapters.
+      }
+    }
   });
 });

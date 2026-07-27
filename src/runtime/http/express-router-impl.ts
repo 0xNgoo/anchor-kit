@@ -41,6 +41,15 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(JSON.stringify(body));
 }
 
+function sendJsonUnauthorized(res: ServerResponse, body: Record<string, unknown>): void {
+  if (!res.headersSent) {
+    res.statusCode = 401;
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('WWW-Authenticate', 'Bearer');
+  }
+  res.end(JSON.stringify(body));
+}
+
 function parseUrl(req: IncomingMessage): URL {
   return new URL(req.url ?? '/', 'http://localhost');
 }
@@ -138,10 +147,13 @@ function sha256(input: string): string {
 
 function readBearerToken(req: IncomingMessage): string | null {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
+  if (typeof authHeader !== 'string' || authHeader.length === 0) return null;
 
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme?.toLowerCase() !== 'bearer' || !token) {
+  const match = authHeader.match(/^(\S+)\s+(\S+)$/);
+  if (!match) return null;
+
+  const [, scheme, token] = match;
+  if (scheme.toLowerCase() !== 'bearer' || token.length === 0) {
     return null;
   }
 
@@ -219,7 +231,12 @@ function authenticate(
     const account = typeof decoded.sub === 'string' ? decoded.sub : null;
     const scope = typeof decoded.scope === 'string' ? decoded.scope : null;
     const typ = typeof decoded.typ === 'string' ? decoded.typ : null;
-    if (!account || scope !== 'anchor_api' || typ !== 'access_token') {
+    if (
+      !account ||
+      !StrKey.isValidEd25519PublicKey(account) ||
+      scope !== 'anchor_api' ||
+      typ !== 'access_token'
+    ) {
       return null;
     }
 
@@ -273,6 +290,10 @@ async function handleInfo(context: ExpressRouterContext, res: ServerResponse): P
 
   if (fullConfig.operational?.supportEmail) {
     responseBody.support_email = fullConfig.operational.supportEmail;
+  }
+
+  if (fullConfig.operational?.website) {
+    responseBody.website = fullConfig.operational.website;
   }
 
   sendJson(res, 200, responseBody);
@@ -342,6 +363,7 @@ async function handleAuthChallenge(
     challenge: challengeXdr,
     network_passphrase: context.networkPassphrase,
     expires_at: expiresAt,
+    expires_in: expirationSeconds,
   });
 }
 
@@ -455,6 +477,7 @@ async function handleAuthToken(
   res.setHeader('Cache-Control', 'no-store');
   sendJson(res, 200, {
     token,
+    account,
     expires_in: tokenLifetime,
     expires_at: expiresAt,
     token_type: 'Bearer',
@@ -472,7 +495,10 @@ async function handleDepositInteractive(
 
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJson(res, 401, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, {
+      error: 'unauthorized',
+      message: 'Missing or invalid bearer token',
+    });
     return;
   }
 
@@ -632,7 +658,10 @@ async function handleTransaction(
 ): Promise<void> {
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJson(res, 401, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, {
+      error: 'unauthorized',
+      message: 'Missing or invalid bearer token',
+    });
     return;
   }
 
