@@ -117,6 +117,10 @@ export interface QueueJob {
   payload: Record<string, unknown>;
 }
 
+export interface ExpressLikeMiddleware {
+  (req: unknown, res: unknown, next?: (err?: unknown) => void): unknown;
+}
+
 export interface QueueAdapter {
   enqueue(job: QueueJob): Promise<void>;
   start(worker: (job: QueueJob) => Promise<void>): Promise<void>;
