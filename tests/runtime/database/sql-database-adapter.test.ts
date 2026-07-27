@@ -86,6 +86,24 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
     expect(pending[0]?.id).toBe('tx-old');
   });
 
+  it('preserves records when migrations run twice', async () => {
+    await adapter.insertAuthChallenge({
+      id: 'migration-challenge',
+      account: 'GB7W6F6S6LFQXCNHZVKI53ZJHULPF4E66YW2LJ3F4PAEPGZF5FY2B7ZB',
+      challenge: 'migration-test-challenge',
+      expiresAt: '2099-12-31T23:59:59.000Z',
+    });
+
+    await expect(adapter.migrate()).resolves.toBeUndefined();
+
+    await expect(adapter.getAuthChallengeByChallenge('migration-test-challenge')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'migration-challenge',
+        challenge: 'migration-test-challenge',
+      }),
+    );
+  });
+
   it('connects and migrates a sqlite URL', async () => {
     const sqlitePath = makeSqliteDbUrlForTests().slice('file:'.length);
     const sqliteAdapter = new SqlDatabaseAdapter({
