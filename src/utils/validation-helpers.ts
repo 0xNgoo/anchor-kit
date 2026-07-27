@@ -67,6 +67,11 @@ function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): bool
     throw new Error('framework.queue.concurrency must be >= 1');
   }
 
+  const watchersEnabled = framework.watchers?.enabled;
+  if (watchersEnabled !== undefined && typeof watchersEnabled !== 'boolean') {
+    throw new Error('framework.watchers.enabled must be a boolean');
+  }
+
   if (framework.watchers?.pollIntervalMs !== undefined && framework.watchers.pollIntervalMs < 10) {
     throw new Error('framework.watchers.pollIntervalMs must be >= 10');
   }
