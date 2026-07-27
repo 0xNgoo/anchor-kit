@@ -28,7 +28,10 @@ function isValidUrlString(url: string): boolean {
 
 function isValidDatabaseUrlString(urlString: unknown): boolean {
   return (
-    isString(urlString) && supportedDatabaseSchemes.some((scheme) => urlString.startsWith(scheme))
+    isString(urlString) &&
+    supportedDatabaseSchemes.some(
+      (scheme) => urlString.startsWith(scheme) && urlString.slice(scheme.length).trim().length > 0,
+    )
   );
 }
 

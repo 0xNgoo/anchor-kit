@@ -4,6 +4,7 @@ import { AnchorConfig } from '../../src/core/config';
 import { ConfigError } from '../../src/core/errors';
 import { createAnchor, makeSqliteDbUrlForTests } from '../../src/core/factory';
 import type { AnchorKitConfig } from '../../src/types/config';
+import { DatabaseUrlSchema } from '../../src/utils/validation-helpers';
 
 describe('Config Validation Improvements (#124, #125)', () => {
   const testSep10SigningKey = Keypair.random().secret();
@@ -153,6 +154,31 @@ describe('Config Validation Improvements (#124, #125)', () => {
       });
       expect(() => config.validate()).not.toThrow();
     });
+  });
+
+  it('should reject empty database URL targets while accepting non-empty ones', () => {
+    for (const scheme of ['postgresql:', 'postgres:', 'sqlite:', 'file:']) {
+      expect(DatabaseUrlSchema.isValid(scheme)).toBe(false);
+      expect(DatabaseUrlSchema.isValid(`${scheme} `)).toBe(false);
+    }
+
+    for (const url of [
+      'postgresql://localhost:5432/anchor',
+      'postgres://user:pass@host/db',
+      'sqlite::memory:',
+      'file:./anchor.db',
+    ]) {
+      expect(DatabaseUrlSchema.isValid(url)).toBe(true);
+    }
+
+    const config = new AnchorConfig({
+      ...validBaseConfig,
+      framework: {
+        ...validBaseConfig.framework,
+        database: { provider: 'postgres', url: 'postgres:' },
+      },
+    });
+    expect(() => config.validate()).toThrow(/Invalid database URL format/);
   });
 
   it('should require watcher poll intervals to be finite integers of at least 10ms', () => {
