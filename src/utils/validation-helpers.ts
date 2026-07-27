@@ -72,8 +72,12 @@ function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): bool
     throw new Error('framework.watchers.enabled must be a boolean');
   }
 
-  if (framework.watchers?.pollIntervalMs !== undefined && framework.watchers.pollIntervalMs < 10) {
-    throw new Error('framework.watchers.pollIntervalMs must be >= 10');
+  const pollIntervalMs = framework.watchers?.pollIntervalMs;
+  if (
+    pollIntervalMs !== undefined &&
+    (typeof pollIntervalMs !== 'number' || !Number.isInteger(pollIntervalMs) || pollIntervalMs < 10)
+  ) {
+    throw new Error('framework.watchers.pollIntervalMs must be a finite integer >= 10');
   }
 
   if (
