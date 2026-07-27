@@ -15,10 +15,13 @@ export {
   AssetSchema,
   DatabaseUrlSchema,
   SecurityConfigSchema,
+  StellarUtils,
 } from './utils';
 export type { Memo, PaymentParams } from './utils';
 export type {
+  AuthChallengeRecord,
   DatabaseAdapter,
+  InteractiveTransactionRecord,
   QueueJob,
   QueueAdapter,
   Watcher,

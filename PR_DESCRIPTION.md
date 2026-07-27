@@ -1,34 +1,23 @@
 # PR Summary
 
-## What does this PR do?
+Adds focused tests for three behaviors:
 
-Adds runtime support and tests for queue and sqlite behavior:
+- sqlite-backed `getInteractiveTransactionById()` returns `null` for unknown transaction IDs
+- `TransactionWatcher.stop()` before `start()` is a safe no-op
+- webhook route accepts an empty request body and returns a generated `event_id`
 
-- Introduces an in-memory queue adapter with a guard against double-start processing.
-- Adds a sqlite runtime database adapter with auth challenge persistence and transaction filtering.
-- Covers sqlite auth challenge lifecycle and pending transaction cutoff filtering with focused tests.
+## How to test
 
-## How to test?
-
-Run the full test suite or the new runtime tests:
-
-```bash
-bun test --run
-```
-
-Or:
-
-```bash
-bun test tests/runtime --run
-```
+- Run `bun test tests/runtime/sql-adapter-interactive-tx.test.ts tests/runtime/transaction-watcher.unit.test.ts tests/mvp-express.integration.test.ts`
+- Confirm all tests pass
 
 ## Checklist
 
 - [x] My code follows the code style of this project.
 - [x] I have added tests for my changes.
 - [ ] I have updated the documentation accordingly.
-- [x] I have run `bun test --run` locally.
+- [x] I have run `bun test` locally.
 
 ## Issue Reference
 
-Closes #
+Closes #243, #240, and #245
