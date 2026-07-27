@@ -116,6 +116,11 @@ function validateFrameworkRateLimit(framework: AnchorKitConfig['framework']): bo
     }
   }
 
+  const trustForwardedFor = framework.rateLimit.trustForwardedFor;
+  if (trustForwardedFor !== undefined && typeof trustForwardedFor !== 'boolean') {
+    throw new Error('framework.rateLimit.trustForwardedFor must be a boolean');
+  }
+
   return true;
 }
 
