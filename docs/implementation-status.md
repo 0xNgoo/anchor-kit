@@ -10,11 +10,19 @@ This file tracks where the codebase currently aligns or diverges from the canoni
 - Public type surface for config, transaction states, customer/KYC primitives, and SEP-24 transaction response types.
 - Utility layer: validation, decimal math, cryptographic helpers, idempotency helper, Stellar helper functions.
 
+## Implemented Now (Runtime MVP)
+
+- Database adapter: SQL database adapter with SQLite and PostgreSQL support for auth challenges, interactive transactions, idempotency keys, webhook events, and watcher tasks.
+- Webhook processing: Default webhook processor with signature verification, event deduplication, and callback handling.
+- Queue: In-memory queue adapter with concurrency control for job processing.
+- Watchers: Transaction watcher for expiring pending transactions and cleanup of old records.
+- Server adapter: Express router implementation with SEP-10 authentication, deposit endpoints, transaction status, and webhook event handling.
+
 ## Planned Per Unified Spec (Not Yet Implemented)
 
-- Protocol modules: SEP-10, SEP-12, SEP-6, SEP-24 runtime flows, SEP-31, SEP-38.
-- Adapter implementations: database adapters, rail adapters, signer adapters, KYC provider adapters, rate adapters.
-- Orchestration/state modules: transaction state machine runtime, webhook processor, watchers/workers, server adapters.
+- Protocol modules: SEP-12, SEP-6, SEP-24 runtime flows, SEP-31, SEP-38.
+- Adapter implementations: rail adapters, signer adapters, KYC provider adapters, rate adapters.
+- Orchestration/state modules: transaction state machine runtime.
 
 ## Intentionally Deferred
 
