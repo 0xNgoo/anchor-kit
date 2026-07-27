@@ -635,13 +635,3 @@ export interface AnchorKitConfig {
     ) => Promise<void> | void;
   };
 }
-
-export interface PaymentParams {
-  destination: string;
-  amount: string;
-  assetCode?: string;
-  assetIssuer?: string;
-  memo?: string;
-}
-
-export type AnchorKitConfigSchema = AnchorKitConfig;

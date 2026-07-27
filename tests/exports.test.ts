@@ -1,5 +1,5 @@
 import type {
-  AnchorKitConfigSchema,
+  AnchorKitConfig,
   ExpressLikeMiddleware,
   PaymentParams,
   QueueAdapter,
@@ -21,7 +21,7 @@ describe('package root exports', () => {
       async stop() {},
     };
 
-    const schema: AnchorKitConfigSchema = {
+    const schema: AnchorKitConfig = {
       network: { network: 'testnet' },
       server: {},
       security: {
@@ -34,6 +34,7 @@ describe('package root exports', () => {
     };
 
     const paymentParams: PaymentParams = {
+      source: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
       destination: 'G123',
       amount: '1',
       assetCode: 'USDC',
@@ -45,5 +46,6 @@ describe('package root exports', () => {
     expect(schema.network.network).toBe('testnet');
     expect(paymentParams.destination).toBe('G123');
     expect(typeof anchorKit.utils).toBe('object');
+    expect(anchorKit.AnchorKitConfigSchema).toBe(anchorKit.utils.AnchorKitConfigSchema);
   });
 });
