@@ -473,6 +473,7 @@ describe('MVP Express-mounted integration', () => {
     accessToken = String(tokenResponse.body.token ?? '');
     expect(accessToken.length).toBeGreaterThan(0);
     expect(tokenResponse.body.token_type).toBe('Bearer');
+    expect(tokenResponse.body.account).toBe(account);
     expect(tokenResponse.headers['cache-control']).toBe('no-store');
     // Verify default TTL is used when not configured
     expect(tokenResponse.body.expires_in).toBe(3600);
@@ -563,6 +564,31 @@ describe('MVP Express-mounted integration', () => {
 
     expect(challengeResponse.status).toBe(400);
     expect(challengeResponse.body.error).toBe('invalid_request');
+  });
+
+  it('3a) auth token response echoes the validated account', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.11' },
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.11' },
+      body: { account, challenge: challengeTx.toXDR() },
+    });
+
+    expect(tokenResponse.status).toBe(200);
+    expect(tokenResponse.body.account).toBe(account);
+    expect(tokenResponse.body.token_type).toBe('Bearer');
+    expect(tokenResponse.body.expires_in).toBe(3600);
   });
 
   it('3b) auth token with custom TTL returns correct expires_in', async () => {
@@ -1592,6 +1618,58 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.error).toBe('unauthorized');
   });
 
+  it('10bb) token with invalid Stellar subject is rejected', async () => {
+    const jwt = (await import('jsonwebtoken')).default;
+    const badToken = jwt.sign(
+      {
+        sub: 'not-a-stellar-public-key',
+        scope: 'anchor_api',
+        typ: 'access_token',
+      },
+      'jwt-test-secret',
+      { expiresIn: 3600 },
+    );
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${badToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+  });
+
+  it('10bc) bearer authorization with repeated spaces is accepted', async () => {
+    const jwt = (await import('jsonwebtoken')).default;
+    const token = jwt.sign(
+      {
+        sub: clientKeypair.publicKey(),
+        scope: 'anchor_api',
+        typ: 'access_token',
+      },
+      'jwt-test-secret',
+      { expiresIn: 3600 },
+    );
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer    ${token}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.error).toBeUndefined();
+  });
+
   it('10d) token with missing/incorrect typ is rejected', async () => {
     // Manually sign a token with a different scope to test the server's validation
     const jwt = (await import('jsonwebtoken')).default;
@@ -1674,6 +1752,31 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge transaction is invalid');
+  });
+
+  it('10cb) challenge without anchor signature is rejected', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.13' },
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.signatures.splice(0, challengeTx.signatures.length);
+    challengeTx.sign(clientKeypair);
+
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.13' },
+      body: { account, challenge: challengeTx.toXDR() },
+    });
+
+    expect(tokenResponse.status).toBe(401);
+    expect(tokenResponse.body.error).toBe('invalid_challenge');
+    expect(tokenResponse.body.message).toBe('Challenge is missing anchor signature');
   });
 
   it('11) reused challenge rejection', async () => {

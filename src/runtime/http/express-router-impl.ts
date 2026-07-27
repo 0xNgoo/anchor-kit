@@ -147,10 +147,13 @@ function sha256(input: string): string {
 
 function readBearerToken(req: IncomingMessage): string | null {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
+  if (typeof authHeader !== 'string' || authHeader.length === 0) return null;
 
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme?.toLowerCase() !== 'bearer' || !token) {
+  const match = authHeader.match(/^(\S+)\s+(\S+)$/);
+  if (!match) return null;
+
+  const [, scheme, token] = match;
+  if (scheme.toLowerCase() !== 'bearer' || token.length === 0) {
     return null;
   }
 
@@ -228,7 +231,12 @@ function authenticate(
     const account = typeof decoded.sub === 'string' ? decoded.sub : null;
     const scope = typeof decoded.scope === 'string' ? decoded.scope : null;
     const typ = typeof decoded.typ === 'string' ? decoded.typ : null;
-    if (!account || scope !== 'anchor_api' || typ !== 'access_token') {
+    if (
+      !account ||
+      !StrKey.isValidEd25519PublicKey(account) ||
+      scope !== 'anchor_api' ||
+      typ !== 'access_token'
+    ) {
       return null;
     }
 
@@ -468,6 +476,7 @@ async function handleAuthToken(
   res.setHeader('Cache-Control', 'no-store');
   sendJson(res, 200, {
     token,
+    account,
     expires_in: tokenLifetime,
     expires_at: expiresAt,
     token_type: 'Bearer',
