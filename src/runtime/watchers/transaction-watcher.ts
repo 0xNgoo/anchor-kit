@@ -53,7 +53,7 @@ export class TransactionWatcher implements Watcher {
 
     await this.tick();
     this.timer = setInterval(() => {
-      void this.tick();
+      void this.tick().catch(() => undefined);
     }, this.pollIntervalMs);
   }
 
