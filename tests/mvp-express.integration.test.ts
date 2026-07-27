@@ -1,6 +1,6 @@
 import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
 import { createAnchor, type AnchorInstance } from '@/index.ts';
-import { Keypair, Transaction } from '@stellar/stellar-sdk';
+import { Account, Keypair, Operation, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 import { createHmac } from 'node:crypto';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -1627,6 +1627,38 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.status).toBe(401);
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge transaction is invalid');
+  });
+
+  it('10d) challenge with a different transaction source is rejected', async () => {
+    const account = clientKeypair.publicKey();
+    const wrongServerKeypair = Keypair.random();
+    const now = Math.floor(Date.now() / 1000);
+    const challenge = new TransactionBuilder(new Account(wrongServerKeypair.publicKey(), '0'), {
+      fee: '100',
+      networkPassphrase: 'Test SDF Network ; September 2015',
+    })
+      .addOperation(
+        Operation.manageData({
+          name: 'anchor_auth',
+          value: 'wrong-source-test',
+          source: account,
+        }),
+      )
+      .setTimebounds(now, now + 300)
+      .build();
+    challenge.sign(wrongServerKeypair);
+    challenge.sign(clientKeypair);
+
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.8' },
+      body: { account, challenge: challenge.toXDR() },
+    });
+
+    expect(tokenResponse.status).toBe(401);
+    expect(tokenResponse.body.error).toBe('invalid_challenge');
+    expect(tokenResponse.body.message).toBe('Challenge source account mismatch');
   });
 
   it('11) reused challenge rejection', async () => {
