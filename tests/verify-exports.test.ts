@@ -5,6 +5,7 @@ import {
   makeSqliteDbUrlForTests,
   utils,
 } from '../src/index';
+import type { Memo as RootMemo } from '../index';
 import type {
   AuthChallengeRecord,
   InteractiveTransactionRecord,
@@ -50,6 +51,13 @@ describe('Export Verification', () => {
     expect(makeSqliteDbUrlForTests).toBeDefined();
     expect(typeof makeSqliteDbUrlForTests).toBe('function');
     expect(makeSqliteDbUrlForTests()).toMatch(/^file:/);
+  });
+
+  it('should export Memo at the package root entry point', () => {
+    const memo: RootMemo = { value: 'hello', type: 'text' };
+
+    expect(memo.value).toBe('hello');
+    expect(memo.type).toBe('text');
   });
 
   it('should export StellarUtils at the top level', async () => {
