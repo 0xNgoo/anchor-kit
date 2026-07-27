@@ -41,6 +41,15 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(JSON.stringify(body));
 }
 
+function sendJsonUnauthorized(res: ServerResponse, body: Record<string, unknown>): void {
+  if (!res.headersSent) {
+    res.statusCode = 401;
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('WWW-Authenticate', 'Bearer');
+  }
+  res.end(JSON.stringify(body));
+}
+
 function parseUrl(req: IncomingMessage): URL {
   return new URL(req.url ?? '/', 'http://localhost');
 }
@@ -472,7 +481,7 @@ async function handleDepositInteractive(
 
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJson(res, 401, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
     return;
   }
 
@@ -632,7 +641,7 @@ async function handleTransaction(
 ): Promise<void> {
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJson(res, 401, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
     return;
   }
 
