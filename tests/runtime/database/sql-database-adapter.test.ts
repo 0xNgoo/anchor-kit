@@ -85,4 +85,29 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
     expect(pending).toHaveLength(1);
     expect(pending[0]?.id).toBe('tx-old');
   });
+
+  it('updates an idempotency record without changing its identity fields', async () => {
+    const initial = await adapter.insertOrGetIdempotencyRecord({
+      id: 'idempotency-1',
+      scope: 'deposit',
+      idempotencyKey: 'request-1',
+      requestHash: 'hash-before',
+      statusCode: 202,
+      responseBody: '{"status":"pending"}',
+    });
+
+    await adapter.updateIdempotencyRecord({
+      scope: 'deposit',
+      idempotencyKey: 'request-1',
+      statusCode: 201,
+      responseBody: '{"status":"complete"}',
+    });
+
+    const updated = await adapter.getIdempotencyRecord('deposit', 'request-1');
+    expect(updated).toEqual({
+      ...initial,
+      statusCode: 201,
+      responseBody: '{"status":"complete"}',
+    });
+  });
 });
