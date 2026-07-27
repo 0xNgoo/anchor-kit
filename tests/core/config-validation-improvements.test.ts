@@ -203,6 +203,30 @@ describe('Config Validation Improvements (#124, #125)', () => {
     }
   });
 
+  it('should validate trustForwardedFor as an optional boolean', () => {
+    for (const value of ['true', 1]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          rateLimit: { trustForwardedFor: value as unknown as boolean },
+        },
+      });
+      expect(() => config.validate()).toThrow(/trustForwardedFor must be a boolean/);
+    }
+
+    for (const value of [true, false, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          rateLimit: { trustForwardedFor: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
   describe('Runtime Config Validation (#207)', () => {
     it('should reject redis queue backend during initialization', async () => {
       const redisConfig = {
