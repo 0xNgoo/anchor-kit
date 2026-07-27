@@ -5,7 +5,11 @@ import {
   makeSqliteDbUrlForTests,
   utils,
 } from '../src/index';
-import type { AuthChallengeRecord, InteractiveTransactionRecord, TransactionKind } from '../src/index';
+import type {
+  AuthChallengeRecord,
+  InteractiveTransactionRecord,
+  TransactionKind,
+} from '../src/index';
 import { describe, expect, it } from 'vitest';
 
 describe('Export Verification', () => {
