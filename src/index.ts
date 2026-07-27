@@ -6,6 +6,7 @@
  */
 
 export * from './types';
+
 export { AnchorInstance, createAnchor, makeSqliteDbUrlForTests } from './core/factory';
 export * from './core/errors';
 export * as utils from './utils';

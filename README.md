@@ -145,6 +145,14 @@ Mounted under your chosen base path (for example `/anchor`):
 
 Assume your host app mounts the router at `/anchor` on `http://localhost:3000`.
 
+### Advertised anchor info
+
+Get the anchor's advertised config (network, passphrase, supported assets, version):
+
+```bash
+curl -s http://localhost:3000/anchor/info
+```
+
 ### SEP-10 challenge/token flow
 
 Get a challenge for a Stellar account:
@@ -189,6 +197,24 @@ TX_ID="replace-with-transaction-id"
 curl -s \
   -H "authorization: Bearer ${TOKEN}" \
   "http://localhost:3000/anchor/transactions/${TX_ID}"
+```
+
+### Webhook events
+
+Post a webhook event to `/webhooks/events`. When signature verification is enabled, send the raw body exactly as authored and pass its HMAC-SHA256 signature in `x-anchor-signature`; set the provider in `x-webhook-provider`.
+
+```bash
+WEBHOOK_SECRET="your-configured-webhook-secret"
+BODY='{"id":"evt_123456","provider":"flutterwave","event":"deposit.completed","amount":"25"}'
+
+SIGNATURE=$(printf '%s' "${BODY}" | openssl dgst -sha256 -hmac "${WEBHOOK_SECRET}" -hex | awk '{print $NF}')
+
+curl -s \
+  -X POST http://localhost:3000/anchor/webhooks/events \
+  -H 'content-type: application/json' \
+  -H "x-webhook-provider: flutterwave" \
+  -H "x-anchor-signature: ${SIGNATURE}" \
+  -d "${BODY}"
 ```
 
 ## Docs

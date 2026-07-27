@@ -1,11 +1,10 @@
-import { AnchorKitConfig } from '@/types/config.ts';
 import { AnchorConfig } from '@/core/config.ts';
-import { AnchorPlugin } from '@/types/plugin.ts';
+import { ConfigError } from '@/core/errors.ts';
 import {
   createSqlDatabaseAdapter,
   makeSqliteDbUrlForTests,
 } from '@/runtime/database/sql-database-adapter.ts';
-import { InMemoryQueueAdapter } from '@/runtime/queue/in-memory-queue.ts';
+import { AnchorExpressRouter, type ExpressLikeMiddleware } from '@/runtime/http/express-router.ts';
 import type {
   DatabaseAdapter,
   QueueAdapter,
@@ -13,10 +12,11 @@ import type {
   Watcher,
   WebhookProcessor,
 } from '@/runtime/interfaces.ts';
-import { DefaultWebhookProcessor } from '@/runtime/webhooks/default-webhook-processor.ts';
-import { AnchorExpressRouter, type ExpressLikeMiddleware } from '@/runtime/http/express-router.ts';
+import { InMemoryQueueAdapter } from '@/runtime/queue/in-memory-queue.ts';
 import { TransactionWatcher } from '@/runtime/watchers/transaction-watcher.ts';
-import { ConfigError } from '@/core/errors.ts';
+import { DefaultWebhookProcessor } from '@/runtime/webhooks/default-webhook-processor.ts';
+import { AnchorKitConfig } from '@/types/config.ts';
+import { AnchorPlugin } from '@/types/plugin.ts';
 
 /**
  * AnchorInstance
@@ -62,6 +62,13 @@ export class AnchorInstance {
     this.database = createSqlDatabaseAdapter(frameworkConfig.database);
     await this.database.connect();
     await this.database.migrate();
+
+    const queueBackend = frameworkConfig.queue?.backend ?? 'memory';
+    if (queueBackend !== 'memory') {
+      throw new ConfigError(
+        `Unsupported queue backend: "${queueBackend}". Only "memory" queue backend is currently supported. Please remove or set queue.backend to "memory" in your configuration.`,
+      );
+    }
 
     const queueConcurrency = frameworkConfig.queue?.concurrency ?? 1;
     this.queue = new InMemoryQueueAdapter({ concurrency: queueConcurrency });
