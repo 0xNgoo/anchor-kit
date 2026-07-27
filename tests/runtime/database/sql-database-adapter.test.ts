@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Database } from 'bun:sqlite';
+import { unlinkSync } from 'node:fs';
 import {
   makeSqliteDbUrlForTests,
   SqlDatabaseAdapter,
@@ -17,6 +18,25 @@ describe('SqlDatabaseAdapter (sqlite)', () => {
 
   afterEach(async () => {
     await adapter.disconnect();
+  });
+
+  it('allows repeated disconnect calls and cleans up its database file', async () => {
+    const sqliteUrl = makeSqliteDbUrlForTests();
+    const dbPath = sqliteUrl.slice('file:'.length);
+    const localAdapter = new SqlDatabaseAdapter({ provider: 'sqlite', url: sqliteUrl });
+
+    try {
+      await localAdapter.connect();
+      await localAdapter.migrate();
+      await expect(localAdapter.disconnect()).resolves.toBeUndefined();
+      await expect(localAdapter.disconnect()).resolves.toBeUndefined();
+    } finally {
+      try {
+        unlinkSync(dbPath);
+      } catch {
+        // Ignore cleanup errors when SQLite did not create a file.
+      }
+    }
   });
 
   it('persists and consumes auth challenges correctly', async () => {
