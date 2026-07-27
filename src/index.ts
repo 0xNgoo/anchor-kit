@@ -10,12 +10,21 @@ export * from './types';
 export { AnchorInstance, createAnchor, makeSqliteDbUrlForTests } from './core/factory';
 export * from './core/errors';
 export * as utils from './utils';
-export { AssetSchema, DatabaseUrlSchema, SecurityConfigSchema, StellarUtils } from './utils';
+export {
+  AnchorKitConfigSchema,
+  AssetSchema,
+  DatabaseUrlSchema,
+  SecurityConfigSchema,
+  StellarUtils,
+} from './utils';
+export type { Memo, PaymentParams } from './utils';
 export type {
   AuthChallengeRecord,
   DatabaseAdapter,
   InteractiveTransactionRecord,
+  QueueJob,
   QueueAdapter,
   Watcher,
   WebhookProcessor,
 } from './runtime/interfaces.ts';
+export type { ExpressLikeMiddleware } from './runtime/http/express-router.ts';
