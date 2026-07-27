@@ -1,5 +1,8 @@
-import type { AnchorKitConfig, Asset, NetworkConfig } from '@/types/config.ts';
-import { ConfigurationError } from '@/core/errors.ts';
+import { ConfigError } from '@/core/errors.ts';
+import type { AnchorKitConfig, Asset } from '@/types/config.ts';
+import { AnchorKitConfigSchema, DatabaseUrlSchema } from '@/utils/validation.ts';
+import { Networks } from '@stellar/stellar-sdk';
+import { mergeAnchorConfigWithDefaults } from './config-defaults.ts';
 
 /**
  * AnchorConfig
@@ -9,66 +12,8 @@ export class AnchorConfig {
   private config: AnchorKitConfig;
 
   constructor(config: Partial<AnchorKitConfig>) {
-    const merged = this.mergeWithDefaults(config || {});
-    this.config = this.deepFreeze(merged) as AnchorKitConfig;
-  }
-
-  /**
-   * Merge partial config with sensible defaults for network and operational.
-   */
-  private mergeWithDefaults(input: Partial<AnchorKitConfig>): AnchorKitConfig {
-    const defaultNetworkPassphrases: Record<string, string> = {
-      public: 'Public Global Stellar Network ; September 2015',
-      testnet: 'Test SDF Network ; September 2015',
-      futurenet: 'Test SDF Future Network ; Fall 2022',
-    };
-
-    const hasNetworkProp = Object.prototype.hasOwnProperty.call(input, 'network');
-    const networkInput = input.network as Partial<NetworkConfig> | undefined;
-
-    let network: NetworkConfig | undefined;
-    if (hasNetworkProp && typeof networkInput === 'undefined') {
-      network = undefined;
-    } else {
-      network = {
-        network: networkInput?.network || 'testnet',
-        horizonUrl: networkInput?.horizonUrl,
-        networkPassphrase:
-          networkInput?.networkPassphrase ||
-          defaultNetworkPassphrases[networkInput?.network || 'testnet'],
-      };
-    }
-
-    const operationalInput = input.operational as
-      | Partial<AnchorKitConfig['operational']>
-      | undefined;
-    const operational = {
-      name: operationalInput?.name,
-      website: operationalInput?.website,
-      supportEmail: operationalInput?.supportEmail,
-      address: operationalInput?.address,
-      webhooksEnabled: operationalInput?.webhooksEnabled ?? true,
-      queueBackend: operationalInput?.queueBackend ?? 'memory',
-      redisUrl: operationalInput?.redisUrl,
-      corsEnabled: operationalInput?.corsEnabled ?? true,
-      transactionRetentionDays: operationalInput?.transactionRetentionDays ?? 90,
-    } as AnchorKitConfig['operational'];
-
-    // Keep original input values for required sections so explicit `undefined`
-    // is preserved (validation will catch missing required fields).
-    const merged: any = {
-      network,
-      server: input.server,
-      security: input.security,
-      assets: input.assets,
-      kyc: input.kyc,
-      kycRequired: input.kycRequired,
-      operational,
-      metadata: input.metadata,
-      framework: input.framework,
-    };
-
-    return merged as AnchorKitConfig;
+    const merged = mergeAnchorConfigWithDefaults(config || {});
+    this.config = this.deepFreeze(merged);
   }
 
   /**
@@ -76,10 +21,11 @@ export class AnchorConfig {
    */
   private deepFreeze<T>(obj: T): T {
     if (obj === null || typeof obj !== 'object') return obj;
+    const record = obj as Record<PropertyKey, unknown>;
 
     // Freeze children first
-    for (const key of Object.getOwnPropertyNames(obj) as Array<keyof T>) {
-      const value = (obj as any)[key];
+    for (const key of Reflect.ownKeys(record)) {
+      const value = record[key];
       if (value && typeof value === 'object' && !Object.isFrozen(value)) {
         this.deepFreeze(value);
       }
@@ -140,111 +86,39 @@ export class AnchorConfig {
     }
 
     const network = this.config.network?.network;
-    let defaultPassphrase: string;
+    const defaultPassphrase =
+      network === 'public'
+        ? Networks.PUBLIC
+        : network === 'testnet'
+          ? Networks.TESTNET
+          : network === 'futurenet'
+            ? Networks.FUTURENET
+            : null;
 
-    switch (network) {
-      case 'public':
-        defaultPassphrase = 'Public Global Stellar Network ; September 2015';
-        break;
-      case 'testnet':
-        defaultPassphrase = 'Test SDF Network ; September 2015';
-        break;
-      case 'futurenet':
-        defaultPassphrase = 'Test SDF Future Network ; Fall 2022';
-        break;
-      default:
-        return false;
-    }
-
-    return passphrase === defaultPassphrase;
+    return defaultPassphrase ? passphrase === defaultPassphrase : false;
   }
 
   /**
    * Validate the configuration object for required secrets,
    * URLs, network values, and basic structural invariants.
-   * Throws ConfigurationError if validation fails.
+   * Throws ConfigError if validation fails.
    */
   public validate(): void {
-    if (!this.config) {
-      throw new ConfigurationError('Configuration object is missing');
-    }
-
-    const { network, server, security, assets, framework } = this.config;
-
-    // Validate Required Top-Level Fields
-    if (!network) {
-      throw new ConfigurationError('Missing required top-level field: network');
-    }
-    if (!server) {
-      throw new ConfigurationError('Missing required top-level field: server');
-    }
-    if (!security) {
-      throw new ConfigurationError('Missing required top-level field: security');
-    }
-    if (!assets) {
-      throw new ConfigurationError('Missing required top-level field: assets');
-    }
-    if (!framework) {
-      throw new ConfigurationError('Missing required top-level field: framework');
-    }
-
-    // Validate Required Secrets
-    if (!security.sep10SigningKey) {
-      throw new ConfigurationError('Missing required secret: security.sep10SigningKey');
-    }
-    if (!security.interactiveJwtSecret) {
-      throw new ConfigurationError('Missing required secret: security.interactiveJwtSecret');
-    }
-    if (!security.distributionAccountSecret) {
-      throw new ConfigurationError('Missing required secret: security.distributionAccountSecret');
-    }
-
-    // Validate Assets configuration
-    if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
-      throw new ConfigurationError('At least one asset must be configured in assets.assets');
-    }
-
-    // Validate Framework Database config
-    if (!framework.database || !framework.database.provider || !framework.database.url) {
-      throw new ConfigurationError('Missing required database configuration in framework.database');
-    }
-
-    // Validate database URL loosely (could be a connection string or file path)
-    if (!this.isValidDatabaseUrl(framework.database.url)) {
-      throw new ConfigurationError('Invalid database URL format');
-    }
-
-    // Validate specific URLs if they are provided
-    if (server.interactiveDomain && !this.isValidUrl(server.interactiveDomain)) {
-      throw new ConfigurationError('Invalid URL format for server.interactiveDomain');
-    }
-
-    if (network.horizonUrl && !this.isValidUrl(network.horizonUrl)) {
-      throw new ConfigurationError('Invalid URL format for network.horizonUrl');
-    }
-
-    const { metadata } = this.config;
-    if (metadata?.tomlUrl && !this.isValidUrl(metadata.tomlUrl)) {
-      throw new ConfigurationError('Invalid URL format for metadata.tomlUrl');
-    }
-
-    // Validate network-related values
-    const validNetworks = ['public', 'testnet', 'futurenet'];
-    if (!validNetworks.includes(network.network)) {
-      throw new ConfigurationError(
-        `Invalid network: ${network.network}. Must be one of: ${validNetworks.join(', ')}`,
-      );
+    try {
+      AnchorKitConfigSchema.validate(this.config);
+    } catch (error) {
+      throw new ConfigError((error as Error).message);
     }
   }
 
   /**
    * Helper to check for standard HTTP/HTTPS URLs
+   * @deprecated Use ValidationUtils.isValidUrl instead
    */
   private isValidUrl(urlString: string): boolean {
     try {
-      const UrlCtor = (globalThis as any).URL;
-      if (typeof UrlCtor !== 'function') return false;
-      const url = new UrlCtor(urlString);
+      if (typeof URL !== 'function') return false;
+      const url = new URL(urlString);
       return url.protocol === 'http:' || url.protocol === 'https:';
     } catch {
       return false;
@@ -253,24 +127,9 @@ export class AnchorConfig {
 
   /**
    * Helper to validate database connection strings or file paths
+   * @deprecated Use ValidationUtils.isValidDatabaseUrl instead
    */
   private isValidDatabaseUrl(urlString: string): boolean {
-    if (!urlString || typeof urlString !== 'string') return false;
-
-    const validSchemes = ['postgresql:', 'postgres:', 'mysql:', 'mysql2:', 'sqlite:', 'file:'];
-
-    if (validSchemes.some((scheme) => urlString.startsWith(scheme))) {
-      return true;
-    }
-
-    // In case it's another valid URI
-    try {
-      const UrlCtor = (globalThis as any).URL;
-      if (typeof UrlCtor !== 'function') throw new Error('URL not available');
-      new UrlCtor(urlString);
-      return true;
-    } catch {
-      return false;
-    }
+    return DatabaseUrlSchema.isValid(urlString);
   }
 }

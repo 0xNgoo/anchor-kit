@@ -70,13 +70,18 @@ export type SepErrorCode =
   | string;
 
 /**
- * Error returned when a transaction cannot be found or accessed.
- * Included in SEP-24 transaction responses as an error branch.
+ * RouteDefinition - Defines an API route to be injected by a plugin.
  */
-export interface TransactionNotFoundError {
-  /** Discriminator to allow narrowing on error responses */
-  type: 'error';
+export interface RouteDefinition {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;
+  handler: (ctx: unknown) => Promise<unknown> | unknown;
+}
 
-  /** Human readable error message */
-  error: string;
+/**
+ * SchemaDefinition - Defines database schema extensions for a plugin.
+ */
+export interface SchemaDefinition {
+  name: string;
+  tables: unknown[];
 }

@@ -3,4 +3,4 @@
  * A TypeScript toolkit for building Stellar Anchor services
  */
 
-export * from './src';
+export * from './src/index';

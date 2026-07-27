@@ -5,9 +5,15 @@
  * @see https://github.com/0xNgoo/anchor-kit
  */
 
-// Export all types
 export * from './types';
+
+export { AnchorInstance, createAnchor, makeSqliteDbUrlForTests } from './core/factory';
 export * from './core/errors';
 export * as utils from './utils';
-export type { AnchorKitConfigSchema, PaymentParams } from './types/config.ts';
-export type { QueueAdapter, QueueJob, ExpressLikeMiddleware } from './runtime/interfaces.ts';
+export { AssetSchema, DatabaseUrlSchema, SecurityConfigSchema } from './utils';
+export type {
+  DatabaseAdapter,
+  QueueAdapter,
+  Watcher,
+  WebhookProcessor,
+} from './runtime/interfaces.ts';

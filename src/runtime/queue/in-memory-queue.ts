@@ -10,6 +10,8 @@ export class InMemoryQueueAdapter implements QueueAdapter {
   private running = false;
   private activeWorkers = 0;
   private worker: ((job: QueueJob) => Promise<void>) | null = null;
+  private stopPromise: Promise<void> | null = null;
+  private resolveStop: (() => void) | null = null;
 
   constructor(options: InMemoryQueueOptions) {
     this.concurrency = options.concurrency;
@@ -28,26 +30,58 @@ export class InMemoryQueueAdapter implements QueueAdapter {
 
   public async stop(): Promise<void> {
     this.running = false;
+
+    if (this.activeWorkers === 0) {
+      return;
+    }
+
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+
+    this.stopPromise = new Promise<void>((resolve) => {
+      this.resolveStop = resolve;
+    });
+
+    // In case activeWorkers reached 0 between our check and creating the promise
+    if (this.activeWorkers === 0) {
+      this.resolveStop?.();
+      this.resolveStop = null;
+      this.stopPromise = null;
+    }
+
+    return this.stopPromise || Promise.resolve();
   }
 
   private kick(): void {
     if (!this.running || !this.worker) return;
 
     while (this.activeWorkers < this.concurrency && this.jobs.length > 0) {
+      if (!this.running) break;
+
       const job = this.jobs.shift();
       if (!job) break;
 
       this.activeWorkers += 1;
       const worker = this.worker;
 
-      void worker(job)
-        .catch(() => {
+      (async () => {
+        try {
+          await worker(job);
+        } catch {
           // Best-effort queue for MVP: job errors are handled by worker logic.
-        })
-        .finally(() => {
+        } finally {
           this.activeWorkers -= 1;
+
+          if (!this.running && this.activeWorkers === 0 && this.resolveStop) {
+            this.resolveStop();
+            this.resolveStop = null;
+            this.stopPromise = null;
+          }
+
           this.kick();
-        });
+        }
+      })();
     }
   }
 }

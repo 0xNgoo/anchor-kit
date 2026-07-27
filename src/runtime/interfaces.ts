@@ -76,16 +76,22 @@ export interface DatabaseAdapter {
   updateTransactionStatus(id: string, status: string): Promise<void>;
 
   getIdempotencyRecord(scope: string, idempotencyKey: string): Promise<IdempotencyRecord | null>;
-  insertIdempotencyRecord(input: {
+  insertOrGetIdempotencyRecord(input: {
     id: string;
     scope: string;
     idempotencyKey: string;
     requestHash: string;
     statusCode: number;
     responseBody: string;
+  }): Promise<IdempotencyRecord>;
+  updateIdempotencyRecord(input: {
+    scope: string;
+    idempotencyKey: string;
+    statusCode: number;
+    responseBody: string;
   }): Promise<void>;
 
-  insertWebhookEvent(input: {
+  insertOrGetWebhookEvent(input: {
     id: string;
     eventId: string;
     provider: string;
@@ -115,10 +121,6 @@ export interface DatabaseAdapter {
 export interface QueueJob {
   type: 'expire_transaction' | 'process_watcher_task' | 'cleanup_records';
   payload: Record<string, unknown>;
-}
-
-export interface ExpressLikeMiddleware {
-  (req: unknown, res: unknown, next?: (err?: unknown) => void): unknown;
 }
 
 export interface QueueAdapter {

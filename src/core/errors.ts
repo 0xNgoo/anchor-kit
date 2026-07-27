@@ -34,17 +34,23 @@ export class ConfigError extends AnchorKitError {
 }
 
 /**
- * Alias for ConfigError to maintain backward compatibility.
- * @deprecated Use ConfigError instead.
- */
-export const ConfigurationError = ConfigError;
-
-/**
  * Error raised when a request fails validation (e.g. invalid parameters).
  */
 export class ValidationError extends AnchorKitError {
   public readonly statusCode = 400;
   public readonly errorCode = 'INVALID_REQUEST';
+
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, context);
+  }
+}
+
+/**
+ * Error raised when a request body exceeds the configured size limit.
+ */
+export class PayloadTooLargeError extends AnchorKitError {
+  public readonly statusCode = 413;
+  public readonly errorCode = 'PAYLOAD_TOO_LARGE';
 
   constructor(message: string, context?: Record<string, unknown>) {
     super(message, context);
@@ -115,5 +121,17 @@ export class NetworkError extends AnchorKitError {
     const meta = { ...context, httpStatusFromUpstream } as Record<string, unknown>;
     super(message, meta);
     this.httpStatusFromUpstream = httpStatusFromUpstream;
+  }
+}
+
+/**
+ * Error raised when a cryptographic operation fails (e.g. signing, encryption).
+ */
+export class CryptoError extends AnchorKitError {
+  public readonly statusCode = 500;
+  public readonly errorCode = 'CRYPTO_ERROR';
+
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, context);
   }
 }

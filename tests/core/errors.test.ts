@@ -3,10 +3,11 @@ import {
   TransactionStateError,
   RailError,
   ConfigError,
-  ConfigurationError,
   ValidationError,
+  PayloadTooLargeError,
   SepProtocolError,
   NetworkError,
+  CryptoError,
 } from '@/core/errors.ts';
 import { AnchorKitError } from '../../src/core/errors';
 
@@ -81,12 +82,6 @@ describe('ConfigError', () => {
     expect(err.statusCode).toBe(500);
     expect(err.errorCode).toBe('INVALID_CONFIG');
   });
-
-  it('supports backward compatibility via ConfigurationError alias', () => {
-    const err = new ConfigurationError('legacy error');
-    expect(err).toBeInstanceOf(ConfigError);
-    expect(err.statusCode).toBe(500);
-  });
 });
 
 describe('ValidationError', () => {
@@ -94,6 +89,14 @@ describe('ValidationError', () => {
     const err = new ValidationError('invalid parameter');
     expect(err.statusCode).toBe(400);
     expect(err.errorCode).toBe('INVALID_REQUEST');
+  });
+});
+
+describe('PayloadTooLargeError', () => {
+  it('maps statusCode and errorCode', () => {
+    const err = new PayloadTooLargeError('request body too large');
+    expect(err.statusCode).toBe(413);
+    expect(err.errorCode).toBe('PAYLOAD_TOO_LARGE');
   });
 });
 
@@ -210,5 +213,19 @@ describe('NetworkError', () => {
       retry: true,
       httpStatusFromUpstream: undefined,
     });
+  });
+});
+
+describe('CryptoError', () => {
+  it('maps statusCode and errorCode', () => {
+    const err = new CryptoError('encryption failed');
+    expect(err.statusCode).toBe(500);
+    expect(err.errorCode).toBe('CRYPTO_ERROR');
+  });
+
+  it('correctly inherits from AnchorKitError', () => {
+    const err = new CryptoError('bad key');
+    expect(err).toBeInstanceOf(CryptoError);
+    expect(err).toBeInstanceOf(AnchorKitError);
   });
 });
