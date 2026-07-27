@@ -70,8 +70,17 @@ function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): bool
     throw new Error('framework.queue.concurrency must be >= 1');
   }
 
-  if (framework.watchers?.pollIntervalMs !== undefined && framework.watchers.pollIntervalMs < 10) {
-    throw new Error('framework.watchers.pollIntervalMs must be >= 10');
+  const watchersEnabled = framework.watchers?.enabled;
+  if (watchersEnabled !== undefined && typeof watchersEnabled !== 'boolean') {
+    throw new Error('framework.watchers.enabled must be a boolean');
+  }
+
+  const pollIntervalMs = framework.watchers?.pollIntervalMs;
+  if (
+    pollIntervalMs !== undefined &&
+    (typeof pollIntervalMs !== 'number' || !Number.isInteger(pollIntervalMs) || pollIntervalMs < 10)
+  ) {
+    throw new Error('framework.watchers.pollIntervalMs must be a finite integer >= 10');
   }
 
   if (
@@ -117,6 +126,11 @@ function validateFrameworkRateLimit(framework: AnchorKitConfig['framework']): bo
     if (value <= 0) {
       throw new Error('framework.rateLimit values must be > 0');
     }
+  }
+
+  const trustForwardedFor = framework.rateLimit.trustForwardedFor;
+  if (trustForwardedFor !== undefined && typeof trustForwardedFor !== 'boolean') {
+    throw new Error('framework.rateLimit.trustForwardedFor must be a boolean');
   }
 
   return true;

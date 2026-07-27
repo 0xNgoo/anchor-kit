@@ -181,6 +181,78 @@ describe('Config Validation Improvements (#124, #125)', () => {
     expect(() => config.validate()).toThrow(/Invalid database URL format/);
   });
 
+  it('should require watcher poll intervals to be finite integers of at least 10ms', () => {
+    for (const value of [NaN, Infinity, 10.5, 9, '10']) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { pollIntervalMs: value as unknown as number },
+        },
+      });
+      expect(() => config.validate()).toThrow(/pollIntervalMs must be a finite integer >= 10/);
+    }
+
+    for (const value of [10, 15000, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { pollIntervalMs: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
+  it('should validate watchers.enabled as an optional boolean', () => {
+    for (const value of ['true', 1]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { enabled: value as unknown as boolean },
+        },
+      });
+      expect(() => config.validate()).toThrow(/watchers.enabled must be a boolean/);
+    }
+
+    for (const value of [true, false, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { enabled: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
+  it('should validate trustForwardedFor as an optional boolean', () => {
+    for (const value of ['true', 1]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          rateLimit: { trustForwardedFor: value as unknown as boolean },
+        },
+      });
+      expect(() => config.validate()).toThrow(/trustForwardedFor must be a boolean/);
+    }
+
+    for (const value of [true, false, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          rateLimit: { trustForwardedFor: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
   describe('Runtime Config Validation (#207)', () => {
     it('should reject redis queue backend during initialization', async () => {
       const redisConfig = {
