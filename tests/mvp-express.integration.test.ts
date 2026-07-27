@@ -18,7 +18,7 @@ interface TestRequestOptions {
   method?: string;
   path: string;
   headers?: Record<string, string>;
-  body?: Record<string, unknown>;
+  body?: unknown;
   rawBody?: string;
 }
 
@@ -2064,6 +2064,19 @@ describe('MVP Express-mounted integration', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_request');
     expect(response.body.message).toBe('Request body must be valid JSON');
+  });
+
+  it('15e) JSON array on POST /auth/token returns 400', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.9' },
+      body: ['account', 'challenge'],
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toBe('Request JSON body must be an object');
   });
 
   it('15e) malformed JSON on POST /transactions/deposit/interactive returns 400', async () => {
