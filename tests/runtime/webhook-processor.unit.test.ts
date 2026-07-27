@@ -6,7 +6,7 @@ import type { AnchorKitConfig } from '@/types/config.ts';
 describe('DefaultWebhookProcessor Unit Tests', () => {
   it('updates event status to failed when callback throws', async () => {
     const mockDatabase = {
-      insertWebhookEvent: vi.fn().mockResolvedValue({
+      insertOrGetWebhookEvent: vi.fn().mockResolvedValue({
         inserted: true,
         record: {
           id: 'internal-id',
@@ -53,7 +53,7 @@ describe('DefaultWebhookProcessor Unit Tests', () => {
 
   it('updates event status to processed when callback succeeds', async () => {
     const mockDatabase = {
-      insertWebhookEvent: vi.fn().mockResolvedValue({
+      insertOrGetWebhookEvent: vi.fn().mockResolvedValue({
         inserted: true,
         record: {
           id: 'internal-id-2',

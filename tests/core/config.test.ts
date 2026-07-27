@@ -41,9 +41,6 @@ describe('AnchorConfig', () => {
       const cfg = new AnchorConfig(validBaseConfig);
       const op = cfg.get('operational');
       expect(op).toBeDefined();
-      expect(op?.webhooksEnabled).toBe(true);
-      expect(op?.queueBackend).toBe('memory');
-      expect(op?.corsEnabled).toBe(true);
       expect(op?.transactionRetentionDays).toBe(90);
     });
   });

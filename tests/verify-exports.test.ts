@@ -94,4 +94,51 @@ describe('AssetSchema Validation', () => {
     };
     expect(AssetSchema.isValid(invalidAsset)).toBe(false);
   });
+
+  // min_amount / max_amount relationship checks
+  it('should reject an asset where min_amount exceeds max_amount', () => {
+    const invalidAsset = {
+      code: 'USDC',
+      issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      min_amount: 1000,
+      max_amount: 100,
+    };
+    expect(AssetSchema.isValid(invalidAsset)).toBe(false);
+  });
+
+  it('should accept an asset where min_amount equals max_amount', () => {
+    const validAsset = {
+      code: 'USDC',
+      issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      min_amount: 500,
+      max_amount: 500,
+    };
+    expect(AssetSchema.isValid(validAsset)).toBe(true);
+  });
+
+  it('should accept an asset with only min_amount', () => {
+    const validAsset = {
+      code: 'USDC',
+      issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      min_amount: 10,
+    };
+    expect(AssetSchema.isValid(validAsset)).toBe(true);
+  });
+
+  it('should accept an asset with only max_amount', () => {
+    const validAsset = {
+      code: 'USDC',
+      issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      max_amount: 5000,
+    };
+    expect(AssetSchema.isValid(validAsset)).toBe(true);
+  });
+
+  it('should accept an asset with neither min_amount nor max_amount', () => {
+    const validAsset = {
+      code: 'USDC',
+      issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+    };
+    expect(AssetSchema.isValid(validAsset)).toBe(true);
+  });
 });
