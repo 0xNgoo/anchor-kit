@@ -481,7 +481,10 @@ async function handleDepositInteractive(
 
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJsonUnauthorized(res, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, {
+      error: 'unauthorized',
+      message: 'Missing or invalid bearer token',
+    });
     return;
   }
 
@@ -641,7 +644,10 @@ async function handleTransaction(
 ): Promise<void> {
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJsonUnauthorized(res, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, {
+      error: 'unauthorized',
+      message: 'Missing or invalid bearer token',
+    });
     return;
   }
 
