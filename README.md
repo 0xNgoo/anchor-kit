@@ -185,8 +185,11 @@ curl -s \
   -X POST http://localhost:3000/anchor/transactions/deposit/interactive \
   -H "authorization: Bearer ${TOKEN}" \
   -H 'content-type: application/json' \
+  -H 'Idempotency-Key: your-unique-key-here' \
   -d '{"asset_code":"USDC","amount":"25"}'
 ```
+
+Use the same `Idempotency-Key` value when retrying requests to safely prevent duplicate deposits.
 
 Look up a transaction by id:
 
@@ -222,6 +225,7 @@ curl -s \
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Roadmap](./ROADMAP.md)
+- [Releasing & Publishing](./docs/releasing.md)
 
 The root package also exports public TypeScript transaction helpers, including `Transaction`, `TransactionKind`, and `TransactionStatus`.
 

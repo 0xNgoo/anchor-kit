@@ -4,6 +4,7 @@ import { AnchorConfig } from '../../src/core/config';
 import { ConfigError } from '../../src/core/errors';
 import { createAnchor, makeSqliteDbUrlForTests } from '../../src/core/factory';
 import type { AnchorKitConfig } from '../../src/types/config';
+import { DatabaseUrlSchema } from '../../src/utils/validation-helpers';
 
 describe('Config Validation Improvements (#124, #125)', () => {
   const testSep10SigningKey = Keypair.random().secret();
@@ -153,6 +154,103 @@ describe('Config Validation Improvements (#124, #125)', () => {
       });
       expect(() => config.validate()).not.toThrow();
     });
+  });
+
+  it('should reject empty database URL targets while accepting non-empty ones', () => {
+    for (const scheme of ['postgresql:', 'postgres:', 'sqlite:', 'file:']) {
+      expect(DatabaseUrlSchema.isValid(scheme)).toBe(false);
+      expect(DatabaseUrlSchema.isValid(`${scheme} `)).toBe(false);
+    }
+
+    for (const url of [
+      'postgresql://localhost:5432/anchor',
+      'postgres://user:pass@host/db',
+      'sqlite::memory:',
+      'file:./anchor.db',
+    ]) {
+      expect(DatabaseUrlSchema.isValid(url)).toBe(true);
+    }
+
+    const config = new AnchorConfig({
+      ...validBaseConfig,
+      framework: {
+        ...validBaseConfig.framework,
+        database: { provider: 'postgres', url: 'postgres:' },
+      },
+    });
+    expect(() => config.validate()).toThrow(/Invalid database URL format/);
+  });
+
+  it('should require watcher poll intervals to be finite integers of at least 10ms', () => {
+    for (const value of [NaN, Infinity, 10.5, 9, '10']) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { pollIntervalMs: value as unknown as number },
+        },
+      });
+      expect(() => config.validate()).toThrow(/pollIntervalMs must be a finite integer >= 10/);
+    }
+
+    for (const value of [10, 15000, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { pollIntervalMs: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
+  it('should validate watchers.enabled as an optional boolean', () => {
+    for (const value of ['true', 1]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { enabled: value as unknown as boolean },
+        },
+      });
+      expect(() => config.validate()).toThrow(/watchers.enabled must be a boolean/);
+    }
+
+    for (const value of [true, false, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { enabled: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
+  it('should validate trustForwardedFor as an optional boolean', () => {
+    for (const value of ['true', 1]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          rateLimit: { trustForwardedFor: value as unknown as boolean },
+        },
+      });
+      expect(() => config.validate()).toThrow(/trustForwardedFor must be a boolean/);
+    }
+
+    for (const value of [true, false, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          rateLimit: { trustForwardedFor: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
   });
 
   describe('Runtime Config Validation (#207)', () => {
