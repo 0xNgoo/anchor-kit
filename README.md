@@ -185,8 +185,11 @@ curl -s \
   -X POST http://localhost:3000/anchor/transactions/deposit/interactive \
   -H "authorization: Bearer ${TOKEN}" \
   -H 'content-type: application/json' \
+  -H 'Idempotency-Key: your-unique-key-here' \
   -d '{"asset_code":"USDC","amount":"25"}'
 ```
+
+Use the same `Idempotency-Key` value when retrying requests to safely prevent duplicate deposits.
 
 Look up a transaction by id:
 

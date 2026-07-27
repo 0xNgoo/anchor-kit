@@ -5,7 +5,11 @@ import {
   makeSqliteDbUrlForTests,
   utils,
 } from '../src/index';
-import type { TransactionKind } from '../src/index';
+import type {
+  AuthChallengeRecord,
+  InteractiveTransactionRecord,
+  TransactionKind,
+} from '../src/index';
 import { describe, expect, it } from 'vitest';
 
 describe('Export Verification', () => {
@@ -46,6 +50,38 @@ describe('Export Verification', () => {
     expect(makeSqliteDbUrlForTests).toBeDefined();
     expect(typeof makeSqliteDbUrlForTests).toBe('function');
     expect(makeSqliteDbUrlForTests()).toMatch(/^file:/);
+  });
+
+  it('should export StellarUtils at the top level', async () => {
+    const { StellarUtils } = await import('../src/index');
+
+    expect(StellarUtils).toBeDefined();
+    expect(typeof StellarUtils.validateAccountId).toBe('function');
+    expect(StellarUtils).toBe(utils.StellarUtils);
+  });
+
+  it('should export runtime record types at the top level', () => {
+    const authChallengeRecord: AuthChallengeRecord = {
+      id: 'auth-1',
+      account: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      challenge: 'challenge',
+      expiresAt: '2026-07-27T00:00:00.000Z',
+      consumedAt: null,
+      createdAt: '2026-07-27T00:00:00.000Z',
+    };
+    const interactiveTransactionRecord: InteractiveTransactionRecord = {
+      id: 'tx-1',
+      account: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      kind: 'deposit',
+      assetCode: 'USDC',
+      amount: '100',
+      status: 'pending',
+      createdAt: '2026-07-27T00:00:00.000Z',
+      updatedAt: '2026-07-27T00:00:00.000Z',
+    };
+
+    expect(authChallengeRecord.id).toBe('auth-1');
+    expect(interactiveTransactionRecord.kind).toBe('deposit');
   });
 });
 

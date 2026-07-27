@@ -179,6 +179,30 @@ describe('Config Validation Improvements (#124, #125)', () => {
     }
   });
 
+  it('should validate watchers.enabled as an optional boolean', () => {
+    for (const value of ['true', 1]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { enabled: value as unknown as boolean },
+        },
+      });
+      expect(() => config.validate()).toThrow(/watchers.enabled must be a boolean/);
+    }
+
+    for (const value of [true, false, undefined]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { enabled: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
   describe('Runtime Config Validation (#207)', () => {
     it('should reject redis queue backend during initialization', async () => {
       const redisConfig = {
