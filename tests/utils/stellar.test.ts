@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Account, Keypair, MuxedAccount, Transaction, Networks } from '@stellar/stellar-sdk';
 import { StellarUtils } from '@/utils/stellar.ts';
 
 interface ParsedPaymentOperation {
@@ -92,8 +93,162 @@ describe('StellarUtils', () => {
       expect(parseFloat(operation.amount)).toBe(parseFloat(params.amount));
     });
 
+    it('should preserve an id memo', async () => {
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '5',
+        assetCode: 'USDC',
+        issuer: validAccountId,
+        memo: { value: '123456', type: 'id' as const },
+        network: 'testnet',
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      const parsed = StellarUtils.parseXdrTransaction(xdr);
+      expect(parsed.memo?.type).toBe('id');
+      expect(parsed.memo?.value).toBe(params.memo.value);
+    });
+
+    it('should preserve a hash memo', async () => {
+      const hashValue = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '5',
+        assetCode: 'USDC',
+        issuer: validAccountId,
+        memo: { value: hashValue, type: 'hash' as const },
+        network: 'testnet',
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      const tx = new Transaction(xdr, Networks.TESTNET);
+      expect(tx.memo.type).toBe('hash');
+      const parsedHex = Buffer.from(tx.memo.value as Buffer).toString('hex');
+      expect(parsedHex).toBe(hashValue);
+    });
+
+    it('should preserve a return memo', async () => {
+      // Use a 32-byte (64-hex) value for return memo as required by Stellar SDK
+      const returnValue = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '5',
+        assetCode: 'USDC',
+        issuer: validAccountId,
+        memo: { value: returnValue, type: 'return' as const },
+        network: 'testnet',
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      const tx = new Transaction(xdr, Networks.TESTNET);
+      expect(tx.memo.type).toBe('return');
+      const parsedHex = Buffer.from(tx.memo.value as Buffer).toString('hex');
+      expect(parsedHex).toBe(returnValue);
+    });
+
+    it('should fail early for an invalid source public key', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: invalidAccountId,
+          destination: validAccountId,
+          amount: '1',
+          assetCode: 'XLM',
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('source must be a valid Stellar public or muxed public key');
+    });
+
+    it('should fail early for an invalid destination public key', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: invalidAccountId,
+          amount: '1',
+          assetCode: 'XLM',
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('destination must be a valid Stellar public or muxed public key');
+    });
+
+    it('should throw a clear error when a non-native asset issuer is missing', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1.5',
+          assetCode: 'USDC',
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
+    });
+
+    it('should throw a clear error when a non-native asset issuer is invalid', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1.5',
+          assetCode: 'USDC',
+          issuer: invalidAccountId,
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
+    });
+
+    it('should fail early for an invalid issuer on non-native assets', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1',
+          assetCode: 'USDC',
+          issuer: invalidAccountId,
+          network: 'testnet',
+        }),
+      ).rejects.toThrow('A valid issuer is required for non-native asset payments: USDC');
+    });
+
+    it('should accept muxed source and destination accounts', async () => {
+      const baseAccount = Keypair.random().publicKey();
+      const source = new MuxedAccount(new Account(baseAccount, '0'), '123').accountId();
+      const destination = new MuxedAccount(new Account(baseAccount, '0'), '456').accountId();
+
+      const xdr = await StellarUtils.buildPaymentXdr({
+        source,
+        destination,
+        amount: '1',
+        assetCode: 'XLM',
+        network: 'testnet',
+      });
+
+      const parsed = StellarUtils.parseXdrTransaction(xdr);
+      expect(parsed.source).toBe(source);
+      expect(parsed.operations.length).toBe(1);
+    });
+
     it('should throw when parsing invalid XDR', () => {
       expect(() => StellarUtils.parseXdrTransaction('invalid-xdr')).toThrow(/Failed to parse XDR/);
+    });
+
+    it('should build a payment using the public network passphrase', async () => {
+      const params = {
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '2.5',
+        assetCode: 'XLM',
+        network: 'public' as const,
+      };
+
+      const xdr = await StellarUtils.buildPaymentXdr(params);
+      expect(typeof xdr).toBe('string');
+
+      const tx = new Transaction(xdr, Networks.PUBLIC);
+      expect(tx.networkPassphrase).toBe(Networks.PUBLIC);
+      expect(tx.source).toBe(params.source);
+      expect(tx.operations.length).toBe(1);
     });
   });
 });

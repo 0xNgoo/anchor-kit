@@ -1,4 +1,4 @@
-import { expect, test, describe } from 'bun:test';
+import { expect, test, describe } from 'vitest';
 import { IdempotencyUtils } from '../../src/utils/idempotency';
 
 type IdempotencyHeaderValue = string | string[] | null | undefined;
@@ -43,5 +43,35 @@ describe('IdempotencyUtils', () => {
   test('extractIdempotencyHeader returns null for empty string', () => {
     const obj: Record<string, IdempotencyHeaderValue> = { 'Idempotency-Key': '   ' };
     expect(IdempotencyUtils.extractIdempotencyHeader(obj)).toBeNull();
+  });
+
+  test('extractIdempotencyHeader handles lowercase idempotency-key header name', () => {
+    // This is the header name used in the deposit route
+    const obj: Record<string, IdempotencyHeaderValue> = { 'idempotency-key': 'test-key' };
+    expect(IdempotencyUtils.extractIdempotencyHeader(obj, 'idempotency-key')).toBe('test-key');
+  });
+
+  test('extractIdempotencyHeader handles array idempotency-key with first non-empty value', () => {
+    // Array with multiple values - first non-empty wins
+    const obj: Record<string, IdempotencyHeaderValue> = {
+      'idempotency-key': ['', 'first-valid', 'second-valid'],
+    };
+    expect(IdempotencyUtils.extractIdempotencyHeader(obj, 'idempotency-key')).toBe('first-valid');
+  });
+
+  test('extractIdempotencyHeader handles array idempotency-key with leading empty strings', () => {
+    // Array with leading empty strings - should skip to first non-empty
+    const obj: Record<string, IdempotencyHeaderValue> = {
+      'idempotency-key': ['', '   ', 'valid-key'],
+    };
+    expect(IdempotencyUtils.extractIdempotencyHeader(obj, 'idempotency-key')).toBe('valid-key');
+  });
+
+  test('extractIdempotencyHeader handles array idempotency-key with only empty values', () => {
+    // Array with only empty values - should return null
+    const obj: Record<string, IdempotencyHeaderValue> = {
+      'idempotency-key': ['', '   '],
+    };
+    expect(IdempotencyUtils.extractIdempotencyHeader(obj, 'idempotency-key')).toBeNull();
   });
 });
