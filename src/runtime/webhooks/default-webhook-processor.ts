@@ -105,8 +105,10 @@ export class DefaultWebhookProcessor implements WebhookProcessor {
     }
 
     const expected = createHmac('sha256', webhookSecret).update(input.rawBody).digest('hex');
+    const normalizedSignature = input.signature.toLowerCase();
+    const normalizedExpected = expected.toLowerCase();
 
-    if (!safeEquals(expected, input.signature)) {
+    if (!safeEquals(normalizedExpected, normalizedSignature)) {
       throw new Error('Invalid webhook signature');
     }
   }
