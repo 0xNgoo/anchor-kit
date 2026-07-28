@@ -1,6 +1,6 @@
-import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
-import type { AnchorKitConfig } from '@/types/config.ts';
 import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts';
+import type { AnchorKitConfig } from '@/types/config.ts';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 interface DefaultWebhookProcessorOptions {
   config: AnchorKitConfig;
@@ -40,7 +40,7 @@ export class DefaultWebhookProcessor implements WebhookProcessor {
   }): Promise<{ duplicate: boolean; eventId: string }> {
     this.verifySignatureIfEnabled(input);
 
-    const insertion = await this.database.insertWebhookEvent({
+    const insertion = await this.database.insertOrGetWebhookEvent({
       id: randomUUID(),
       eventId: input.eventId,
       provider: input.provider,

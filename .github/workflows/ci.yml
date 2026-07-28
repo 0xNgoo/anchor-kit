@@ -35,6 +35,9 @@ jobs:
       - name: Type Check
         run: bun run typecheck
 
+      - name: Fallow Health
+        run: bun run scripts/check-fallow-health.mjs
+
       - name: Run Tests with Coverage
         run: bun run test:coverage
 
