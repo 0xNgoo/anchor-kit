@@ -9,8 +9,53 @@ export interface ExampleApp {
   shutdown: () => Promise<void>;
 }
 
+function getChallengeExpirationSeconds(): number {
+  const rawValue = process.env.CHALLENGE_EXPIRATION_SECONDS;
+
+  if (!rawValue) {
+    return 300;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return 300;
+  }
+
+  return parsedValue;
+}
+
 function getWatchersEnabled(): boolean {
   return process.env.WATCHERS_ENABLED !== 'false';
+}
+
+function getMaxBodyBytes(): number | undefined {
+  const rawValue = process.env.MAX_BODY_BYTES;
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return undefined;
+  }
+
+  return parsedValue;
+}
+
+function getAuthTokenLifetimeSeconds(): number | undefined {
+  const rawValue = process.env.AUTH_TOKEN_LIFETIME_SECONDS;
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return undefined;
+  }
+
+  return parsedValue;
 }
 
 export async function createExampleApp(): Promise<ExampleApp> {
@@ -30,7 +75,8 @@ export async function createExampleApp(): Promise<ExampleApp> {
         process.env.DISTRIBUTION_ACCOUNT_SECRET ?? 'example-distribution-secret',
       webhookSecret: process.env.WEBHOOK_SECRET,
       verifyWebhookSignatures: process.env.WEBHOOK_SECRET ? true : false,
-      challengeExpirationSeconds: 300,
+      challengeExpirationSeconds: getChallengeExpirationSeconds(),
+      authTokenLifetimeSeconds: getAuthTokenLifetimeSeconds(),
     },
     assets: {
       assets: [
@@ -46,6 +92,9 @@ export async function createExampleApp(): Promise<ExampleApp> {
       database: {
         provider: databaseUrl.startsWith('file:') ? 'sqlite' : 'postgres',
         url: databaseUrl,
+      },
+      http: {
+        maxBodyBytes: getMaxBodyBytes(),
       },
       queue: {
         backend: 'memory',
@@ -72,7 +121,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
   const app = express();
   app.use(
     express.json({
-      limit: '1mb',
+      limit: getMaxBodyBytes() ?? '1mb',
       verify: (req, _res, buf) => {
         (req as { rawBody?: string }).rawBody = buf.toString('utf8');
       },
