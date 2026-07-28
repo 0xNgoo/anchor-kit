@@ -11,6 +11,7 @@ export * from './core/errors';
 export * as utils from './utils';
 export type {
   DatabaseAdapter,
+  IdempotencyRecord,
   QueueAdapter,
   Watcher,
   WebhookProcessor,
