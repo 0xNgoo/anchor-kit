@@ -1,3 +1,11 @@
+import { describe, expect, it } from 'vitest';
+import type { Memo as RootMemo } from '../index';
+import type {
+  AuthChallengeRecord,
+  IdempotencyRecord,
+  InteractiveTransactionRecord,
+  TransactionKind,
+} from '../src/index';
 import {
   AssetSchema,
   DatabaseUrlSchema,
@@ -5,13 +13,6 @@ import {
   makeSqliteDbUrlForTests,
   utils,
 } from '../src/index';
-import type { Memo as RootMemo } from '../index';
-import type {
-  AuthChallengeRecord,
-  InteractiveTransactionRecord,
-  TransactionKind,
-} from '../src/index';
-import { describe, expect, it } from 'vitest';
 
 describe('Export Verification', () => {
   it('should export TransactionKind at the top level', () => {
@@ -90,6 +91,20 @@ describe('Export Verification', () => {
 
     expect(authChallengeRecord.id).toBe('auth-1');
     expect(interactiveTransactionRecord.kind).toBe('deposit');
+  });
+
+  it('should export IdempotencyRecord for custom database adapters', () => {
+    const record: IdempotencyRecord = {
+      id: 'record-1',
+      scope: 'webhook',
+      idempotencyKey: 'key-1',
+      requestHash: 'hash-1',
+      statusCode: 200,
+      responseBody: '{}',
+      createdAt: new Date(0).toISOString(),
+    };
+
+    expect(record.idempotencyKey).toBe('key-1');
   });
 });
 
