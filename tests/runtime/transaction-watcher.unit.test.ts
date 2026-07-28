@@ -64,6 +64,13 @@ describe('TransactionWatcher Unit Tests', () => {
     });
   });
 
+  it('treats stop() before start() as a safe no-op', async () => {
+    await expect(transactionWatcher.stop()).resolves.toBeUndefined();
+    expect(mockDatabase.listPendingTransactionsBefore).not.toHaveBeenCalled();
+    expect(mockQueue.enqueue).not.toHaveBeenCalled();
+    expect(mockQueue.stop).not.toHaveBeenCalled();
+  });
+
   it('enqueues expiration jobs for stale pending deposits', async () => {
     const staleTransaction = {
       id: 'stale-tx-1',
@@ -210,6 +217,31 @@ describe('TransactionWatcher Unit Tests', () => {
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
   });
 
+  it('continues polling after a scheduled tick rejects', async () => {
+    vi.useFakeTimers();
+
+    try {
+      let calls = 0;
+      mockDatabase.listPendingTransactionsBefore = vi.fn().mockImplementation(async () => {
+        calls += 1;
+        if (calls === 2) {
+          throw new Error('db failure');
+        }
+
+        return [];
+      });
+
+      await expect(transactionWatcher.start()).resolves.toBeUndefined();
+      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
+
+      expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+      await transactionWatcher.stop();
+    }
+  });
+
   it('enqueues a cleanup_records job with the configured retention days', async () => {
     const retentionDays = 45;
     const customWatcher = new TransactionWatcher(mockDatabase, mockQueue, {
@@ -231,5 +263,24 @@ describe('TransactionWatcher Unit Tests', () => {
 
     // Stop the watcher
     await customWatcher.stop();
+  });
+
+  it('does not create additional polling timer when start() is called twice', async () => {
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+
+    try {
+      await transactionWatcher.start();
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+
+      setIntervalSpy.mockClear();
+
+      await transactionWatcher.start();
+      expect(setIntervalSpy).not.toHaveBeenCalled();
+
+      expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
+    } finally {
+      setIntervalSpy.mockRestore();
+      await transactionWatcher.stop();
+    }
   });
 });

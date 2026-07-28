@@ -1,8 +1,8 @@
 import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
 import { createSqlDatabaseAdapter } from '@/runtime/database/sql-database-adapter.ts';
 import type { DatabaseAdapter } from '@/runtime/interfaces.ts';
-import { unlinkSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { unlinkSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 describe('SqlDatabaseAdapter – webhook event deduplication (sqlite)', () => {
@@ -29,7 +29,7 @@ describe('SqlDatabaseAdapter – webhook event deduplication (sqlite)', () => {
     const eventId = `evt-${randomUUID()}`;
     const payload = { type: 'payment.completed', amount: '100' };
 
-    const result = await db.insertWebhookEvent({
+    const result = await db.insertOrGetWebhookEvent({
       id: randomUUID(),
       eventId,
       provider: 'test-provider',
@@ -50,7 +50,7 @@ describe('SqlDatabaseAdapter – webhook event deduplication (sqlite)', () => {
     const payload = { type: 'payment.completed', amount: '200' };
     const firstId = randomUUID();
 
-    const first = await db.insertWebhookEvent({
+    const first = await db.insertOrGetWebhookEvent({
       id: firstId,
       eventId,
       provider: 'test-provider',
@@ -58,7 +58,7 @@ describe('SqlDatabaseAdapter – webhook event deduplication (sqlite)', () => {
     });
     expect(first.inserted).toBe(true);
 
-    const duplicate = await db.insertWebhookEvent({
+    const duplicate = await db.insertOrGetWebhookEvent({
       id: randomUUID(),
       eventId,
       provider: 'test-provider',
@@ -75,14 +75,14 @@ describe('SqlDatabaseAdapter – webhook event deduplication (sqlite)', () => {
     const eventIdA = `evt-${randomUUID()}`;
     const eventIdB = `evt-${randomUUID()}`;
 
-    const resultA = await db.insertWebhookEvent({
+    const resultA = await db.insertOrGetWebhookEvent({
       id: randomUUID(),
       eventId: eventIdA,
       provider: 'test-provider',
       payload: { seq: 1 },
     });
 
-    const resultB = await db.insertWebhookEvent({
+    const resultB = await db.insertOrGetWebhookEvent({
       id: randomUUID(),
       eventId: eventIdB,
       provider: 'test-provider',
