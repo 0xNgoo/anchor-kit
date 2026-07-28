@@ -139,6 +139,7 @@ function validateFrameworkRateLimit(framework: AnchorKitConfig['framework']): bo
 function validateFrameworkUrls(
   metadata: AnchorKitConfig['metadata'],
   server: AnchorKitConfig['server'],
+  operational: AnchorKitConfig['operational'],
 ): boolean {
   if (server.interactiveDomain && !isValidUrlString(server.interactiveDomain)) {
     throw new Error('Invalid URL format for server.interactiveDomain');
@@ -148,6 +149,10 @@ function validateFrameworkUrls(
     throw new Error('Invalid URL format for metadata.tomlUrl');
   }
 
+  if (operational?.website && !isValidUrlString(operational.website)) {
+    throw new Error('Invalid URL format for operational.website');
+  }
+
   return true;
 }
 
@@ -155,11 +160,12 @@ function validateFrameworkConfig(
   framework: AnchorKitConfig['framework'],
   server: AnchorKitConfig['server'],
   metadata: AnchorKitConfig['metadata'],
+  operational: AnchorKitConfig['operational'],
 ): boolean {
   validateFrameworkDatabase(framework);
   validateFrameworkNumbers(framework);
   validateFrameworkRateLimit(framework);
-  validateFrameworkUrls(metadata, server);
+  validateFrameworkUrls(metadata, server, operational);
   return true;
 }
 
@@ -311,7 +317,7 @@ export const AnchorKitConfigSchema = {
 function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
   if (!config) throw new Error('Configuration object is missing');
 
-  const { network, server, security, assets, framework, metadata } = config;
+  const { network, server, security, assets, framework, metadata, operational } = config;
 
   if (!network) throw new Error('Missing required top-level field: network');
   if (!server) throw new Error('Missing required top-level field: server');
@@ -337,7 +343,7 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
     }
   }
 
-  validateFrameworkConfig(framework, server, metadata);
+  validateFrameworkConfig(framework, server, metadata, operational);
 
   return true;
 }
