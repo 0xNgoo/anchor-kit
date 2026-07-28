@@ -134,6 +134,23 @@ function extractClientIdentifier(req: IncomingMessage): string {
   return leftMost || socketIp || 'unknown';
 }
 
+function extractFirstHeaderValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string' && item.trim().length > 0) {
+        return item;
+      }
+    }
+    return undefined;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim().length > 0 ? value : undefined;
+  }
+
+  return undefined;
+}
+
 function hasValidSignature(transaction: Transaction, publicKey: string): boolean {
   const keypair = Keypair.fromPublicKey(publicKey);
   const hash = transaction.hash();
@@ -617,15 +634,15 @@ export class AnchorExpressRouter {
       const eventIdField = payload.id;
       const eventId =
         typeof eventIdField === 'string' && eventIdField.length > 0 ? eventIdField : randomUUID();
-      const providerHeader = req.headers['x-webhook-provider'];
+      const providerHeader = extractFirstHeaderValue(req.headers['x-webhook-provider']);
       const providerBody = payload.provider;
       const provider =
-        typeof providerHeader === 'string' && providerHeader.length > 0
+        typeof providerHeader === 'string' && providerHeader.trim().length > 0
           ? providerHeader
-          : typeof providerBody === 'string' && providerBody.length > 0
+          : typeof providerBody === 'string' && providerBody.trim().length > 0
             ? providerBody
             : 'generic';
-      const signatureHeader = req.headers['x-anchor-signature'];
+      const signatureHeader = extractFirstHeaderValue(req.headers['x-anchor-signature']);
       const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
 
       try {
