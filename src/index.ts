@@ -14,4 +14,5 @@ export type {
   QueueAdapter,
   Watcher,
   WebhookProcessor,
+  WatcherTaskRecord,
 } from './runtime/interfaces.ts';
