@@ -37,7 +37,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
     const req = Readable.from(reqBody ? [reqBody] : []) as IncomingMessage & {
       method: string;
       url: string;
-      headers: Record<string, string>;
+      headers: Record<string, string | string[]>;
       body?: Record<string, unknown>;
       rawBody?: string | Buffer | Uint8Array;
     };

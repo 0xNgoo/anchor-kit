@@ -36,6 +36,16 @@ interface AuthenticatedRequestData {
 type RawBodyValue = string | Buffer | Uint8Array;
 type IncomingRequestWithRawBody = IncomingMessage & { rawBody?: RawBodyValue; body?: unknown };
 
+function firstNonEmptyString(value: unknown): string | undefined {
+  const values = Array.isArray(value) ? value : [value];
+  for (const candidate of values) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+  return undefined;
+}
+
 function sendJson(res: ServerResponse, status: number, body: Record<string, unknown>): void {
   if (!res.headersSent) {
     res.statusCode = status;
@@ -759,13 +769,9 @@ async function handleWebhook(
   const providerHeader = req.headers['x-webhook-provider'];
   const providerBody = payload.provider;
   const provider =
-    typeof providerHeader === 'string' && providerHeader.length > 0
-      ? providerHeader
-      : typeof providerBody === 'string' && providerBody.length > 0
-        ? providerBody
-        : 'generic';
+    firstNonEmptyString(providerHeader) ?? firstNonEmptyString(providerBody) ?? 'generic';
   const signatureHeader = req.headers['x-anchor-signature'];
-  const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
+  const signature = firstNonEmptyString(signatureHeader);
 
   try {
     const result = await context.webhookProcessor.process({
