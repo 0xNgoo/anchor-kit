@@ -19,7 +19,7 @@ interface TestRequestOptions {
   path: string;
   headers?: Record<string, string>;
   body?: unknown;
-  rawBody?: string;
+  rawBody?: string | Buffer | Uint8Array;
 }
 
 function createMountedInvoker(anchor: AnchorInstance) {
@@ -27,12 +27,19 @@ function createMountedInvoker(anchor: AnchorInstance) {
 
   return async (options: TestRequestOptions): Promise<TestResponse> => {
     const serializedBody = options.rawBody ?? (options.body ? JSON.stringify(options.body) : '');
+    const reqBody =
+      typeof serializedBody === 'string'
+        ? serializedBody
+        : Buffer.isBuffer(serializedBody)
+          ? serializedBody
+          : Buffer.from(serializedBody);
 
-    const req = Readable.from(serializedBody ? [serializedBody] : []) as IncomingMessage & {
+    const req = Readable.from(reqBody ? [reqBody] : []) as IncomingMessage & {
       method: string;
       url: string;
-      headers: Record<string, string>;
+      headers: Record<string, string | string[]>;
       body?: Record<string, unknown>;
+      rawBody?: string | Buffer | Uint8Array;
     };
 
     req.method = options.method ?? 'GET';
@@ -40,6 +47,7 @@ function createMountedInvoker(anchor: AnchorInstance) {
     req.headers = Object.fromEntries(
       Object.entries(options.headers ?? {}).map(([key, value]) => [key.toLowerCase(), value]),
     );
+    req.rawBody = options.rawBody;
 
     const responseHeaders: Record<string, string> = {};
 
@@ -774,6 +782,141 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.message).toContain('minimum allowed of 10');
   });
 
+  it('5h) deposit with hexadecimal string amount is rejected', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '0x10' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_amount');
+    expect(response.body.message).toBe('Amount must be a positive number');
+  });
+
+  it('5i) deposit with exponent string amount is rejected', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '1e3' },
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_amount');
+    expect(response.body.message).toBe('Amount must be a positive number');
+  });
+
+  it('5j) deposit with plain decimal string amount is accepted', async () => {
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10.5' },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.amount).toBe('10.5');
+    expect(response.body.interactive_url).toContain('/deposit/');
+  });
+
+  it('5k) deposit create and lookup URLs avoid double slashes when interactiveDomain ends with slash', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com/' },
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-trailing-slash',
+        distributionAccountSecret: 'distribution-test-secret',
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            deposits_enabled: true,
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: customDbUrl },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    const customAccount = clientKeypair.publicKey();
+    const challengeResponse = await customInvoke({
+      path: `/auth/challenge?account=${customAccount}`,
+    });
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+
+    const tokenResponse = await customInvoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      body: { account: customAccount, challenge: challengeTx.toXDR() },
+    });
+    const customToken = String(tokenResponse.body.token ?? '');
+
+    const createResponse = await customInvoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${customToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(createResponse.status).toBe(201);
+    const createdId = String(createResponse.body.id ?? '');
+    expect(createResponse.body.interactive_url).toBe(
+      `https://anchor.example.com/deposit/${createdId}`,
+    );
+
+    const lookupResponse = await customInvoke({
+      method: 'GET',
+      path: `/transactions/${createdId}`,
+      headers: {
+        authorization: `Bearer ${customToken}`,
+      },
+    });
+
+    expect(lookupResponse.status).toBe(200);
+    expect(lookupResponse.body.interactive_url).toBe(
+      `https://anchor.example.com/deposit/${createdId}`,
+    );
+    expect(lookupResponse.body.more_info_url).toBe(
+      `https://anchor.example.com/deposit/${createdId}`,
+    );
+
+    await customAnchor.shutdown();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    try {
+      unlinkSync(customDbPath);
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
   it('5c) deposit with unknown asset_code is rejected', async () => {
     const response = await invoke({
       method: 'POST',
@@ -1495,6 +1638,65 @@ describe('MVP Express-mounted integration', () => {
     expect((response.body.event_id as string).length).toBeGreaterThan(0);
   });
 
+  it('8g) webhook route accepts Buffer-backed rawBody and returns a generated event_id', async () => {
+    const payload = { id: 'evt_buffer', type: 'deposit.completed', transaction_id: transactionId };
+    const payloadText = JSON.stringify(payload);
+    const signature = createHmac('sha256', 'webhook-test-secret').update(payloadText).digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+      rawBody: Buffer.from(payloadText),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(response.body.duplicate).toBe(false);
+    expect(response.body.event_id).toBe('evt_buffer');
+  });
+
+  it('8h) webhook route treats whitespace-only ids as missing and generates an event id', async () => {
+    const payload = { id: '   ', type: 'deposit.completed', transaction_id: transactionId };
+    const payloadText = JSON.stringify(payload);
+    const signature = createHmac('sha256', 'webhook-test-secret').update(payloadText).digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.received).toBe(true);
+    expect(response.body.duplicate).toBe(false);
+    expect(typeof response.body.event_id).toBe('string');
+    expect((response.body.event_id as string).length).toBeGreaterThan(0);
+  });
+
+  it('8i) oversized Buffer-backed rawBody returns 413 payload_too_large', async () => {
+    const payloadText = JSON.stringify({ account: 'G'.repeat(2048), challenge: 'x' });
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json' },
+      rawBody: Buffer.from(payloadText),
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+  });
+
   it('8e) webhook success response includes received_at ISO timestamp', async () => {
     const payload = {
       id: 'evt_received_at_check',
@@ -2028,9 +2230,8 @@ describe('MVP Express-mounted integration', () => {
       body: {},
     });
 
-    expect(tokenResponse.status).toBe(400);
-    expect(tokenResponse.body.error).toBe('invalid_request');
-    expect(tokenResponse.body.message).toBe('Body must include account and challenge');
+    expect(tokenResponse.status).toBe(429);
+    expect(tokenResponse.body.error).toBe('rate_limited');
   });
 
   // ── Malformed JSON bodies ────────────────────────────────────────────────

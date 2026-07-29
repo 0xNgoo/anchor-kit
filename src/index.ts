@@ -14,10 +14,12 @@ export { AssetSchema, DatabaseUrlSchema, SecurityConfigSchema, ValidationUtils, 
 export type {
   AuthChallengeRecord,
   DatabaseAdapter,
+  IdempotencyRecord,
   InteractiveTransactionRecord,
   QueueJob,
   QueueAdapter,
   Watcher,
   WebhookProcessor,
+  WatcherTaskRecord,
 } from './runtime/interfaces.ts';
 export type { ExpressLikeMiddleware } from './runtime/http/express-router.ts';
