@@ -238,7 +238,7 @@ describe('TransactionWatcher Unit Tests', () => {
     await shortIntervalWatcher.start();
 
     // Wait for multiple polling cycles to occur
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     await shortIntervalWatcher.stop();
 

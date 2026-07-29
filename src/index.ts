@@ -10,7 +10,15 @@ export * from './types';
 export { AnchorInstance, createAnchor, makeSqliteDbUrlForTests } from './core/factory';
 export * from './core/errors';
 export * as utils from './utils';
-export { AssetSchema, DatabaseUrlSchema, SecurityConfigSchema, ValidationUtils, AnchorKitConfigSchema, StellarUtils } from './utils';
+export {
+  AssetSchema,
+  DatabaseUrlSchema,
+  SecurityConfigSchema,
+  ValidationUtils,
+  AnchorKitConfigSchema,
+  StellarUtils,
+} from './utils';
+export type { Memo, PaymentParams } from './utils';
 export type {
   AuthChallengeRecord,
   DatabaseAdapter,
