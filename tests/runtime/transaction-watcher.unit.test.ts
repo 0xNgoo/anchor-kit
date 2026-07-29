@@ -217,7 +217,7 @@ describe('TransactionWatcher Unit Tests', () => {
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
   });
 
-  it.skip('continues polling after a scheduled tick rejects', async () => {
+  it('continues polling after a scheduled tick rejects', async () => {
     vi.useFakeTimers();
 
     try {
