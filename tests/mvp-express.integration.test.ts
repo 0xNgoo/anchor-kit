@@ -886,7 +886,9 @@ describe('MVP Express-mounted integration', () => {
 
     expect(createResponse.status).toBe(201);
     const createdId = String(createResponse.body.id ?? '');
-    expect(createResponse.body.interactive_url).toBe(`https://anchor.example.com/deposit/${createdId}`);
+    expect(createResponse.body.interactive_url).toBe(
+      `https://anchor.example.com/deposit/${createdId}`,
+    );
 
     const lookupResponse = await customInvoke({
       method: 'GET',
@@ -897,11 +899,17 @@ describe('MVP Express-mounted integration', () => {
     });
 
     expect(lookupResponse.status).toBe(200);
-    expect(lookupResponse.body.interactive_url).toBe(`https://anchor.example.com/deposit/${createdId}`);
-    expect(lookupResponse.body.more_info_url).toBe(`https://anchor.example.com/deposit/${createdId}`);
+    expect(lookupResponse.body.interactive_url).toBe(
+      `https://anchor.example.com/deposit/${createdId}`,
+    );
+    expect(lookupResponse.body.more_info_url).toBe(
+      `https://anchor.example.com/deposit/${createdId}`,
+    );
 
     await customAnchor.shutdown();
-    const customDbPath = customDbUrl.startsWith('file:') ? customDbUrl.slice('file:'.length) : customDbUrl;
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
     try {
       unlinkSync(customDbPath);
     } catch {

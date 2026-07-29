@@ -723,8 +723,14 @@ async function handleTransaction(
   };
 
   if (serverConfig.interactiveDomain) {
-    responseData.interactive_url = buildInteractiveUrl(serverConfig.interactiveDomain, transaction.id);
-    responseData.more_info_url = buildInteractiveUrl(serverConfig.interactiveDomain, transaction.id);
+    responseData.interactive_url = buildInteractiveUrl(
+      serverConfig.interactiveDomain,
+      transaction.id,
+    );
+    responseData.more_info_url = buildInteractiveUrl(
+      serverConfig.interactiveDomain,
+      transaction.id,
+    );
   }
 
   sendJson(res, 200, responseData);
