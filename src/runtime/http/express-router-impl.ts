@@ -833,7 +833,19 @@ export async function handleExpressRouterRequest(
 
   const transactionMatch = /^\/transactions\/([^/]+)$/.exec(path);
   if (method === 'GET' && transactionMatch) {
-    await handleTransaction(context, req, res, decodeURIComponent(transactionMatch[1]));
+    const transactionIdRaw = transactionMatch[1];
+    let transactionId: string;
+    try {
+      transactionId = decodeURIComponent(transactionIdRaw);
+    } catch {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: 'Transaction id contains malformed percent-encoding',
+      });
+      return;
+    }
+
+    await handleTransaction(context, req, res, transactionId);
     return;
   }
 
