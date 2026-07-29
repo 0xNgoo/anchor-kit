@@ -194,4 +194,45 @@ describe('Asset Validation (#254)', () => {
     expect(() => anchor.validate()).toThrow();
     expect(() => anchor.validate()).toThrow(/Invalid asset at index 0/);
   });
+
+  it('should reject duplicate asset codes and report the duplicate code in the error message', () => {
+    const config: AnchorKitConfig = {
+      ...baseConfig,
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+    };
+    const anchor = new AnchorConfig(config);
+    expect(() => anchor.validate()).toThrow();
+    expect(() => anchor.validate()).toThrow(/Duplicate asset code detected: USDC/);
+  });
+
+  it('should accept configuration with multiple distinct asset codes', () => {
+    const config: AnchorKitConfig = {
+      ...baseConfig,
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+          {
+            code: 'EURC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+    };
+    const anchor = new AnchorConfig(config);
+    expect(() => anchor.validate()).not.toThrow();
+  });
 });

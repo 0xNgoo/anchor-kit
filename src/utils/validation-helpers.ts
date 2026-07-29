@@ -366,6 +366,7 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
     throw new Error('At least one asset must be configured in assets.assets');
   }
 
+  const seenCodes = new Set<string>();
   for (let i = 0; i < assets.assets.length; i++) {
     const asset = assets.assets[i];
     if (!AssetSchema.isValid(asset)) {
@@ -375,6 +376,11 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
         `Invalid asset at index ${i}${codeStr}: asset.code must be a non-empty string and asset.issuer must be a valid Stellar public key.`,
       );
     }
+    const code = asset.code;
+    if (seenCodes.has(code)) {
+      throw new Error(`Duplicate asset code detected: ${code}`);
+    }
+    seenCodes.add(code);
   }
 
   validateFrameworkConfig(framework, server, metadata, operational);
