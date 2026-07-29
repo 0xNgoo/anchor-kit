@@ -2395,7 +2395,7 @@ describe('MVP Express-mounted integration', () => {
       },
       framework: {
         database: { provider: 'sqlite', url: customDbUrl },
-        http: { maxBodyBytes: 64 },
+        http: { maxBodyBytes: 1024 },
       },
     });
 
@@ -2425,7 +2425,11 @@ describe('MVP Express-mounted integration', () => {
       expect(tokenResponse.status).toBe(200);
       const access = String(tokenResponse.body.token ?? '');
 
-      const oversizedBody = JSON.stringify({ asset_code: 'USDC', amount: '1', extra: 'x'.repeat(128) });
+      const oversizedBody = JSON.stringify({
+        asset_code: 'USDC',
+        amount: '1',
+        extra: 'x'.repeat(2048),
+      });
       const response = await customInvoke({
         method: 'POST',
         path: '/transactions/deposit/interactive',
@@ -2435,7 +2439,7 @@ describe('MVP Express-mounted integration', () => {
 
       expect(response.status).toBe(413);
       expect(response.body.error).toBe('payload_too_large');
-      expect(response.body.message).toBe('Request body too large. Max 64 bytes');
+      expect(response.body.message).toBe('Request body too large. Max 1024 bytes');
     } finally {
       await customAnchor.shutdown();
       try {
@@ -2525,6 +2529,7 @@ describe('MVP Express-mounted integration', () => {
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${accessToken}`,
+        'x-forwarded-for': '10.0.0.99',
       },
       body: { asset_code: 'USDC', amount: '10' },
     });

@@ -833,7 +833,7 @@ export async function handleExpressRouterRequest(
 
   const transactionMatch = /^\/transactions\/([^/]+)$/.exec(path);
   if (method === 'GET' && transactionMatch) {
-    let transactionIdRaw = transactionMatch[1];
+    const transactionIdRaw = transactionMatch[1];
     let transactionId: string;
     try {
       transactionId = decodeURIComponent(transactionIdRaw);
