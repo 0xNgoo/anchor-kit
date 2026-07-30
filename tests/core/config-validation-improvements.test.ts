@@ -327,4 +327,106 @@ describe('Config Validation Improvements (#124, #125)', () => {
       await anchor.shutdown();
     });
   });
+
+  describe('Provider-by-scheme validation (#382)', () => {
+    it('should reject sqlite provider with postgres URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: 'postgresql://localhost:5432/db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "sqlite"/);
+    });
+
+    it('should reject postgres provider with sqlite URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'postgres',
+            url: 'file:./dev.db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "postgres"/);
+    });
+
+    it('should reject sqlite provider with postgres:// URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: 'postgres://user:pass@host/db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "sqlite"/);
+    });
+
+    it('should reject postgres provider with sqlite: URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'postgres',
+            url: 'sqlite:./local.db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "postgres"/);
+    });
+
+    it('should validate a matrix of provider-by-scheme combinations', () => {
+      const passing = [
+        { provider: 'sqlite' as const, url: 'sqlite:./dev.db' },
+        { provider: 'sqlite' as const, url: 'file:./data.db' },
+        { provider: 'postgres' as const, url: 'postgresql://localhost/db' },
+        { provider: 'postgres' as const, url: 'postgres://localhost/db' },
+      ];
+
+      for (const { provider, url } of passing) {
+        const cfg = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            database: { provider, url },
+          },
+        });
+        expect(() => cfg.validate(), `${provider} + ${url} should pass`).not.toThrow();
+      }
+
+      const failing = [
+        { provider: 'sqlite' as const, url: 'postgresql://localhost/db' },
+        { provider: 'sqlite' as const, url: 'postgres://localhost/db' },
+        { provider: 'postgres' as const, url: 'sqlite:./dev.db' },
+        { provider: 'postgres' as const, url: 'file:./dev.db' },
+      ];
+
+      for (const { provider, url } of failing) {
+        const cfg = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            database: { provider, url },
+          },
+        });
+        expect(() => cfg.validate(), `${provider} + ${url} should fail`).toThrow(
+          /does not match provider/,
+        );
+      }
+    });
+  });
 });

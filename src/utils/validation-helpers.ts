@@ -62,6 +62,24 @@ function validateFrameworkDatabase(framework: AnchorKitConfig['framework']): boo
     throw new Error('Invalid database URL format');
   }
 
+  // Match URL scheme to configured provider
+  const url = framework.database.url;
+  const provider = framework.database.provider;
+  const isSqliteUrl = url.startsWith('sqlite:') || url.startsWith('file:');
+  const isPostgresUrl = url.startsWith('postgresql:') || url.startsWith('postgres:');
+
+  if (provider === 'sqlite' && !isSqliteUrl) {
+    throw new Error(
+      `Database URL scheme does not match provider "sqlite". Expected "sqlite:" or "file:" scheme, got: ${url.slice(0, url.indexOf(':') + 1)}`,
+    );
+  }
+
+  if (provider === 'postgres' && !isPostgresUrl) {
+    throw new Error(
+      `Database URL scheme does not match provider "postgres". Expected "postgres:" or "postgresql:" scheme, got: ${url.slice(0, url.indexOf(':') + 1)}`,
+    );
+  }
+
   return true;
 }
 
