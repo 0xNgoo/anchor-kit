@@ -65,4 +65,60 @@ describe('sqlite idempotency persistence', () => {
     expect(fetched.status).toBe(status);
     expect(JSON.parse(fetched.response)).toEqual(response);
   });
+
+  it('isolates idempotency records by scope when the same key is used', () => {
+    const db = new Database(':memory:');
+
+    db.run(
+      `CREATE TABLE IF NOT EXISTS idempotency (
+        scope TEXT NOT NULL,
+        id_key TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        status INTEGER NOT NULL,
+        response TEXT NOT NULL,
+        PRIMARY KEY(scope, id_key)
+      )`,
+    );
+
+    const key = 'shared-client-key';
+    const scopeA = 'sep24:deposit';
+    const scopeB = 'sep31:receive';
+
+    const responseA = { message: 'deposit success', id: 'resp-A' };
+    const responseB = { message: 'receive success', id: 'resp-B' };
+
+    // Insert Record A
+    db.run(
+      'INSERT INTO idempotency (scope, id_key, hash, status, response) VALUES (?, ?, ?, ?, ?)',
+      [scopeA, key, 'hashA', 200, JSON.stringify(responseA)],
+    );
+
+    // Insert Record B
+    db.run(
+      'INSERT INTO idempotency (scope, id_key, hash, status, response) VALUES (?, ?, ?, ?, ?)',
+      [scopeB, key, 'hashB', 201, JSON.stringify(responseB)],
+    );
+
+    // Assert both canonical records are inserted
+    const all = [...db.query('SELECT scope, id_key, hash, status, response FROM idempotency')];
+    expect(all.length).toBe(2);
+
+    // Lookup Scope A and assert correct record
+    const rowsA = [
+      ...db.query(
+        `SELECT response FROM idempotency WHERE scope = '${scopeA}' AND id_key = '${key}'`
+      ),
+    ];
+    expect(rowsA.length).toBe(1);
+    expect(JSON.parse((rowsA[0] as any).response)).toEqual(responseA);
+
+    // Lookup Scope B and assert correct record
+    const rowsB = [
+      ...db.query(
+        `SELECT response FROM idempotency WHERE scope = '${scopeB}' AND id_key = '${key}'`
+      ),
+    ];
+    expect(rowsB.length).toBe(1);
+    expect(JSON.parse((rowsB[0] as any).response)).toEqual(responseB);
+  });
 });
