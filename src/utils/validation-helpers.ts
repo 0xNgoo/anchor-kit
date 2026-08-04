@@ -101,8 +101,14 @@ function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): bool
     throw new Error('framework.watchers.retentionDays must be a finite number > 0');
   }
 
-  if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {
-    throw new Error('framework.http.maxBodyBytes must be >= 1024');
+  if (
+    framework.http?.maxBodyBytes !== undefined &&
+    (typeof framework.http.maxBodyBytes !== 'number' ||
+      !Number.isFinite(framework.http.maxBodyBytes) ||
+      !Number.isInteger(framework.http.maxBodyBytes) ||
+      framework.http.maxBodyBytes < 1024)
+  ) {
+    throw new Error('framework.http.maxBodyBytes must be a finite integer >= 1024');
   }
 
   return true;
