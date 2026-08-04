@@ -253,6 +253,39 @@ describe('Config Validation Improvements (#124, #125)', () => {
     }
   });
 
+  describe('queue.concurrency validation', () => {
+    it.each([0, -1, 1.5, NaN, Infinity, -Infinity, '2' as unknown as number])(
+      'should reject invalid concurrency %s',
+      (concurrency) => {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            queue: { backend: 'memory', concurrency: concurrency as number },
+          },
+        });
+        expect(() => config.validate()).toThrow(ConfigError);
+        expect(() => config.validate()).toThrow(/queue\.concurrency must be a finite integer >= 1/);
+      },
+    );
+
+    it.each([1, 2, 10])('should accept valid concurrency %i', (concurrency) => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: { ...validBaseConfig.framework, queue: { backend: 'memory', concurrency } },
+      });
+      expect(() => config.validate()).not.toThrow();
+    });
+
+    it('should accept omitted concurrency', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: { ...validBaseConfig.framework, queue: { backend: 'memory' } },
+      });
+      expect(() => config.validate()).not.toThrow();
+    });
+  });
+
   describe('Runtime Config Validation (#207)', () => {
     it('should reject redis queue backend during initialization', async () => {
       const redisConfig = {

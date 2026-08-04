@@ -70,8 +70,11 @@ function validateFrameworkDatabase(framework: AnchorKitConfig['framework']): boo
 }
 
 function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): boolean {
-  if (framework.queue?.concurrency !== undefined && framework.queue.concurrency < 1) {
-    throw new Error('framework.queue.concurrency must be >= 1');
+  if (
+    framework.queue?.concurrency !== undefined &&
+    (!Number.isInteger(framework.queue.concurrency) || framework.queue.concurrency < 1)
+  ) {
+    throw new Error('framework.queue.concurrency must be a finite integer >= 1');
   }
 
   const watchersEnabled = framework.watchers?.enabled;
