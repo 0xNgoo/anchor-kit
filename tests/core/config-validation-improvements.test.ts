@@ -253,6 +253,39 @@ describe('Config Validation Improvements (#124, #125)', () => {
     }
   });
 
+  describe('queue.concurrency validation', () => {
+    it.each([0, -1, 1.5, NaN, Infinity, -Infinity, '2' as unknown as number])(
+      'should reject invalid concurrency %s',
+      (concurrency) => {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            queue: { backend: 'memory', concurrency: concurrency as number },
+          },
+        });
+        expect(() => config.validate()).toThrow(ConfigError);
+        expect(() => config.validate()).toThrow(/queue\.concurrency must be a finite integer >= 1/);
+      },
+    );
+
+    it.each([1, 2, 10])('should accept valid concurrency %i', (concurrency) => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: { ...validBaseConfig.framework, queue: { backend: 'memory', concurrency } },
+      });
+      expect(() => config.validate()).not.toThrow();
+    });
+
+    it('should accept omitted concurrency', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: { ...validBaseConfig.framework, queue: { backend: 'memory' } },
+      });
+      expect(() => config.validate()).not.toThrow();
+    });
+  });
+
   describe('Runtime Config Validation (#207)', () => {
     it('should reject redis queue backend during initialization', async () => {
       const redisConfig = {
@@ -427,6 +460,62 @@ describe('Config Validation Improvements (#124, #125)', () => {
           /does not match provider/,
         );
       }
+    });
+  });
+
+  describe('maxBodyBytes validation (#379)', () => {
+    it('should reject non-finite and non-integer maxBodyBytes values', () => {
+      const invalidValues = [
+        NaN,
+        Infinity,
+        -Infinity,
+        1023,
+        1,
+        0,
+        -1,
+        1023.5,
+        1024.5,
+        '1024',
+        true,
+        false,
+        {},
+        [],
+      ];
+      for (const value of invalidValues) {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            http: { maxBodyBytes: value as unknown as number },
+          },
+        });
+        expect(() => config.validate()).toThrow(/maxBodyBytes must be a finite integer >= 1024/);
+      }
+    });
+
+    it('should accept valid maxBodyBytes values', () => {
+      const validValues = [1024, 2048, 8192, 65536, 1048576];
+      for (const value of validValues) {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            http: { maxBodyBytes: value },
+          },
+        });
+        expect(() => config.validate()).not.toThrow();
+      }
+    });
+
+    it('should accept omitted maxBodyBytes and apply the default', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          http: {},
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
     });
   });
 });

@@ -35,6 +35,10 @@ function isValidDatabaseUrlString(urlString: unknown): boolean {
   );
 }
 
+function isValidStellarAssetCode(code: string): boolean {
+  return /^[a-zA-Z0-9]{1,12}$/.test(code);
+}
+
 function isValidAssetAmount(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
@@ -84,8 +88,11 @@ function validateFrameworkDatabase(framework: AnchorKitConfig['framework']): boo
 }
 
 function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): boolean {
-  if (framework.queue?.concurrency !== undefined && framework.queue.concurrency < 1) {
-    throw new Error('framework.queue.concurrency must be >= 1');
+  if (
+    framework.queue?.concurrency !== undefined &&
+    (!Number.isInteger(framework.queue.concurrency) || framework.queue.concurrency < 1)
+  ) {
+    throw new Error('framework.queue.concurrency must be a finite integer >= 1');
   }
 
   const watchersEnabled = framework.watchers?.enabled;
@@ -115,8 +122,14 @@ function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): bool
     throw new Error('framework.watchers.retentionDays must be a finite number > 0');
   }
 
-  if (framework.http?.maxBodyBytes !== undefined && framework.http.maxBodyBytes < 1024) {
-    throw new Error('framework.http.maxBodyBytes must be >= 1024');
+  if (
+    framework.http?.maxBodyBytes !== undefined &&
+    (typeof framework.http.maxBodyBytes !== 'number' ||
+      !Number.isFinite(framework.http.maxBodyBytes) ||
+      !Number.isInteger(framework.http.maxBodyBytes) ||
+      framework.http.maxBodyBytes < 1024)
+  ) {
+    throw new Error('framework.http.maxBodyBytes must be a finite integer >= 1024');
   }
 
   return true;
@@ -191,7 +204,7 @@ function validateAsset(asset: unknown): asset is Asset {
   if (!asset || typeof asset !== 'object') return false;
   const a = asset as Record<string, unknown>;
 
-  if (!isNonEmptyString(a.code)) return false;
+  if (!isNonEmptyString(a.code) || !isValidStellarAssetCode(a.code)) return false;
   if (!isString(a.issuer) || !ValidationUtils.isValidStellarAddress(a.issuer)) return false;
 
   if (a.name !== undefined && !isString(a.name)) return false;
