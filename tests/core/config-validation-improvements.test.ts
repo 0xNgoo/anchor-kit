@@ -360,4 +360,60 @@ describe('Config Validation Improvements (#124, #125)', () => {
       await anchor.shutdown();
     });
   });
+
+  describe('maxBodyBytes validation (#379)', () => {
+    it('should reject non-finite and non-integer maxBodyBytes values', () => {
+      const invalidValues = [
+        NaN,
+        Infinity,
+        -Infinity,
+        1023,
+        1,
+        0,
+        -1,
+        1023.5,
+        1024.5,
+        '1024',
+        true,
+        false,
+        {},
+        [],
+      ];
+      for (const value of invalidValues) {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            http: { maxBodyBytes: value as unknown as number },
+          },
+        });
+        expect(() => config.validate()).toThrow(/maxBodyBytes must be a finite integer >= 1024/);
+      }
+    });
+
+    it('should accept valid maxBodyBytes values', () => {
+      const validValues = [1024, 2048, 8192, 65536, 1048576];
+      for (const value of validValues) {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            http: { maxBodyBytes: value },
+          },
+        });
+        expect(() => config.validate()).not.toThrow();
+      }
+    });
+
+    it('should accept omitted maxBodyBytes and apply the default', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          http: {},
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    });
+  });
 });
