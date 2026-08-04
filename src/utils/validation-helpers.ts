@@ -35,6 +35,10 @@ function isValidDatabaseUrlString(urlString: unknown): boolean {
   );
 }
 
+function isValidStellarAssetCode(code: string): boolean {
+  return /^[a-zA-Z0-9]{1,12}$/.test(code);
+}
+
 function isValidAssetAmount(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
@@ -179,7 +183,7 @@ function validateAsset(asset: unknown): asset is Asset {
   if (!asset || typeof asset !== 'object') return false;
   const a = asset as Record<string, unknown>;
 
-  if (!isNonEmptyString(a.code)) return false;
+  if (!isNonEmptyString(a.code) || !isValidStellarAssetCode(a.code)) return false;
   if (!isString(a.issuer) || !ValidationUtils.isValidStellarAddress(a.issuer)) return false;
 
   if (a.name !== undefined && !isString(a.name)) return false;
