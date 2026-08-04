@@ -103,6 +103,56 @@ describe('Asset Validation (#254)', () => {
     expect(() => anchor.validate()).toThrow(/Invalid asset at index 0/);
   });
 
+  it('should accept a 12-character alphanumeric asset code', () => {
+    const config: AnchorKitConfig = {
+      ...baseConfig,
+      assets: {
+        assets: [
+          {
+            code: 'ABCDEFGH1234',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+    };
+    const anchor = new AnchorConfig(config);
+    expect(() => anchor.validate()).not.toThrow();
+  });
+
+  it('should reject an asset code longer than 12 characters', () => {
+    const config: AnchorKitConfig = {
+      ...baseConfig,
+      assets: {
+        assets: [
+          {
+            code: 'ABCDEFGH12345',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+    };
+    const anchor = new AnchorConfig(config);
+    expect(() => anchor.validate()).toThrow();
+    expect(() => anchor.validate()).toThrow(/Invalid asset at index 0/);
+  });
+
+  it('should reject an asset code containing non-alphanumeric characters', () => {
+    const config: AnchorKitConfig = {
+      ...baseConfig,
+      assets: {
+        assets: [
+          {
+            code: 'US-DC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+    };
+    const anchor = new AnchorConfig(config);
+    expect(() => anchor.validate()).toThrow();
+    expect(() => anchor.validate()).toThrow(/Invalid asset at index 0/);
+  });
+
   it('should reject asset with non-string code', () => {
     const config: AnchorKitConfig = {
       ...baseConfig,
