@@ -351,8 +351,6 @@ describe('Operational Website Validation (#388)', () => {
     };
     const anchor = new AnchorConfig(config);
     expect(() => anchor.validate()).toThrow();
-    expect(() => anchor.validate()).toThrow(
-      /Invalid email format for operational.supportEmail/,
-    );
+    expect(() => anchor.validate()).toThrow(/Invalid email format for operational.supportEmail/);
   });
 });
