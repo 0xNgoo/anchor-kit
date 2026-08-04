@@ -184,6 +184,13 @@ function validateFrameworkUrls(
     throw new Error('Invalid URL format for operational.website');
   }
 
+  if (
+    operational?.supportEmail !== undefined &&
+    !ValidationUtils.isValidEmail(operational.supportEmail)
+  ) {
+    throw new Error('Invalid email format for operational.supportEmail');
+  }
+
   return true;
 }
 
