@@ -2,6 +2,11 @@ import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts'
 import type { AnchorKitConfig } from '@/types/config.ts';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
+
+function normalizeEventId(id: string): string {
+  return id.trim();
+}
+
 interface DefaultWebhookProcessorOptions {
   config: AnchorKitConfig;
   database: DatabaseAdapter;
@@ -38,6 +43,8 @@ export class DefaultWebhookProcessor implements WebhookProcessor {
     rawBody: string | Buffer | Uint8Array;
     signature?: string;
   }): Promise<{ duplicate: boolean; eventId: string }> {
+    const eventId = normalizeEventId(input.eventId);
+    input = { ...input, eventId };
     this.verifySignatureIfEnabled(input);
 
     const insertion = await this.database.insertOrGetWebhookEvent({

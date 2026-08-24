@@ -258,7 +258,7 @@ function authenticate(
       token,
       context.config.get('security').interactiveJwtSecret,
     ) as jwt.JwtPayload;
-    const account = typeof decoded.sub === 'string' ? decoded.sub : null;
+    const account = typeof decoded.sub === 'string' ? decoded.sub.trim() : null;
     const scope = typeof decoded.scope === 'string' ? decoded.scope : null;
     const typ = typeof decoded.typ === 'string' ? decoded.typ : null;
     if (
@@ -338,7 +338,8 @@ async function handleAuthChallenge(
     return;
   }
 
-  const account = parseUrl(req).searchParams.get('account');
+  const _accountParam = parseUrl(req).searchParams.get('account');
+  const account = typeof _accountParam === 'string' ? _accountParam.trim() : _accountParam;
   if (!account) {
     sendJson(res, 400, {
       error: 'invalid_request',
@@ -411,7 +412,7 @@ async function handleAuthToken(
     return;
   }
 
-  const account = typeof parsedBody.body.account === 'string' ? parsedBody.body.account : '';
+  const account = typeof parsedBody.body.account === 'string' ? parsedBody.body.account.trim() : '';
   const signedChallenge =
     typeof parsedBody.body.challenge === 'string' ? parsedBody.body.challenge : '';
   if (!account || !signedChallenge) {
