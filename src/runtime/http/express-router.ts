@@ -458,7 +458,15 @@ export class AnchorExpressRouter {
         return;
       }
 
-      await this.database.markAuthChallengeConsumed(stored.id);
+      try {
+        await this.database.markAuthChallengeConsumed(stored.id);
+      } catch {
+        sendJson(res, 500, {
+          error: 'internal_server_error',
+          message: 'Internal server error',
+        });
+        return;
+      }
 
       const tokenLifetime = this.config.get('security').authTokenLifetimeSeconds ?? 3600;
       const expiresAt = new Date(

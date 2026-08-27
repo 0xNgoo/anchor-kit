@@ -34,6 +34,8 @@ export class AnchorInstance {
 
   private initialized = false;
   private backgroundJobsRunning = false;
+  private initPromise: Promise<void> | null = null;
+  private shutdownPromise: Promise<void> | null = null;
 
   constructor(config: Partial<AnchorKitConfig>) {
     this.config = new AnchorConfig(config);
@@ -56,52 +58,75 @@ export class AnchorInstance {
    */
   public async init(): Promise<void> {
     if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
 
-    const frameworkConfig = this.config.get('framework');
+    this.initPromise = (async () => {
+      const frameworkConfig = this.config.get('framework');
 
-    this.database = createSqlDatabaseAdapter(frameworkConfig.database);
-    await this.database.connect();
-    await this.database.migrate();
+      try {
+        this.database = createSqlDatabaseAdapter(frameworkConfig.database);
+        await this.database.connect();
+        await this.database.migrate();
 
-    const queueBackend = frameworkConfig.queue?.backend ?? 'memory';
-    if (queueBackend !== 'memory') {
-      throw new ConfigError(
-        `Unsupported queue backend: "${queueBackend}". Only "memory" queue backend is currently supported. Please remove or set queue.backend to "memory" in your configuration.`,
-      );
-    }
+        const queueBackend = frameworkConfig.queue?.backend ?? 'memory';
+        if (queueBackend !== 'memory') {
+          throw new ConfigError(
+            `Unsupported queue backend: "${queueBackend}". Only "memory" queue backend is currently supported. Please remove or set queue.backend to "memory" in your configuration.`,
+          );
+        }
 
-    const queueConcurrency = frameworkConfig.queue?.concurrency ?? 1;
-    this.queue = new InMemoryQueueAdapter({ concurrency: queueConcurrency });
+        const queueConcurrency = frameworkConfig.queue?.concurrency ?? 1;
+        this.queue = new InMemoryQueueAdapter({ concurrency: queueConcurrency });
 
-    this.webhookProcessor = new DefaultWebhookProcessor({
-      config: this.config.getConfig(),
-      database: this.database,
-    });
+        this.webhookProcessor = new DefaultWebhookProcessor({
+          config: this.config.getConfig(),
+          database: this.database,
+        });
 
-    const watchersEnabled = frameworkConfig.watchers?.enabled ?? true;
-    if (watchersEnabled) {
-      this.watchers = [
-        new TransactionWatcher(this.database, this.queue, {
-          pollIntervalMs: frameworkConfig.watchers?.pollIntervalMs ?? 15000,
-          transactionTimeoutMs: frameworkConfig.watchers?.transactionTimeoutMs ?? 300000,
-          retentionDays: frameworkConfig.watchers?.retentionDays ?? 90,
-        }),
-      ];
-    }
+        const watchersEnabled = frameworkConfig.watchers?.enabled ?? true;
+        if (watchersEnabled) {
+          this.watchers = [
+            new TransactionWatcher(this.database, this.queue, {
+              pollIntervalMs: frameworkConfig.watchers?.pollIntervalMs ?? 15000,
+              transactionTimeoutMs: frameworkConfig.watchers?.transactionTimeoutMs ?? 300000,
+              retentionDays: frameworkConfig.watchers?.retentionDays ?? 90,
+            }),
+          ];
+        }
 
-    this.expressRouter = new AnchorExpressRouter({
-      config: this.config,
-      database: this.database,
-      webhookProcessor: this.webhookProcessor,
-    }).getMiddleware();
+        this.expressRouter = new AnchorExpressRouter({
+          config: this.config,
+          database: this.database,
+          webhookProcessor: this.webhookProcessor,
+        }).getMiddleware();
 
-    for (const plugin of this.plugins.values()) {
-      if (plugin.init) {
-        await plugin.init(this);
+        for (const plugin of this.plugins.values()) {
+          if (plugin.init) {
+            await plugin.init(this);
+          }
+        }
+
+        this.initialized = true;
+      } catch (error) {
+        this.initialized = false;
+        this.backgroundJobsRunning = false;
+        this.watchers = [];
+        this.expressRouter = null;
+        this.webhookProcessor = null;
+        this.queue = null;
+
+        if (this.database) {
+          await this.database.disconnect().catch(() => undefined);
+          this.database = null;
+        }
+
+        throw error;
+      } finally {
+        this.initPromise = null;
       }
-    }
+    })();
 
-    this.initialized = true;
+    return this.initPromise;
   }
 
   /**
@@ -138,10 +163,28 @@ export class AnchorInstance {
    * Cleanly shutdown all services.
    */
   public async shutdown(): Promise<void> {
-    if (!this.initialized) return;
-    await this.stopBackgroundJobs();
-    await this.requireDatabase().disconnect();
-    this.initialized = false;
+    if (!this.initialized && !this.shutdownPromise) return;
+    if (this.shutdownPromise) return this.shutdownPromise;
+
+    this.shutdownPromise = (async () => {
+      try {
+        if (!this.initialized) return;
+
+        await this.stopBackgroundJobs();
+        await this.requireDatabase().disconnect();
+        this.initialized = false;
+        this.backgroundJobsRunning = false;
+        this.watchers = [];
+        this.expressRouter = null;
+        this.webhookProcessor = null;
+        this.queue = null;
+        this.database = null;
+      } finally {
+        this.shutdownPromise = null;
+      }
+    })();
+
+    return this.shutdownPromise;
   }
 
   /**

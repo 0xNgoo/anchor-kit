@@ -5,6 +5,8 @@ import { ConfigError } from '../../src/core/errors';
 import { createAnchor, makeSqliteDbUrlForTests } from '../../src/core/factory';
 import type { AnchorKitConfig } from '../../src/types/config';
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 describe('Config Validation Improvements (#124, #125)', () => {
   const testSep10SigningKey = Keypair.random().secret();
   const validBaseConfig: AnchorKitConfig = {
@@ -227,6 +229,72 @@ describe('Config Validation Improvements (#124, #125)', () => {
       const anchor = createAnchor(defaultConfig);
       await anchor.init();
       await anchor.shutdown();
+    });
+
+    it('should single-flight concurrent initialization and share failures', async () => {
+      const pluginInitCalls: string[] = [];
+      const failingPlugin = {
+        id: 'failing-plugin',
+        async init() {
+          pluginInitCalls.push('init');
+          await wait(25);
+          throw new Error('plugin init failed');
+        },
+      };
+      const anchor = createAnchor({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+        },
+      });
+      anchor.use(failingPlugin as any);
+
+      await expect(Promise.all([anchor.init(), anchor.init(), anchor.init()])).rejects.toThrow(
+        'plugin init failed',
+      );
+      expect(pluginInitCalls).toHaveLength(1);
+    });
+
+    it('should single-flight concurrent shutdown calls and avoid duplicate cleanup', async () => {
+      const anchor = createAnchor({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+        },
+      });
+
+      const stopCalls = { count: 0 };
+      const disconnectCalls = { count: 0 };
+      (anchor as any).initialized = true;
+      (anchor as any).backgroundJobsRunning = true;
+      (anchor as any).database = {
+        disconnect: async () => {
+          await wait(20);
+          disconnectCalls.count += 1;
+        },
+      };
+      (anchor as any).queue = {
+        stop: async () => {
+          await wait(20);
+          stopCalls.count += 1;
+        },
+      };
+      (anchor as any).watchers = [];
+
+      await Promise.all([anchor.shutdown(), anchor.shutdown(), anchor.shutdown()]);
+      expect(stopCalls.count).toBe(1);
+      expect(disconnectCalls.count).toBe(1);
+
+      await anchor.shutdown();
+      expect(disconnectCalls.count).toBe(1);
     });
   });
 });
