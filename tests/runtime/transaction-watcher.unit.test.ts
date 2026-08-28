@@ -217,6 +217,35 @@ describe('TransactionWatcher Unit Tests', () => {
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
   });
 
+  it('continues polling after a scheduled tick rejects', async () => {
+    let calls = 0;
+    mockDatabase.listPendingTransactionsBefore = vi.fn().mockImplementation(async () => {
+      calls += 1;
+      if (calls === 2) {
+        throw new Error('db failure');
+      }
+
+      return [];
+    });
+
+    // Use a very short poll interval for testing
+    const shortIntervalWatcher = new TransactionWatcher(mockDatabase, mockQueue, {
+      pollIntervalMs: 10,
+      transactionTimeoutMs: 300000,
+      retentionDays: 30,
+    });
+
+    await shortIntervalWatcher.start();
+
+    // Wait for multiple polling cycles to occur
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    await shortIntervalWatcher.stop();
+
+    // Should have called multiple times despite the second call failing
+    expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(5);
+  });
+
   it('enqueues a cleanup_records job with the configured retention days', async () => {
     const retentionDays = 45;
     const customWatcher = new TransactionWatcher(mockDatabase, mockQueue, {
