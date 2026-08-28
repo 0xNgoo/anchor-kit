@@ -48,7 +48,9 @@ export class DefaultWebhookProcessor implements WebhookProcessor {
     });
 
     if (!insertion.inserted) {
-      return { duplicate: true, eventId: insertion.record.eventId };
+      if (insertion.record.status === 'processed') {
+        return { duplicate: true, eventId: insertion.record.eventId };
+      }
     }
 
     try {

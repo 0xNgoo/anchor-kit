@@ -691,18 +691,29 @@ async function handleWebhook(
 
   const { rawBody, body: payload } = parsedBody;
   const eventIdField = payload.id;
-  const eventId =
-    typeof eventIdField === 'string' && eventIdField.length > 0 ? eventIdField : randomUUID();
+  const normalizedEventId =
+    typeof eventIdField === 'string' ? eventIdField.trim() : '';
+  const eventId = normalizedEventId.length > 0 ? normalizedEventId : randomUUID();
   const providerHeader = req.headers['x-webhook-provider'];
   const providerBody = payload.provider;
-  const provider =
-    typeof providerHeader === 'string' && providerHeader.length > 0
+  const providerValue = Array.isArray(providerHeader)
+    ? providerHeader[0]
+    : typeof providerHeader === 'string'
       ? providerHeader
-      : typeof providerBody === 'string' && providerBody.length > 0
-        ? providerBody
+      : undefined;
+  const provider =
+    providerValue && providerValue.trim().length > 0
+      ? providerValue.trim()
+      : typeof providerBody === 'string' && providerBody.trim().length > 0
+        ? providerBody.trim()
         : 'generic';
   const signatureHeader = req.headers['x-anchor-signature'];
-  const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
+  const signatureValue = Array.isArray(signatureHeader)
+    ? signatureHeader[0]
+    : typeof signatureHeader === 'string'
+      ? signatureHeader
+      : undefined;
+  const signature = signatureValue && signatureValue.trim().length > 0 ? signatureValue.trim() : undefined;
 
   try {
     const result = await context.webhookProcessor.process({
