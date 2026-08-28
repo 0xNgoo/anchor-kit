@@ -215,6 +215,7 @@ function authenticate(
     const decoded = jwt.verify(
       token,
       context.config.get('security').interactiveJwtSecret,
+      { algorithms: ['HS256'] },
     ) as jwt.JwtPayload;
     const account = typeof decoded.sub === 'string' ? decoded.sub : null;
     const scope = typeof decoded.scope === 'string' ? decoded.scope : null;
@@ -287,7 +288,8 @@ async function handleAuthChallenge(
     return;
   }
 
-  const account = parseUrl(req).searchParams.get('account');
+  // Accept canonical Stellar public keys and treat surrounding whitespace as non-semantic.
+  const account = parseUrl(req).searchParams.get('account')?.trim() ?? '';
   if (!account) {
     sendJson(res, 400, {
       error: 'invalid_request',
@@ -359,7 +361,8 @@ async function handleAuthToken(
     return;
   }
 
-  const account = typeof parsedBody.body.account === 'string' ? parsedBody.body.account : '';
+  const account =
+    typeof parsedBody.body.account === 'string' ? parsedBody.body.account.trim() : '';
   const signedChallenge =
     typeof parsedBody.body.challenge === 'string' ? parsedBody.body.challenge : '';
   if (!account || !signedChallenge) {

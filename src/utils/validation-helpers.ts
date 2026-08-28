@@ -17,6 +17,15 @@ function isFinitePositiveNumber(value: unknown): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function isSafePositiveInteger(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    Number.isSafeInteger(value) &&
+    value > 0
+  );
+}
+
 function isValidUrlString(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -265,19 +274,15 @@ export const SecurityConfigSchema = {
       throw new Error('Missing required secret: security.distributionAccountSecret');
     if (
       config.challengeExpirationSeconds !== undefined &&
-      (typeof config.challengeExpirationSeconds !== 'number' ||
-        !Number.isFinite(config.challengeExpirationSeconds) ||
-        config.challengeExpirationSeconds <= 0)
+      !isSafePositiveInteger(config.challengeExpirationSeconds)
     ) {
-      throw new Error('security.challengeExpirationSeconds must be > 0');
+      throw new Error('security.challengeExpirationSeconds must be a safe positive integer');
     }
     if (
       config.authTokenLifetimeSeconds !== undefined &&
-      (typeof config.authTokenLifetimeSeconds !== 'number' ||
-        !Number.isFinite(config.authTokenLifetimeSeconds) ||
-        config.authTokenLifetimeSeconds <= 0)
+      !isSafePositiveInteger(config.authTokenLifetimeSeconds)
     ) {
-      throw new Error('security.authTokenLifetimeSeconds must be > 0');
+      throw new Error('security.authTokenLifetimeSeconds must be a safe positive integer');
     }
   },
 };

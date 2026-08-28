@@ -400,6 +400,17 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.message).toBe('Query param account is required');
   });
 
+  it('3a) /auth/challenge trims padded account identifiers', async () => {
+    const paddedAccount = `  ${clientKeypair.publicKey()}  `;
+    const response = await invoke({
+      path: `/auth/challenge?account=${encodeURIComponent(paddedAccount)}`,
+      headers: { 'x-forwarded-for': '10.0.0.9' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.challenge).toBeTypeOf('string');
+  });
+
   it('3) challenge -> token happy path', async () => {
     const account = clientKeypair.publicKey();
     const challengeResponse = await invoke({
@@ -516,6 +527,64 @@ describe('MVP Express-mounted integration', () => {
 
     expect(challengeResponse.status).toBe(400);
     expect(challengeResponse.body.error).toBe('invalid_request');
+  });
+
+  it('3b) auth token trims padded account identifiers consistently', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.7' },
+    });
+
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.7' },
+      body: { account: `  ${account}  `, challenge: challengeTx.toXDR() },
+    });
+
+    expect(tokenResponse.status).toBe(200);
+    expect(tokenResponse.body.token).toBeTypeOf('string');
+  });
+
+  it('10f) bearer token signed with RS256 is rejected', async () => {
+    const { generateKeyPairSync } = await import('node:crypto');
+    const jwt = (await import('jsonwebtoken')).default;
+    const { privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    const badToken = jwt.sign(
+      {
+        sub: clientKeypair.publicKey(),
+        scope: 'anchor_api',
+        typ: 'access_token',
+      },
+      privateKey,
+      { algorithm: 'RS256', expiresIn: 3600 },
+    );
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${badToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+    expect(response.body.message).toBe('Missing or invalid bearer token');
   });
 
   it('3b) auth token with custom TTL returns correct expires_in', async () => {
