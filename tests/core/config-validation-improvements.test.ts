@@ -205,6 +205,36 @@ describe('Config Validation Improvements (#124, #125)', () => {
     }
   });
 
+  it('rejects plugin registration after the instance is initialized', async () => {
+    const dbUrl = makeSqliteDbUrlForTests();
+    const anchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: testSep10SigningKey,
+        interactiveJwtSecret: 'jwt-secret',
+        distributionAccountSecret: 'dist-secret',
+      },
+      assets: {
+        assets: [{ code: 'USDC', issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5' }],
+      },
+      framework: { database: { provider: 'sqlite', url: dbUrl } },
+    });
+
+    await anchor.init();
+    expect(() => anchor.use({ id: 'late-plugin' })).toThrow(/after init|before calling init/i);
+    await anchor.shutdown();
+    try {
+      // cleanup sqlite file created for this test
+      const dbPath = dbUrl.slice('file:'.length);
+      if (dbPath) {
+        require('node:fs').unlinkSync(dbPath);
+      }
+    } catch {
+      // ignore
+    }
+  });
+
   it('should validate watchers.enabled as an optional boolean', () => {
     for (const value of ['true', 1]) {
       const config = new AnchorConfig({

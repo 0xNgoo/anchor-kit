@@ -240,4 +240,52 @@ describe('Webhook Provider Fallback', () => {
     expect(response.status).toBe(200);
     expect(lastProvider).toBe('body-provider');
   });
+
+  it('Rejects an oversized provider from the header without creating an event', async () => {
+    lastProvider = '';
+    const payload = { id: 'evt_header_too_long', type: 'test' };
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+    const oversizedProvider = 'a'.repeat(65);
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': oversizedProvider,
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toMatch(/provider.*64|maximum.*64/i);
+    expect(lastProvider).toBe('');
+  });
+
+  it('Rejects an oversized provider from the request body without creating an event', async () => {
+    lastProvider = '';
+    const payload = { id: 'evt_body_too_long', type: 'test', provider: 'a'.repeat(65) };
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_request');
+    expect(response.body.message).toMatch(/provider.*64|maximum.*64/i);
+    expect(lastProvider).toBe('');
+  });
 });

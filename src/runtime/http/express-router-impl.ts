@@ -730,6 +730,27 @@ async function handleTransaction(
   sendJson(res, 200, responseData);
 }
 
+const MAX_PROVIDER_IDENTIFIER_LENGTH = 64;
+
+function normalizeProviderIdentifier(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  if (normalized.length > MAX_PROVIDER_IDENTIFIER_LENGTH) {
+    throw new ValidationError(
+      `Webhook provider identifier must be ${MAX_PROVIDER_IDENTIFIER_LENGTH} characters or fewer`,
+    );
+  }
+
+  return normalized;
+}
+
 async function handleWebhook(
   context: ExpressRouterContext,
   req: IncomingMessage,
@@ -745,19 +766,31 @@ async function handleWebhook(
   }
 
   const { rawBody, body: payload } = parsedBody;
+  let provider: string;
+
+  try {
+    const providerHeader = req.headers['x-webhook-provider'];
+    const providerBody = payload.provider;
+    provider =
+      normalizeProviderIdentifier(providerHeader) ??
+      normalizeProviderIdentifier(providerBody) ??
+      'generic';
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: error.message,
+      });
+      return;
+    }
+    throw error;
+  }
+
   const eventIdField = payload.id;
   const eventId =
     typeof eventIdField === 'string' && eventIdField.trim().length > 0
       ? eventIdField
       : randomUUID();
-  const providerHeader = req.headers['x-webhook-provider'];
-  const providerBody = payload.provider;
-  const provider =
-    typeof providerHeader === 'string' && providerHeader.length > 0
-      ? providerHeader
-      : typeof providerBody === 'string' && providerBody.length > 0
-        ? providerBody
-        : 'generic';
   const signatureHeader = req.headers['x-anchor-signature'];
   const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
 
