@@ -47,6 +47,8 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
   private readonly url: string;
   private sqlite: SqliteLike | null = null;
   private postgres: PostgresClient | null = null;
+  private connectPromise: Promise<void> | null = null;
+  private disconnectPromise: Promise<void> | null = null;
 
   constructor(databaseConfig: FrameworkConfig['database']) {
     this.provider = databaseConfig.provider;
@@ -54,34 +56,84 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
   }
 
   public async connect(): Promise<void> {
-    if (this.provider === 'sqlite') {
-      this.sqlite = new Database(toSqlitePath(this.url));
+    if (this.sqlite || this.postgres) {
       return;
     }
 
-    if (this.provider === 'postgres') {
-      const moduleName = 'pg';
-      const pgModuleUnknown: unknown = await import(moduleName);
-      const pgModule = pgModuleUnknown as {
-        Client: new (config: { connectionString: string }) => PostgresClient;
-      };
-      this.postgres = new pgModule.Client({ connectionString: this.url });
-      await this.postgres.connect();
+    if (this.connectPromise) {
+      await this.connectPromise;
       return;
     }
 
-    throw new ConfigError(`Unsupported database provider: ${this.provider}`);
+    this.connectPromise = (async () => {
+      try {
+        if (this.provider === 'sqlite') {
+          this.sqlite = new Database(toSqlitePath(this.url));
+          return;
+        }
+
+        if (this.provider === 'postgres') {
+          const moduleName = 'pg';
+          const pgModuleUnknown: unknown = await import(moduleName);
+          const pgModule = pgModuleUnknown as {
+            Client: new (config: { connectionString: string }) => PostgresClient;
+          };
+          const client = new pgModule.Client({ connectionString: this.url });
+          this.postgres = client;
+          await this.postgres.connect();
+          return;
+        }
+
+        throw new ConfigError(`Unsupported database provider: ${this.provider}`);
+      } catch (error) {
+        this.sqlite = null;
+        this.postgres = null;
+        throw error;
+      }
+    })();
+
+    try {
+      await this.connectPromise;
+    } finally {
+      this.connectPromise = null;
+    }
   }
 
   public async disconnect(): Promise<void> {
-    if (this.sqlite) {
-      this.sqlite.close();
-      this.sqlite = null;
+    if (!this.sqlite && !this.postgres) {
+      return;
     }
 
-    if (this.postgres) {
-      await this.postgres.end();
+    if (this.disconnectPromise) {
+      await this.disconnectPromise;
+      return;
+    }
+
+    this.disconnectPromise = (async () => {
+      const sqlite = this.sqlite;
+      const postgres = this.postgres;
+      this.sqlite = null;
       this.postgres = null;
+
+      try {
+        if (sqlite) {
+          sqlite.close();
+        }
+
+        if (postgres) {
+          await postgres.end();
+        }
+      } catch (error) {
+        this.sqlite = sqlite;
+        this.postgres = postgres;
+        throw error;
+      }
+    })();
+
+    try {
+      await this.disconnectPromise;
+    } finally {
+      this.disconnectPromise = null;
     }
   }
 
@@ -263,19 +315,27 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     };
   }
 
-  public async markAuthChallengeConsumed(id: string): Promise<void> {
+  public async markAuthChallengeConsumed(id: string): Promise<boolean> {
     const consumedAt = nowIso();
     if (this.sqlite) {
-      this.sqlite
-        .prepare('UPDATE auth_challenges SET consumed_at = ? WHERE id = ?')
+      const existing = this.sqlite
+        .prepare('SELECT consumed_at FROM auth_challenges WHERE id = ? LIMIT 1')
+        .get(id) as { consumed_at: string | null } | null;
+      if (!existing || existing.consumed_at) {
+        return false;
+      }
+
+      const result = this.sqlite
+        .prepare('UPDATE auth_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
         .run(consumedAt, id);
-      return;
+      return result.changes > 0;
     }
 
-    await this.requirePostgres().query(
-      'UPDATE auth_challenges SET consumed_at = $1 WHERE id = $2',
+    const response = await this.requirePostgres().query<{ id: string }>(
+      'UPDATE auth_challenges SET consumed_at = $1 WHERE id = $2 AND consumed_at IS NULL RETURNING id',
       [consumedAt, id],
     );
+    return response.rows.length > 0;
   }
 
   public async insertInteractiveTransaction(input: {
@@ -360,32 +420,33 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     if (this.sqlite) {
       const rows = this.sqlite
         .prepare(
-          "SELECT * FROM interactive_transactions WHERE status = 'pending_user_transfer_start' AND created_at < ?",
+          "SELECT * FROM interactive_transactions WHERE status = 'pending_user_transfer_start' AND created_at < ? ORDER BY created_at ASC, id ASC",
         )
         .all(cutoffIso) as Record<string, unknown>[];
       return rows.map((row) => this.mapTransactionRow(row));
     }
 
     const response = await this.requirePostgres().query<Record<string, unknown>>(
-      "SELECT * FROM interactive_transactions WHERE status = 'pending_user_transfer_start' AND created_at < $1",
+      "SELECT * FROM interactive_transactions WHERE status = 'pending_user_transfer_start' AND created_at < $1 ORDER BY created_at ASC, id ASC",
       [cutoffIso],
     );
     return response.rows.map((row) => this.mapTransactionRow(row));
   }
 
-  public async updateTransactionStatus(id: string, status: string): Promise<void> {
+  public async updateTransactionStatus(id: string, status: string): Promise<boolean> {
     const updatedAt = nowIso();
     if (this.sqlite) {
-      this.sqlite
+      const result = this.sqlite
         .prepare('UPDATE interactive_transactions SET status = ?, updated_at = ? WHERE id = ?')
         .run(status, updatedAt, id);
-      return;
+      return result.changes > 0;
     }
 
-    await this.requirePostgres().query(
-      'UPDATE interactive_transactions SET status = $1, updated_at = $2 WHERE id = $3',
+    const response = await this.requirePostgres().query<{ id: string }>(
+      'UPDATE interactive_transactions SET status = $1, updated_at = $2 WHERE id = $3 RETURNING id',
       [status, updatedAt, id],
     );
+    return response.rows.length > 0;
   }
 
   public async getIdempotencyRecord(
