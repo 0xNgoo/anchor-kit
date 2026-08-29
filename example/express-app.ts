@@ -28,6 +28,36 @@ function getWatchersEnabled(): boolean {
   return process.env.WATCHERS_ENABLED !== 'false';
 }
 
+function getMaxBodyBytes(): number | undefined {
+  const rawValue = process.env.MAX_BODY_BYTES;
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return undefined;
+  }
+
+  return parsedValue;
+}
+
+function getAuthTokenLifetimeSeconds(): number | undefined {
+  const rawValue = process.env.AUTH_TOKEN_LIFETIME_SECONDS;
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return undefined;
+  }
+
+  return parsedValue;
+}
+
 export async function createExampleApp(): Promise<ExampleApp> {
   const databaseUrl =
     process.env.DATABASE_URL ?? `file:/tmp/anchor-kit-example-${randomUUID()}.sqlite`;
@@ -46,6 +76,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
       webhookSecret: process.env.WEBHOOK_SECRET,
       verifyWebhookSignatures: process.env.WEBHOOK_SECRET ? true : false,
       challengeExpirationSeconds: getChallengeExpirationSeconds(),
+      authTokenLifetimeSeconds: getAuthTokenLifetimeSeconds(),
     },
     assets: {
       assets: [
@@ -61,6 +92,9 @@ export async function createExampleApp(): Promise<ExampleApp> {
       database: {
         provider: databaseUrl.startsWith('file:') ? 'sqlite' : 'postgres',
         url: databaseUrl,
+      },
+      http: {
+        maxBodyBytes: getMaxBodyBytes(),
       },
       queue: {
         backend: 'memory',
@@ -87,7 +121,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
   const app = express();
   app.use(
     express.json({
-      limit: '1mb',
+      limit: getMaxBodyBytes() ?? '1mb',
       verify: (req, _res, buf) => {
         (req as { rawBody?: string }).rawBody = buf.toString('utf8');
       },
