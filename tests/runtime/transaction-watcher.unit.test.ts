@@ -218,28 +218,32 @@ describe('TransactionWatcher Unit Tests', () => {
   });
 
   it('continues polling after a scheduled tick rejects', async () => {
-    vi.useFakeTimers();
+    let calls = 0;
+    mockDatabase.listPendingTransactionsBefore = vi.fn().mockImplementation(async () => {
+      calls += 1;
+      if (calls === 2) {
+        throw new Error('db failure');
+      }
 
-    try {
-      let calls = 0;
-      mockDatabase.listPendingTransactionsBefore = vi.fn().mockImplementation(async () => {
-        calls += 1;
-        if (calls === 2) {
-          throw new Error('db failure');
-        }
+      return [];
+    });
 
-        return [];
-      });
+    // Use a very short poll interval for testing
+    const shortIntervalWatcher = new TransactionWatcher(mockDatabase, mockQueue, {
+      pollIntervalMs: 10,
+      transactionTimeoutMs: 300000,
+      retentionDays: 30,
+    });
 
-      await expect(transactionWatcher.start()).resolves.toBeUndefined();
-      vi.advanceTimersByTime(1000);
-      vi.advanceTimersByTime(1000);
+    await shortIntervalWatcher.start();
 
-      expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(3);
-    } finally {
-      vi.useRealTimers();
-      await transactionWatcher.stop();
-    }
+    // Wait for multiple polling cycles to occur
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    await shortIntervalWatcher.stop();
+
+    // Should have called multiple times despite the second call failing
+    expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(5);
   });
 
   it('stop() resolves even when an active tick rejects and clears the timer', async () => {
