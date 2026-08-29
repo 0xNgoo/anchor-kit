@@ -59,49 +59,55 @@ export class AnchorInstance {
 
     const frameworkConfig = this.config.get('framework');
 
-    this.database = createSqlDatabaseAdapter(frameworkConfig.database);
-    await this.database.connect();
-    await this.database.migrate();
+    try {
+      this.database = createSqlDatabaseAdapter(frameworkConfig.database);
+      await this.database.connect();
+      await this.database.migrate();
 
-    const queueBackend = frameworkConfig.queue?.backend ?? 'memory';
-    if (queueBackend !== 'memory') {
-      throw new ConfigError(
-        `Unsupported queue backend: "${queueBackend}". Only "memory" queue backend is currently supported. Please remove or set queue.backend to "memory" in your configuration.`,
-      );
-    }
-
-    const queueConcurrency = frameworkConfig.queue?.concurrency ?? 1;
-    this.queue = new InMemoryQueueAdapter({ concurrency: queueConcurrency });
-
-    this.webhookProcessor = new DefaultWebhookProcessor({
-      config: this.config.getConfig(),
-      database: this.database,
-    });
-
-    const watchersEnabled = frameworkConfig.watchers?.enabled ?? true;
-    if (watchersEnabled) {
-      this.watchers = [
-        new TransactionWatcher(this.database, this.queue, {
-          pollIntervalMs: frameworkConfig.watchers?.pollIntervalMs ?? 15000,
-          transactionTimeoutMs: frameworkConfig.watchers?.transactionTimeoutMs ?? 300000,
-          retentionDays: frameworkConfig.watchers?.retentionDays ?? 90,
-        }),
-      ];
-    }
-
-    this.expressRouter = new AnchorExpressRouter({
-      config: this.config,
-      database: this.database,
-      webhookProcessor: this.webhookProcessor,
-    }).getMiddleware();
-
-    for (const plugin of this.plugins.values()) {
-      if (plugin.init) {
-        await plugin.init(this);
+      const queueBackend = frameworkConfig.queue?.backend ?? 'memory';
+      if (queueBackend !== 'memory') {
+        throw new ConfigError(
+          `Unsupported queue backend: "${queueBackend}". Only "memory" queue backend is currently supported. Please remove or set queue.backend to "memory" in your configuration.`,
+        );
       }
-    }
 
-    this.initialized = true;
+      const queueConcurrency = frameworkConfig.queue?.concurrency ?? 1;
+      this.queue = new InMemoryQueueAdapter({ concurrency: queueConcurrency });
+
+      this.webhookProcessor = new DefaultWebhookProcessor({
+        config: this.config.getConfig(),
+        database: this.database,
+      });
+
+      const watchersEnabled = frameworkConfig.watchers?.enabled ?? true;
+      if (watchersEnabled) {
+        this.watchers = [
+          new TransactionWatcher(this.database, this.queue, {
+            pollIntervalMs: frameworkConfig.watchers?.pollIntervalMs ?? 15000,
+            transactionTimeoutMs: frameworkConfig.watchers?.transactionTimeoutMs ?? 300000,
+            retentionDays: frameworkConfig.watchers?.retentionDays ?? 90,
+          }),
+        ];
+      }
+
+      this.expressRouter = new AnchorExpressRouter({
+        config: this.config,
+        database: this.database,
+        webhookProcessor: this.webhookProcessor,
+      }).getMiddleware();
+
+      this.initialized = true;
+
+      for (const plugin of this.plugins.values()) {
+        if (plugin.init) {
+          await plugin.init(this);
+        }
+      }
+    } catch (error) {
+      const originalError = error instanceof Error ? error : new Error(String(error));
+      await this.rollbackInitialization();
+      throw originalError;
+    }
   }
 
   /**
@@ -172,6 +178,24 @@ export class AnchorInstance {
     return this.requireDatabase().countProcessedWatcherTasks();
   }
 
+  private async rollbackInitialization(): Promise<void> {
+    if (this.backgroundJobsRunning || this.initialized) {
+      await this.stopBackgroundJobs();
+    }
+
+    if (this.database) {
+      await this.database.disconnect();
+    }
+
+    this.initialized = false;
+    this.backgroundJobsRunning = false;
+    this.database = null;
+    this.queue = null;
+    this.webhookProcessor = null;
+    this.watchers = [];
+    this.expressRouter = null;
+  }
+
   private ensureInitialized(): void {
     if (!this.initialized) {
       throw new ConfigError('Anchor is not initialized. Call init() first.');
@@ -229,6 +253,8 @@ export class AnchorInstance {
       await database.cleanupOldRecords(cutoffIso);
       return;
     }
+
+    throw new Error(`Unknown queue job type: ${String(job.type)}`);
   }
 }
 
