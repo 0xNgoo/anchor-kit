@@ -391,7 +391,7 @@ export interface FrameworkConfig {
     /**
      * Database provider type
      */
-    provider: 'postgres' | 'sqlite' | 'mysql';
+    provider: 'postgres' | 'sqlite';
 
     /**
      * Database connection URL

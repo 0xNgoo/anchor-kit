@@ -113,4 +113,58 @@ describe('Config Validation Improvements (#124, #125)', () => {
       expect(() => config.validate()).not.toThrow();
     });
   });
+
+  it('should reject unknown assetMapping targets', () => {
+    const config = new AnchorConfig({
+      ...validBaseConfig,
+      assets: {
+        ...validBaseConfig.assets,
+        assetMapping: {
+          USD: 'USDT',
+        },
+      },
+    });
+
+    expect(() => config.validate()).toThrow(ConfigError);
+    expect(() => config.validate()).toThrow(/assetMapping.*USDT|unknown asset code/i);
+  });
+
+  it('should reject case-mismatched assetMapping targets', () => {
+    const config = new AnchorConfig({
+      ...validBaseConfig,
+      assets: {
+        ...validBaseConfig.assets,
+        assetMapping: {
+          USD: 'usdc',
+        },
+      },
+    });
+
+    expect(() => config.validate()).toThrow(ConfigError);
+    expect(() => config.validate()).toThrow(/assetMapping.*usdc|unknown asset code/i);
+  });
+
+  it('should reject KYC definitions that reference unknown assets', () => {
+    const config = new AnchorConfig({
+      ...validBaseConfig,
+      kycRequired: {
+        EUR: ['first_name'],
+      },
+    });
+
+    expect(() => config.validate()).toThrow(ConfigError);
+    expect(() => config.validate()).toThrow(/kycRequired.*EUR|unknown asset code/i);
+  });
+
+  it('should reject empty KYC field names', () => {
+    const config = new AnchorConfig({
+      ...validBaseConfig,
+      kycRequired: {
+        USDC: ['', 'email'],
+      },
+    });
+
+    expect(() => config.validate()).toThrow(ConfigError);
+    expect(() => config.validate()).toThrow(/kycRequired.*USDC|non-empty string/i);
+  });
 });

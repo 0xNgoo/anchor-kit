@@ -211,7 +211,7 @@ export const AnchorKitConfigSchema = {
   validate(config: AnchorKitConfig): void {
     if (!config) throw new Error('Configuration object is missing');
 
-    const { network, server, security, assets, framework, metadata } = config;
+    const { network, server, security, assets, framework, metadata, kycRequired } = config;
 
     // Validate Sections
     if (!network) throw new Error('Missing required top-level field: network');
@@ -229,6 +229,45 @@ export const AnchorKitConfigSchema = {
     // Assets Section
     if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
       throw new Error('At least one asset must be configured in assets.assets');
+    }
+
+    const configuredAssetCodes = new Set(
+      assets.assets.map((asset) => asset.code).filter((code): code is string => !!code),
+    );
+
+    if (assets.assetMapping) {
+      for (const [fiatCode, assetCode] of Object.entries(assets.assetMapping)) {
+        if (typeof assetCode !== 'string' || assetCode.length === 0) {
+          throw new Error(
+            `Invalid assetMapping value for ${fiatCode}: assetMapping targets must be non-empty strings.`,
+          );
+        }
+        if (!configuredAssetCodes.has(assetCode)) {
+          throw new Error(
+            `Invalid assetMapping target for ${fiatCode}: ${assetCode} is not a configured asset code.`,
+          );
+        }
+      }
+    }
+
+    if (kycRequired) {
+      for (const [assetCode, fields] of Object.entries(kycRequired)) {
+        if (!configuredAssetCodes.has(assetCode)) {
+          throw new Error(
+            `Invalid kycRequired asset key: ${assetCode} is not a configured asset code.`,
+          );
+        }
+        if (!Array.isArray(fields) || fields.some((field) => typeof field !== 'string')) {
+          throw new Error(
+            `Invalid kycRequired fields for ${assetCode}: values must be arrays of non-empty strings.`,
+          );
+        }
+        if (fields.some((field) => field.trim().length === 0)) {
+          throw new Error(
+            `Invalid kycRequired fields for ${assetCode}: values must be non-empty strings.`,
+          );
+        }
+      }
     }
 
     // Framework Database config
