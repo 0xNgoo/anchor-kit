@@ -253,6 +253,39 @@ describe('Config Validation Improvements (#124, #125)', () => {
     }
   });
 
+  describe('queue.concurrency validation', () => {
+    it.each([0, -1, 1.5, NaN, Infinity, -Infinity, '2' as unknown as number])(
+      'should reject invalid concurrency %s',
+      (concurrency) => {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            queue: { backend: 'memory', concurrency: concurrency as number },
+          },
+        });
+        expect(() => config.validate()).toThrow(ConfigError);
+        expect(() => config.validate()).toThrow(/queue\.concurrency must be a finite integer >= 1/);
+      },
+    );
+
+    it.each([1, 2, 10])('should accept valid concurrency %i', (concurrency) => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: { ...validBaseConfig.framework, queue: { backend: 'memory', concurrency } },
+      });
+      expect(() => config.validate()).not.toThrow();
+    });
+
+    it('should accept omitted concurrency', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: { ...validBaseConfig.framework, queue: { backend: 'memory' } },
+      });
+      expect(() => config.validate()).not.toThrow();
+    });
+  });
+
   describe('Runtime Config Validation (#207)', () => {
     it('should reject redis queue backend during initialization', async () => {
       const redisConfig = {
@@ -325,6 +358,164 @@ describe('Config Validation Improvements (#124, #125)', () => {
       const anchor = createAnchor(defaultConfig);
       await anchor.init();
       await anchor.shutdown();
+    });
+  });
+
+  describe('Provider-by-scheme validation (#382)', () => {
+    it('should reject sqlite provider with postgres URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: 'postgresql://localhost:5432/db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "sqlite"/);
+    });
+
+    it('should reject postgres provider with sqlite URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'postgres',
+            url: 'file:./dev.db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "postgres"/);
+    });
+
+    it('should reject sqlite provider with postgres:// URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: 'postgres://user:pass@host/db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "sqlite"/);
+    });
+
+    it('should reject postgres provider with sqlite: URL', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'postgres',
+            url: 'sqlite:./local.db',
+          },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(/does not match provider "postgres"/);
+    });
+
+    it('should validate a matrix of provider-by-scheme combinations', () => {
+      const passing = [
+        { provider: 'sqlite' as const, url: 'sqlite:./dev.db' },
+        { provider: 'sqlite' as const, url: 'file:./data.db' },
+        { provider: 'postgres' as const, url: 'postgresql://localhost/db' },
+        { provider: 'postgres' as const, url: 'postgres://localhost/db' },
+      ];
+
+      for (const { provider, url } of passing) {
+        const cfg = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            database: { provider, url },
+          },
+        });
+        expect(() => cfg.validate(), `${provider} + ${url} should pass`).not.toThrow();
+      }
+
+      const failing = [
+        { provider: 'sqlite' as const, url: 'postgresql://localhost/db' },
+        { provider: 'sqlite' as const, url: 'postgres://localhost/db' },
+        { provider: 'postgres' as const, url: 'sqlite:./dev.db' },
+        { provider: 'postgres' as const, url: 'file:./dev.db' },
+      ];
+
+      for (const { provider, url } of failing) {
+        const cfg = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            database: { provider, url },
+          },
+        });
+        expect(() => cfg.validate(), `${provider} + ${url} should fail`).toThrow(
+          /does not match provider/,
+        );
+      }
+    });
+  });
+
+  describe('maxBodyBytes validation (#379)', () => {
+    it('should reject non-finite and non-integer maxBodyBytes values', () => {
+      const invalidValues = [
+        NaN,
+        Infinity,
+        -Infinity,
+        1023,
+        1,
+        0,
+        -1,
+        1023.5,
+        1024.5,
+        '1024',
+        true,
+        false,
+        {},
+        [],
+      ];
+      for (const value of invalidValues) {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            http: { maxBodyBytes: value as unknown as number },
+          },
+        });
+        expect(() => config.validate()).toThrow(/maxBodyBytes must be a finite integer >= 1024/);
+      }
+    });
+
+    it('should accept valid maxBodyBytes values', () => {
+      const validValues = [1024, 2048, 8192, 65536, 1048576];
+      for (const value of validValues) {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            http: { maxBodyBytes: value },
+          },
+        });
+        expect(() => config.validate()).not.toThrow();
+      }
+    });
+
+    it('should accept omitted maxBodyBytes and apply the default', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          http: {},
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
     });
   });
 });

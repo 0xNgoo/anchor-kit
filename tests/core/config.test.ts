@@ -287,6 +287,35 @@ describe('AnchorConfig', () => {
       expect(() => config.validate()).toThrow(/authTokenLifetimeSeconds must be > 0/);
     });
 
+    describe('operational supportEmail validation', () => {
+      it('should accept valid operational supportEmail', () => {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          operational: { supportEmail: 'support@example.com' },
+        });
+        expect(() => config.validate()).not.toThrow();
+      });
+
+      it('should accept omitted operational supportEmail', () => {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          operational: { name: 'Test Anchor' },
+        });
+        expect(() => config.validate()).not.toThrow();
+      });
+
+      it('should reject malformed operational supportEmail', () => {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          operational: { supportEmail: 'invalid-email-address' },
+        });
+        expect(() => config.validate()).toThrow(ConfigError);
+        expect(() => config.validate()).toThrow(
+          /Invalid email format for operational.supportEmail/,
+        );
+      });
+    });
+
     describe('KYC age bounds validation', () => {
       it.each([
         { kyc: { minAge: 18 }, name: 'minimum age only' },
