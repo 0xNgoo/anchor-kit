@@ -165,9 +165,11 @@ export const StellarUtils = {
           stellarMemo = StellarMemo.id(memo.value);
           break;
         case 'hash':
+          validateBinaryMemoValue(memo.value, memo.type);
           stellarMemo = StellarMemo.hash(memo.value);
           break;
         case 'return':
+          validateBinaryMemoValue(memo.value, memo.type);
           stellarMemo = StellarMemo.return(memo.value);
           break;
         default:
@@ -192,4 +194,10 @@ export const StellarUtils = {
 
 function isValidPaymentAccountAddress(address: string): boolean {
   return StrKey.isValidEd25519PublicKey(address) || StrKey.isValidMed25519PublicKey(address);
+}
+
+function validateBinaryMemoValue(value: string, type: 'hash' | 'return'): void {
+  if (!/^[0-9a-fA-F]{64}$/.test(value)) {
+    throw new Error(type + ' memo must be exactly 32 bytes encoded as 64 hexadecimal characters');
+  }
 }

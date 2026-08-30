@@ -149,6 +149,23 @@ describe('StellarUtils', () => {
       expect(parsedHex).toBe(returnValue);
     });
 
+    it.each(['hash', 'return'] as const)(
+      'should reject malformed %s memo payloads before building',
+      async (type) => {
+        await expect(
+          StellarUtils.buildPaymentXdr({
+            source: validAccountId,
+            destination: validAccountId,
+            amount: '5',
+            assetCode: 'USDC',
+            issuer: validAccountId,
+            memo: { value: 'not-a-32-byte-hex-value', type },
+            network: 'testnet',
+          }),
+        ).rejects.toThrow(type + ' memo must be exactly 32 bytes');
+      },
+    );
+
     it('should fail early for an invalid source public key', async () => {
       await expect(
         StellarUtils.buildPaymentXdr({
