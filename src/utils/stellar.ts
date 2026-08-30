@@ -114,6 +114,7 @@ export const StellarUtils = {
    */
   async buildPaymentXdr(params: PaymentParams): Promise<string> {
     const { source, destination, amount, assetCode, issuer, memo, network } = params;
+    const normalizedAssetCode = assetCode.trim().toUpperCase();
 
     if (!isValidPaymentAccountAddress(source)) {
       throw new Error('source must be a valid Stellar public or muxed public key');
@@ -130,11 +131,17 @@ export const StellarUtils = {
           ? Networks.FUTURENET
           : Networks.TESTNET;
 
-    if (assetCode !== 'XLM' && (!issuer || !ValidationUtils.isValidStellarAddress(issuer))) {
-      throw new Error(`A valid issuer is required for non-native asset payments: ${assetCode}`);
+    if (
+      normalizedAssetCode !== 'XLM' &&
+      (!issuer || !ValidationUtils.isValidStellarAddress(issuer))
+    ) {
+      throw new Error(
+        'A valid issuer is required for non-native asset payments: ' + normalizedAssetCode,
+      );
     }
 
-    const asset = assetCode === 'XLM' ? Asset.native() : new Asset(assetCode, issuer);
+    const asset =
+      normalizedAssetCode === 'XLM' ? Asset.native() : new Asset(normalizedAssetCode, issuer);
 
     // We use a dummy sequence number because the actual submission will be handled later
     // or by a signer that manages sequence numbers.

@@ -93,6 +93,19 @@ describe('StellarUtils', () => {
       expect(parseFloat(operation.amount)).toBe(parseFloat(params.amount));
     });
 
+    it.each(['xlm', 'Xlm', ' XLM '])('should treat %s as the native asset', async (assetCode) => {
+      const xdr = await StellarUtils.buildPaymentXdr({
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '1.5',
+        assetCode,
+        network: 'testnet',
+      });
+
+      const operation = asPaymentOperation(StellarUtils.parseXdrTransaction(xdr).operations[0]);
+      expect(operation.asset?.isNative()).toBe(true);
+    });
+
     it('should preserve an id memo', async () => {
       const params = {
         source: validAccountId,
