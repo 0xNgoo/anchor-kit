@@ -2387,6 +2387,42 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.message).toBe('Request body must be valid JSON');
   });
 
+  it('15f) JSON POST routes reject missing or unrelated content types', async () => {
+    const requests: TestRequestOptions[] = [
+      {
+        method: 'POST',
+        path: '/auth/token',
+        headers: { 'content-type': 'text/plain', 'x-forwarded-for': '10.0.0.151' },
+        rawBody: '{}',
+      },
+      {
+        method: 'POST',
+        path: '/transactions/deposit/interactive',
+        headers: {
+          'content-type': 'text/plain',
+          authorization: 'Bearer ' + accessToken,
+          'x-forwarded-for': '10.0.0.152',
+        },
+        body: { asset_code: 'USDC', amount: '10' },
+      },
+      {
+        method: 'POST',
+        path: '/webhooks/events',
+        headers: { 'content-type': 'text/plain', 'x-forwarded-for': '10.0.0.153' },
+        body: { id: 'content-type-check' },
+      },
+    ];
+
+    for (const request of requests) {
+      const response = await invoke(request);
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        error: 'invalid_request',
+        message: 'Content-Type must be application/json',
+      });
+    }
+  });
+
   it('15g) oversize body on POST /auth/token returns 413', async () => {
     const customDbUrl = makeSqliteDbUrlForTests();
     const customDbPath = customDbUrl.startsWith('file:')
