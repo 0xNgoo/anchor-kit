@@ -115,6 +115,10 @@ export const StellarUtils = {
   async buildPaymentXdr(params: PaymentParams): Promise<string> {
     const { source, destination, amount, assetCode, issuer, memo, network } = params;
 
+    if (!isPositiveFiniteDecimal(amount)) {
+      throw new Error('amount must be a positive finite decimal string');
+    }
+
     if (!isValidPaymentAccountAddress(source)) {
       throw new Error('source must be a valid Stellar public or muxed public key');
     }
@@ -192,4 +196,8 @@ export const StellarUtils = {
 
 function isValidPaymentAccountAddress(address: string): boolean {
   return StrKey.isValidEd25519PublicKey(address) || StrKey.isValidMed25519PublicKey(address);
+}
+
+function isPositiveFiniteDecimal(value: string): boolean {
+  return /^\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value)) && Number(value) > 0;
 }

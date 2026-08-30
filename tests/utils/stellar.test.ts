@@ -93,6 +93,33 @@ describe('StellarUtils', () => {
       expect(parseFloat(operation.amount)).toBe(parseFloat(params.amount));
     });
 
+    it.each(['0', '-1', '1e3', 'not-a-number', '9'.repeat(400)])(
+      'should reject invalid payment amount %s',
+      async (amount) => {
+        await expect(
+          StellarUtils.buildPaymentXdr({
+            source: validAccountId,
+            destination: validAccountId,
+            amount,
+            assetCode: 'XLM',
+            network: 'testnet',
+          }),
+        ).rejects.toThrow('amount must be a positive finite decimal string');
+      },
+    );
+
+    it('should preserve a valid positive decimal amount', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '0.000001',
+          assetCode: 'XLM',
+          network: 'testnet',
+        }),
+      ).resolves.toBeTypeOf('string');
+    });
+
     it('should preserve an id memo', async () => {
       const params = {
         source: validAccountId,
