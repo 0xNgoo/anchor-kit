@@ -274,7 +274,11 @@ function checkRateLimit(
   endpoint: keyof ExpressRouterContext['rateRules'],
 ): boolean {
   const trustForwardedFor = context.config.get('framework')?.rateLimit?.trustForwardedFor ?? false;
-  const clientId = extractClientIdentifier(req, trustForwardedFor);
+  const clientId = extractClientIdentifier(
+    req.socket?.remoteAddress,
+    req.headers['x-forwarded-for'],
+    trustForwardedFor,
+  );
   const key = `${endpoint}:${clientId}`;
   const result = context.rateLimiter.hit(key, context.rateRules[endpoint]);
 
