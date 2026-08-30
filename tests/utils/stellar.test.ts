@@ -250,5 +250,17 @@ describe('StellarUtils', () => {
       expect(tx.source).toBe(params.source);
       expect(tx.operations.length).toBe(1);
     });
+
+    it('should reject unsupported network values instead of falling back to testnet', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1',
+          assetCode: 'XLM',
+          network: 'unknown-network',
+        }),
+      ).rejects.toThrow('Unsupported network: unknown-network');
+    });
   });
 });
