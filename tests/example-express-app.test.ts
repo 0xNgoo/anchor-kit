@@ -36,6 +36,7 @@ interface InvokeOptions {
 interface InvokeResponse {
   status: number;
   body: Record<string, unknown>;
+  headers: Record<string, string>;
 }
 
 const DEFAULT_CHALLENGE_EXPIRATION_SECONDS = 300;
@@ -111,6 +112,7 @@ async function invokeExpress(app: Express, options: InvokeOptions): Promise<Invo
         resolve({
           status: statusCode,
           body,
+          headers: responseHeaders,
         });
       },
     } as unknown as ServerResponse;
@@ -186,6 +188,7 @@ describe('example/express-app', () => {
       path: `/anchor/auth/challenge?account=${account}`,
     });
     expect(challengeResponse.status).toBe(200);
+    expect(challengeResponse.headers['cache-control']).toBe('no-store');
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     const challengeTx = new Transaction(challengeXdr, networkPassphrase);
