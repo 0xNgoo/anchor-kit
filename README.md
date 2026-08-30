@@ -119,6 +119,12 @@ Background processing is explicit and host-controlled.
 
 `startBackgroundJobs()` and `stopBackgroundJobs()` are idempotent and safe to call more than once.
 
+### Retention cutoff semantics
+
+Cleanup uses a strict retention cutoff. Rows with timestamps exactly equal to the cutoff are kept, and only records strictly older than the cutoff are deleted. This applies consistently across auth challenges, idempotency keys, processed webhook events, and completed watcher tasks.
+
+Persisted JSON payloads are also validated strictly. If a stored `payload` column is malformed, the adapter throws a `MalformedPersistedDataError` instead of silently replacing it with an empty object.
+
 ## Testing
 
 For tests and local development, `makeSqliteDbUrlForTests` creates a temporary SQLite database URL that you can import directly from `anchor-kit`.

@@ -46,6 +46,33 @@ describe('AnchorConfig', () => {
       expect(op?.corsEnabled).toBe(true);
       expect(op?.transactionRetentionDays).toBe(90);
     });
+
+    it('should reject invalid transaction retention values', () => {
+      const invalidValues = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53];
+
+      invalidValues.forEach((value) => {
+        const invalidConfig: AnchorKitConfig = {
+          ...validBaseConfig,
+          operational: {
+            transactionRetentionDays: value,
+          },
+        };
+
+        expect(() => new AnchorConfig(invalidConfig).validate()).toThrow(/transactionRetentionDays/);
+      });
+    });
+
+    it('should accept valid positive integer retention values unchanged', () => {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        operational: {
+          transactionRetentionDays: 30,
+        },
+      });
+
+      expect(config.get('operational')?.transactionRetentionDays).toBe(30);
+      expect(() => config.validate()).not.toThrow();
+    });
   });
 
   describe('getAsset()', () => {

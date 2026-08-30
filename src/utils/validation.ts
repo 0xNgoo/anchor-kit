@@ -251,6 +251,22 @@ export const AnchorKitConfigSchema = {
       throw new Error('framework.queue.concurrency must be >= 1');
     }
     if (
+      framework.watchers?.retentionDays !== undefined &&
+      (!Number.isInteger(framework.watchers.retentionDays) ||
+        !Number.isSafeInteger(framework.watchers.retentionDays) ||
+        framework.watchers.retentionDays <= 0)
+    ) {
+      throw new Error('framework.watchers.retentionDays must be a positive safe integer');
+    }
+    if (
+      config.operational?.transactionRetentionDays !== undefined &&
+      (!Number.isInteger(config.operational.transactionRetentionDays) ||
+        !Number.isSafeInteger(config.operational.transactionRetentionDays) ||
+        config.operational.transactionRetentionDays <= 0)
+    ) {
+      throw new Error('operational.transactionRetentionDays must be a positive safe integer');
+    }
+    if (
       framework.watchers?.pollIntervalMs !== undefined &&
       framework.watchers.pollIntervalMs < 10
     ) {
