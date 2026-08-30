@@ -6,7 +6,7 @@ import { Readable } from 'node:stream';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Keypair, Transaction } from '@stellar/stellar-sdk';
-import { createExampleApp } from '../example/express-app.ts';
+import { createExampleApp, isSqliteDatabaseUrl } from '../example/express-app.ts';
 import { version } from '../package.json';
 
 interface ExampleAppRuntime {
@@ -172,6 +172,22 @@ describe('example/express-app', () => {
   afterAll(async () => {
     await harness.cleanup();
   });
+
+  it.each([
+    '/tmp/anchor.sqlite',
+    './anchor.sqlite',
+    'file:./anchor.sqlite',
+    'sqlite:./anchor.sqlite',
+  ])('recognizes %s as SQLite', (databaseUrl) => {
+    expect(isSqliteDatabaseUrl(databaseUrl)).toBe(true);
+  });
+
+  it.each(['postgres://user:pass@localhost/db', 'postgresql://localhost/db'])(
+    'keeps %s on PostgreSQL',
+    (databaseUrl) => {
+      expect(isSqliteDatabaseUrl(databaseUrl)).toBe(false);
+    },
+  );
 
   it('mounts /anchor and serves /health', async () => {
     const response = await invokeExpress(harness.runtime.app, { path: '/anchor/health' });

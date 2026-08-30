@@ -9,6 +9,14 @@ export interface ExampleApp {
   shutdown: () => Promise<void>;
 }
 
+export function isSqliteDatabaseUrl(databaseUrl: string): boolean {
+  if (databaseUrl.startsWith('sqlite:') || databaseUrl.startsWith('file:')) {
+    return true;
+  }
+
+  return !/^[a-z][a-z\d+.-]*:/i.test(databaseUrl);
+}
+
 function getChallengeExpirationSeconds(): number {
   const rawValue = process.env.CHALLENGE_EXPIRATION_SECONDS;
 
@@ -90,7 +98,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
     },
     framework: {
       database: {
-        provider: databaseUrl.startsWith('file:') ? 'sqlite' : 'postgres',
+        provider: isSqliteDatabaseUrl(databaseUrl) ? 'sqlite' : 'postgres',
         url: databaseUrl,
       },
       http: {
