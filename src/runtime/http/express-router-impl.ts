@@ -54,6 +54,16 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(JSON.stringify(body));
 }
 
+function sendMethodNotAllowed(res: ServerResponse, allowedMethods: string[]): void {
+  if (!res.headersSent) {
+    res.setHeader('Allow', allowedMethods.join(', '));
+  }
+  sendJson(res, 405, {
+    error: 'method_not_allowed',
+    message: 'Method not allowed',
+  });
+}
+
 function sendJsonUnauthorized(res: ServerResponse, body: Record<string, unknown>): void {
   if (!res.headersSent) {
     res.statusCode = 401;
@@ -798,6 +808,24 @@ async function handleWebhook(
   }
 }
 
+const TRANSACTION_PATH_RE = /^\/transactions\/([^/]+)$/;
+
+const KNOWN_ROUTES: Record<string, string[]> = {
+  '/health': ['GET'],
+  '/info': ['GET'],
+  '/auth/challenge': ['GET'],
+  '/auth/token': ['POST'],
+  '/transactions/deposit/interactive': ['POST'],
+  '/webhooks/events': ['POST'],
+};
+
+function getAllowedMethods(path: string): string[] | null {
+  const exactMatch = KNOWN_ROUTES[path];
+  if (exactMatch) return exactMatch;
+  if (TRANSACTION_PATH_RE.test(path)) return ['GET'];
+  return null;
+}
+
 export async function handleExpressRouterRequest(
   context: ExpressRouterContext,
   req: IncomingMessage,
@@ -831,7 +859,7 @@ export async function handleExpressRouterRequest(
     return;
   }
 
-  const transactionMatch = /^\/transactions\/([^/]+)$/.exec(path);
+  const transactionMatch = TRANSACTION_PATH_RE.exec(path);
   if (method === 'GET' && transactionMatch) {
     const transactionIdRaw = transactionMatch[1];
     let transactionId: string;
@@ -851,6 +879,12 @@ export async function handleExpressRouterRequest(
 
   if (method === 'POST' && path === '/webhooks/events') {
     await handleWebhook(context, req, res);
+    return;
+  }
+
+  const allowedMethods = getAllowedMethods(path);
+  if (allowedMethods) {
+    sendMethodNotAllowed(res, allowedMethods);
     return;
   }
 
