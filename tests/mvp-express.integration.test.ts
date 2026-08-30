@@ -1109,7 +1109,7 @@ describe('MVP Express-mounted integration', () => {
       path: '/webhooks/events',
       headers: {
         'content-type': 'application/json',
-        'x-webhook-provider': 'generic',
+        'x-webhook-provider': 'conflicting-provider',
         'x-anchor-signature': signature,
       },
       body: payload,

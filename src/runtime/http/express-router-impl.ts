@@ -718,7 +718,7 @@ async function handleWebhook(
       duplicate: result.duplicate,
       event_id: result.eventId,
       received_at: new Date().toISOString(),
-      provider,
+      provider: result.provider,
     });
   } catch {
     sendJson(res, 400, {

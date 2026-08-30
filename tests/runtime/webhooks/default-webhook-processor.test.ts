@@ -91,6 +91,7 @@ describe('DefaultWebhookProcessor', () => {
 
     expect(result.duplicate).toBe(true);
     expect(result.eventId).toBe('evt_duplicate');
+    expect(result.provider).toBe('test-provider');
     expect(callbackInvokedCount).toBe(0);
   });
 
