@@ -6,7 +6,7 @@ import { Readable } from 'node:stream';
 import { unlinkSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Keypair, Transaction } from '@stellar/stellar-sdk';
-import { createExampleApp } from '../example/express-app.ts';
+import { createExampleApp, parsePort } from '../example/express-app.ts';
 import { version } from '../package.json';
 
 interface ExampleAppRuntime {
@@ -171,6 +171,22 @@ describe('example/express-app', () => {
 
   afterAll(async () => {
     await harness.cleanup();
+  });
+
+  it('defaults PORT to 3000', () => {
+    expect(parsePort(undefined)).toBe(3000);
+    expect(parsePort('')).toBe(3000);
+  });
+
+  it.each(['0', '-1', '65536', '3000.5', 'not-a-port'])(
+    'rejects invalid PORT value %s',
+    (value) => {
+      expect(() => parsePort(value)).toThrow('PORT must be an integer between 1 and 65535');
+    },
+  );
+
+  it.each(['1', '3000', '65535'])('accepts PORT value %s', (value) => {
+    expect(parsePort(value)).toBe(Number(value));
   });
 
   it('mounts /anchor and serves /health', async () => {

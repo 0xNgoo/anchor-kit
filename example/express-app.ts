@@ -58,6 +58,19 @@ function getAuthTokenLifetimeSeconds(): number | undefined {
   return parsedValue;
 }
 
+export function parsePort(rawValue: string | undefined): number {
+  if (rawValue === undefined || rawValue === '') {
+    return 3000;
+  }
+
+  const port = Number(rawValue);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('PORT must be an integer between 1 and 65535');
+  }
+
+  return port;
+}
+
 export async function createExampleApp(): Promise<ExampleApp> {
   const databaseUrl =
     process.env.DATABASE_URL ?? `file:/tmp/anchor-kit-example-${randomUUID()}.sqlite`;
@@ -141,11 +154,7 @@ export async function createExampleApp(): Promise<ExampleApp> {
 }
 
 if (import.meta.main) {
-  const portRaw = process.env.PORT ?? '3000';
-  const port = Number(portRaw);
-  if (!Number.isFinite(port) || port <= 0) {
-    throw new Error('PORT must be a positive number');
-  }
+  const port = parsePort(process.env.PORT);
 
   const { app, shutdown } = await createExampleApp();
   const server = app.listen(port, () => {
