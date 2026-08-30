@@ -2550,11 +2550,13 @@ describe('MVP Express-mounted integration', () => {
   });
 
   it('17c) encoded path separators on GET /transactions/:id return 400 before lookup', async () => {
-    const database = (anchor as unknown as {
-      database: {
-        getInteractiveTransactionById: (id: string) => Promise<unknown>;
-      };
-    }).database;
+    const database = (
+      anchor as unknown as {
+        database: {
+          getInteractiveTransactionById: (id: string) => Promise<unknown>;
+        };
+      }
+    ).database;
     const lookupSpy = vi.spyOn(database, 'getInteractiveTransactionById');
 
     try {
