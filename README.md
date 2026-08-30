@@ -131,6 +131,9 @@ const databaseUrl = makeSqliteDbUrlForTests();
 
 ## Endpoints
 
+See [the deposit idempotency contract](docs/idempotency.md) for account
+scoping, replay responses, and request conflicts.
+
 Mounted under your chosen base path (for example `/anchor`):
 
 - `GET /health`
