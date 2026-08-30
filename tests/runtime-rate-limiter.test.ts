@@ -54,11 +54,7 @@ describe('InMemoryRateLimiter', () => {
 
 describe('extractClientIdentifier', () => {
   it('uses the left-most forwarded address from string headers when trusted', () => {
-    const clientId = extractClientIdentifier(
-      '203.0.113.10',
-      '10.0.0.1, 10.0.0.2',
-      true,
-    );
+    const clientId = extractClientIdentifier('203.0.113.10', '10.0.0.1, 10.0.0.2', true);
 
     expect(clientId).toBe('10.0.0.1');
   });
