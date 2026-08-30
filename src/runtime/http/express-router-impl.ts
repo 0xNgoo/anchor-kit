@@ -15,6 +15,7 @@ import jwt from 'jsonwebtoken';
 import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { version } from '../../../package.json';
+import { extractClientIdentifier } from './client-identifier.ts';
 
 const SEP10_NONCE_OP = 'anchor_auth';
 
@@ -197,16 +198,6 @@ function buildInteractiveUrl(interactiveDomain: string, transactionId: string): 
 
 function endpointPath(req: IncomingMessage): string {
   return parseUrl(req).pathname;
-}
-
-function extractClientIdentifier(req: IncomingMessage, trustForwardedFor: boolean): string {
-  const socketIp = req.socket?.remoteAddress;
-  if (trustForwardedFor) {
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const leftMost = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : null;
-    return leftMost || socketIp || 'unknown';
-  }
-  return socketIp || 'unknown';
 }
 
 function hasValidSignature(transaction: Transaction, publicKey: string): boolean {
