@@ -242,11 +242,10 @@ describe('TransactionWatcher Unit Tests', () => {
 
     await shortIntervalWatcher.stop();
 
-    // Should have called multiple times despite the second call failing
-    // Timing can vary between environments; assert we polled multiple times.
-    expect(
-      (mockDatabase.listPendingTransactionsBefore as Mock).mock.calls.length,
-    ).toBeGreaterThanOrEqual(3);
+    // Timing can vary across environments; accept at least 4 calls
+    expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalled();
+    const callCount = (mockDatabase.listPendingTransactionsBefore as Mock).mock.calls.length;
+    expect(callCount).toBeGreaterThanOrEqual(4);
   });
 
   it('enqueues a cleanup_records job with the configured retention days', async () => {
