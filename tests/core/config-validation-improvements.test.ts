@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { unlinkSync } from 'node:fs';
 import { Keypair } from '@stellar/stellar-sdk';
 import { AnchorConfig } from '../../src/core/config';
 import { ConfigError } from '../../src/core/errors';
@@ -216,7 +217,9 @@ describe('Config Validation Improvements (#124, #125)', () => {
         distributionAccountSecret: 'dist-secret',
       },
       assets: {
-        assets: [{ code: 'USDC', issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5' }],
+        assets: [
+          { code: 'USDC', issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5' },
+        ],
       },
       framework: { database: { provider: 'sqlite', url: dbUrl } },
     });
@@ -228,7 +231,7 @@ describe('Config Validation Improvements (#124, #125)', () => {
       // cleanup sqlite file created for this test
       const dbPath = dbUrl.slice('file:'.length);
       if (dbPath) {
-        require('node:fs').unlinkSync(dbPath);
+        unlinkSync(dbPath);
       }
     } catch {
       // ignore

@@ -1,4 +1,5 @@
 import type { DatabaseAdapter, QueueAdapter } from '@/runtime/interfaces.ts';
+import type { InteractiveTransactionRecord } from '@/runtime/interfaces.ts';
 import { TransactionWatcher } from '@/runtime/watchers/transaction-watcher.ts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,7 +15,7 @@ describe('TransactionWatcher Unit Tests', () => {
       migrate: vi.fn().mockResolvedValue(undefined),
       insertAuthChallenge: vi.fn().mockResolvedValue(undefined),
       getAuthChallengeByChallenge: vi.fn().mockResolvedValue(null),
-      markAuthChallengeConsumed: vi.fn().mockResolvedValue(undefined),
+      markAuthChallengeConsumed: vi.fn().mockResolvedValue(true),
       insertInteractiveTransaction: vi.fn().mockResolvedValue({
         id: 'test-tx-id',
         account: 'test-account',
@@ -248,7 +249,9 @@ describe('TransactionWatcher Unit Tests', () => {
 
   it('stop() resolves even when an active tick rejects and clears the timer', async () => {
     const rejectTick = vi.fn();
-    mockDatabase.listPendingTransactionsBefore = vi.fn(
+    mockDatabase.listPendingTransactionsBefore = vi.fn<
+      (cutoffIso: string) => Promise<InteractiveTransactionRecord[]>
+    >(
       () =>
         new Promise((_, reject) => {
           rejectTick.mockImplementation(() => reject(new Error('db failure')));
@@ -260,7 +263,9 @@ describe('TransactionWatcher Unit Tests', () => {
     rejectTick();
 
     await expect(stopPromise).resolves.toBeUndefined();
-    expect((transactionWatcher as unknown as { timer: ReturnType<typeof setInterval> | null }).timer).toBeNull();
+    expect(
+      (transactionWatcher as unknown as { timer: ReturnType<typeof setInterval> | null }).timer,
+    ).toBeNull();
   });
 
   it('enqueues a cleanup_records job with the configured retention days', async () => {
