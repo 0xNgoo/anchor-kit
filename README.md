@@ -133,7 +133,7 @@ const databaseUrl = makeSqliteDbUrlForTests();
 
 Mounted under your chosen base path (for example `/anchor`):
 
-- `GET /health`
+- `GET, HEAD /health`
 - `GET /info`
 - `GET /auth/challenge`
 - `POST /auth/token` (expects wallet-signed SEP-10 challenge XDR)

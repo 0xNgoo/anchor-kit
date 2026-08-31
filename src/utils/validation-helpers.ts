@@ -62,12 +62,33 @@ function validateFrameworkDatabase(framework: AnchorKitConfig['framework']): boo
     throw new Error('Invalid database URL format');
   }
 
+  // Match URL scheme to configured provider
+  const url = framework.database.url;
+  const provider = framework.database.provider;
+  const isSqliteUrl = url.startsWith('sqlite:') || url.startsWith('file:');
+  const isPostgresUrl = url.startsWith('postgresql:') || url.startsWith('postgres:');
+
+  if (provider === 'sqlite' && !isSqliteUrl) {
+    throw new Error(
+      `Database URL scheme does not match provider "sqlite". Expected "sqlite:" or "file:" scheme, got: ${url.slice(0, url.indexOf(':') + 1)}`,
+    );
+  }
+
+  if (provider === 'postgres' && !isPostgresUrl) {
+    throw new Error(
+      `Database URL scheme does not match provider "postgres". Expected "postgres:" or "postgresql:" scheme, got: ${url.slice(0, url.indexOf(':') + 1)}`,
+    );
+  }
+
   return true;
 }
 
 function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): boolean {
-  if (framework.queue?.concurrency !== undefined && framework.queue.concurrency < 1) {
-    throw new Error('framework.queue.concurrency must be >= 1');
+  if (
+    framework.queue?.concurrency !== undefined &&
+    (!Number.isInteger(framework.queue.concurrency) || framework.queue.concurrency < 1)
+  ) {
+    throw new Error('framework.queue.concurrency must be a finite integer >= 1');
   }
 
   const watchersEnabled = framework.watchers?.enabled;
@@ -151,6 +172,13 @@ function validateFrameworkUrls(
 
   if (operational?.website && !isValidUrlString(operational.website)) {
     throw new Error('Invalid URL format for operational.website');
+  }
+
+  if (
+    operational?.supportEmail !== undefined &&
+    !ValidationUtils.isValidEmail(operational.supportEmail)
+  ) {
+    throw new Error('Invalid email format for operational.supportEmail');
   }
 
   return true;
@@ -313,6 +341,40 @@ export const AnchorKitConfigSchema = {
     validateAnchorKitConfig(config);
   },
 };
+
+function validateKycConfig(kyc: AnchorKitConfig['kyc']): boolean {
+  if (!kyc) return true;
+
+  const { minAge, maxAge } = kyc;
+
+  if (minAge !== undefined) {
+    if (
+      typeof minAge !== 'number' ||
+      !Number.isFinite(minAge) ||
+      minAge < 0 ||
+      !Number.isInteger(minAge)
+    ) {
+      throw new Error('kyc.minAge must be a finite non-negative integer');
+    }
+  }
+
+  if (maxAge !== undefined) {
+    if (
+      typeof maxAge !== 'number' ||
+      !Number.isFinite(maxAge) ||
+      maxAge < 0 ||
+      !Number.isInteger(maxAge)
+    ) {
+      throw new Error('kyc.maxAge must be a finite non-negative integer');
+    }
+  }
+
+  if (minAge !== undefined && maxAge !== undefined && minAge > maxAge) {
+    throw new Error('kyc.minAge must be less than or equal to kyc.maxAge');
+  }
+
+  return true;
+}
 
 function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
   if (!config) throw new Error('Configuration object is missing');
