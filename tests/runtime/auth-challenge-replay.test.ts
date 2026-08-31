@@ -94,7 +94,9 @@ class ControllableFakeDatabaseAdapter implements DatabaseAdapter {
   async listPendingTransactionsBefore(): Promise<never[]> {
     return [];
   }
-  async updateTransactionStatus(): Promise<void> {}
+  async updateTransactionStatus(_id: string, _status: string): Promise<boolean> {
+    return true;
+  }
   async getIdempotencyRecord(): Promise<null> {
     return null;
   }

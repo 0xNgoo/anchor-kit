@@ -1715,6 +1715,64 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.provider).toBe('generic'); // Should default to 'generic'
   });
 
+  it('8c) webhook route returns 429 after webhookMax is exceeded', async () => {
+    const headers = { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.200' };
+
+    for (let index = 0; index < 21; index += 1) {
+      const payload = {
+        id: `evt_rate_limit_${index}`,
+        type: 'deposit.completed',
+        transaction_id: transactionId,
+      };
+
+      const signature = createHmac('sha256', 'webhook-test-secret')
+        .update(JSON.stringify(payload))
+        .digest('hex');
+
+      const response = await invoke({
+        method: 'POST',
+        path: '/webhooks/events',
+        headers: {
+          ...headers,
+          'x-webhook-provider': 'generic',
+          'x-anchor-signature': signature,
+        },
+        body: payload,
+      });
+
+      if (index < 20) {
+        expect(response.status).toBe(200);
+      }
+    }
+
+    const rateLimitedResponse = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        ...headers,
+        'x-webhook-provider': 'generic',
+        'x-anchor-signature': createHmac('sha256', 'webhook-test-secret')
+          .update(
+            JSON.stringify({
+              id: 'evt_rate_limit_21',
+              type: 'deposit.completed',
+              transaction_id: transactionId,
+            }),
+          )
+          .digest('hex'),
+      },
+      body: {
+        id: 'evt_rate_limit_21',
+        type: 'deposit.completed',
+        transaction_id: transactionId,
+      },
+    });
+
+    expect(rateLimitedResponse.status).toBe(429);
+    expect(rateLimitedResponse.body.error).toBe('rate_limited');
+    expect(rateLimitedResponse.headers['retry-after']).toBeDefined();
+  });
+
   it('8d) webhook without id field returns a generated event_id', async () => {
     const payload = {
       type: 'deposit.completed',
