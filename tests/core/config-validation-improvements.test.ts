@@ -104,24 +104,27 @@ describe('Config Validation Improvements (#124, #125)', () => {
     });
   });
 
-  it('should reject non-numeric rateLimit values (#250)', () => {
-    const nonNumericCases = [
-      'windowMs',
-      'authChallengeMax',
-      'authTokenMax',
-      'webhookMax',
-      'depositMax',
-    ];
-    for (const key of nonNumericCases) {
-      const config = new AnchorConfig({
-        ...validBaseConfig,
-        framework: {
-          ...validBaseConfig.framework,
-          rateLimit: { [key]: 'fast' as unknown as number },
-        },
-      });
-      expect(() => config.validate()).toThrow(ConfigError);
-      expect(() => config.validate()).toThrow(/must be a finite number/);
+  it('should reject non-numeric and unsafe rateLimit values (#250, #483, #484)', () => {
+    const invalidCasesByKey: Record<string, unknown[]> = {
+      windowMs: [0, -1, 1.5, NaN, Infinity, '60000' as unknown as number],
+      authChallengeMax: [0, -1, 1.5, NaN, Infinity, '30' as unknown as number],
+      authTokenMax: [0, -1, 1.5, NaN, Infinity, '30' as unknown as number],
+      webhookMax: [0, -1, 1.5, NaN, Infinity, '120' as unknown as number],
+      depositMax: [0, -1, 1.5, NaN, Infinity, '60' as unknown as number],
+    };
+
+    for (const [key, invalidValues] of Object.entries(invalidCasesByKey)) {
+      for (const value of invalidValues) {
+        const config = new AnchorConfig({
+          ...validBaseConfig,
+          framework: {
+            ...validBaseConfig.framework,
+            rateLimit: { [key]: value as number },
+          },
+        });
+        expect(() => config.validate()).toThrow(ConfigError);
+        expect(() => config.validate()).toThrow(/must be a positive safe integer/);
+      }
     }
   });
 
@@ -137,6 +140,58 @@ describe('Config Validation Improvements (#124, #125)', () => {
           webhookMax: 120,
           depositMax: 60,
         },
+      },
+    });
+    expect(() => config.validate()).not.toThrow();
+  });
+
+  it('should validate watcher transactionTimeoutMs as a positive safe integer (#482)', () => {
+    for (const value of [0, -1, 1.5, NaN, Infinity, '5000' as unknown as number]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { transactionTimeoutMs: value as number },
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(
+        /transactionTimeoutMs must be a positive safe integer/,
+      );
+    }
+
+    for (const value of [1, 300000]) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          watchers: { transactionTimeoutMs: value },
+        },
+      });
+      expect(() => config.validate()).not.toThrow();
+    }
+  });
+
+  it('should validate defaultCurrency as a three-letter ISO 4217 code (#485)', () => {
+    for (const value of ['usd', 'US', 'US$', 'US D', 'U1D']) {
+      const config = new AnchorConfig({
+        ...validBaseConfig,
+        assets: {
+          ...validBaseConfig.assets,
+          defaultCurrency: value,
+        },
+      });
+      expect(() => config.validate()).toThrow(ConfigError);
+      expect(() => config.validate()).toThrow(
+        /defaultCurrency must be a three-letter uppercase ISO 4217 code/,
+      );
+    }
+
+    const config = new AnchorConfig({
+      ...validBaseConfig,
+      assets: {
+        ...validBaseConfig.assets,
+        defaultCurrency: 'USD',
       },
     });
     expect(() => config.validate()).not.toThrow();

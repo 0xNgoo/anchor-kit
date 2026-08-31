@@ -18,6 +18,14 @@ function isFinitePositiveNumber(value: unknown): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
+function isPositiveSafeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isValidIso4217CurrencyCode(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z]{3}$/.test(value);
+}
+
 function isSafePositiveInteger(value: unknown): value is number {
   return (
     typeof value === 'number' && Number.isInteger(value) && Number.isSafeInteger(value) && value > 0
@@ -117,9 +125,9 @@ function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): bool
 
   if (
     framework.watchers?.transactionTimeoutMs !== undefined &&
-    !isFinitePositiveNumber(framework.watchers.transactionTimeoutMs)
+    !isPositiveSafeInteger(framework.watchers.transactionTimeoutMs)
   ) {
-    throw new Error('framework.watchers.transactionTimeoutMs must be a finite number > 0');
+    throw new Error('framework.watchers.transactionTimeoutMs must be a positive safe integer');
   }
 
   if (
@@ -158,11 +166,8 @@ function validateFrameworkRateLimit(framework: AnchorKitConfig['framework']): bo
   for (const key of numericKeys) {
     const value = framework.rateLimit[key];
     if (value === undefined) continue;
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      throw new Error(`framework.rateLimit.${key} must be a finite number`);
-    }
-    if (value <= 0) {
-      throw new Error('framework.rateLimit values must be > 0');
+    if (!isPositiveSafeInteger(value)) {
+      throw new Error(`framework.rateLimit.${key} must be a positive safe integer`);
     }
   }
 
@@ -416,6 +421,10 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
 
   if (!assets.assets || !Array.isArray(assets.assets) || assets.assets.length === 0) {
     throw new Error('At least one asset must be configured in assets.assets');
+  }
+
+  if (assets.defaultCurrency !== undefined && !isValidIso4217CurrencyCode(assets.defaultCurrency)) {
+    throw new Error('assets.defaultCurrency must be a three-letter uppercase ISO 4217 code');
   }
 
   const seenCodes = new Set<string>();
