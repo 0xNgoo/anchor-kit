@@ -33,6 +33,9 @@ This repository now ships a usable MVP with:
 
 The SDK does not own `listen()` and does not bind network ports.
 
+See [the trusted proxy rate-limit guidance](docs/trusted-proxy-rate-limits.md)
+before enabling trustForwardedFor.
+
 ## Install
 
 ```bash
@@ -111,6 +114,9 @@ When mounting Anchor-Kit behind Express, configure `express.json()` with a `veri
 
 ## Background Job Lifecycle
 
+Plugin registration and initialization timing are documented in
+[the plugin lifecycle guide](docs/plugin-lifecycle.md).
+
 Background processing is explicit and host-controlled.
 
 1. Call `await anchor.init()` before mounting routes or starting jobs.
@@ -136,6 +142,9 @@ const databaseUrl = makeSqliteDbUrlForTests();
 ```
 
 ## Endpoints
+
+See [the auth token response contract](docs/auth-token-response.md) for expiry
+fields, bearer semantics, and cache behavior.
 
 Mounted under your chosen base path (for example `/anchor`):
 
@@ -196,6 +205,9 @@ curl -s \
 ```
 
 Use the same `Idempotency-Key` value when retrying requests to safely prevent duplicate deposits.
+
+See [the deposit idempotency contract](docs/idempotency.md) for account scoping,
+replay responses, and request conflicts.
 
 Look up a transaction by id:
 
