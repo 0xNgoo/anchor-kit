@@ -756,6 +756,10 @@ async function handleTransaction(
   sendJson(res, 200, responseData);
 }
 
+function hasPathSeparator(value: string): boolean {
+  return value.includes('/') || value.includes('\\');
+}
+
 async function handleWebhook(
   context: ExpressRouterContext,
   req: IncomingMessage,
@@ -851,6 +855,14 @@ export async function handleExpressRouterRequest(
       sendJson(res, 400, {
         error: 'invalid_request',
         message: 'Transaction id contains malformed percent-encoding',
+      });
+      return;
+    }
+
+    if (hasPathSeparator(transactionId)) {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: 'Transaction id must not contain path separators',
       });
       return;
     }
