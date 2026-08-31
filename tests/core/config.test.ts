@@ -55,7 +55,9 @@ describe('AnchorConfig', () => {
           },
         };
 
-        expect(() => new AnchorConfig(invalidConfig).validate()).toThrow(/transactionRetentionDays/);
+        expect(() => new AnchorConfig(invalidConfig).validate()).toThrow(
+          /transactionRetentionDays/,
+        );
       });
     });
 

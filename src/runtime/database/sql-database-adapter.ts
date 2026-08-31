@@ -1,4 +1,4 @@
-import { ConfigError } from '@/core/errors.ts';
+import { ConfigError, MalformedPersistedDataError } from '@/core/errors.ts';
 import type {
   AuthChallengeRecord,
   DatabaseAdapter,
