@@ -18,7 +18,10 @@ type SqliteLike = Database;
 interface PostgresClient {
   connect(): Promise<void>;
   end(): Promise<void>;
-  query<T extends Record<string, unknown>>(sql: string, values?: unknown[]): Promise<{ rows: T[] }>;
+  query<T extends Record<string, unknown>>(
+    sql: string,
+    values?: unknown[],
+  ): Promise<{ rows: T[]; rowCount?: number }>;
 }
 
 const SQLITE_FILE_PREFIX = 'file:';
@@ -322,24 +325,17 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
   public async markAuthChallengeConsumed(id: string): Promise<boolean> {
     const consumedAt = nowIso();
     if (this.sqlite) {
-      const existing = this.sqlite
-        .prepare('SELECT consumed_at FROM auth_challenges WHERE id = ? LIMIT 1')
-        .get(id) as { consumed_at: string | null } | null;
-      if (!existing || existing.consumed_at) {
-        return false;
-      }
-
       const result = this.sqlite
         .prepare('UPDATE auth_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
         .run(consumedAt, id);
       return result.changes > 0;
     }
 
-    const response = await this.requirePostgres().query<{ id: string }>(
-      'UPDATE auth_challenges SET consumed_at = $1 WHERE id = $2 AND consumed_at IS NULL RETURNING id',
+    const response = await this.requirePostgres().query(
+      'UPDATE auth_challenges SET consumed_at = $1 WHERE id = $2 AND consumed_at IS NULL',
       [consumedAt, id],
     );
-    return response.rows.length > 0;
+    return (response.rowCount ?? 0) > 0;
   }
 
   public async insertInteractiveTransaction(input: {
