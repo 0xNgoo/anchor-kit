@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/0xNgoo/anchor-kit/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)
+![Version](https://img.shields.io/badge/version-0.0.4--beta-orange.svg)
 
 **Anchor-Kit** is a developer-friendly, type-safe SDK for building Stellar Anchors. It abstracts the complexity of Stellar Ecosystem Proposals (SEPs)—specifically SEP-6, SEP-24, and SEP-31—allowing you to focus on your business logic while ensuring compliance and security.
 
@@ -32,6 +32,9 @@ This repository now ships a usable MVP with:
 - In-process queue + watcher lifecycle (`startBackgroundJobs` / `stopBackgroundJobs`)
 
 The SDK does not own `listen()` and does not bind network ports.
+
+See [the trusted proxy rate-limit guidance](docs/trusted-proxy-rate-limits.md)
+before enabling trustForwardedFor.
 
 ## Install
 
@@ -156,6 +159,9 @@ Example failure response when verification or processing fails:
 
 ## Background Job Lifecycle
 
+Plugin registration and initialization timing are documented in
+[the plugin lifecycle guide](docs/plugin-lifecycle.md).
+
 Background processing is explicit and host-controlled.
 
 1. Call `await anchor.init()` before mounting routes or starting jobs.
@@ -176,6 +182,9 @@ const databaseUrl = makeSqliteDbUrlForTests();
 
 ## Endpoints
 
+See [the auth token response contract](docs/auth-token-response.md) for expiry
+fields, bearer semantics, and cache behavior.
+
 Mounted under your chosen base path (for example `/anchor`):
 
 - `GET /health`
@@ -189,6 +198,14 @@ Mounted under your chosen base path (for example `/anchor`):
 ## curl Examples
 
 Assume your host app mounts the router at `/anchor` on `http://localhost:3000`.
+
+### Advertised anchor info
+
+Get the anchor's advertised config (network, passphrase, supported assets, version):
+
+```bash
+curl -s http://localhost:3000/anchor/info
+```
 
 ### SEP-10 challenge/token flow
 
@@ -231,8 +248,14 @@ curl -s \
   -X POST http://localhost:3000/anchor/transactions/deposit/interactive \
   -H "authorization: Bearer ${TOKEN}" \
   -H 'content-type: application/json' \
+  -H 'Idempotency-Key: your-unique-key-here' \
   -d '{"asset_code":"USDC","amount":"25"}'
 ```
+
+Use the same `Idempotency-Key` value when retrying requests to safely prevent duplicate deposits.
+
+See [the deposit idempotency contract](docs/idempotency.md) for account scoping,
+replay responses, and request conflicts.
 
 Look up a transaction by id:
 
@@ -245,11 +268,30 @@ curl -s \
   "http://localhost:3000/anchor/transactions/${TX_ID}"
 ```
 
+### Webhook events
+
+Post a webhook event to `/webhooks/events`. When signature verification is enabled, send the raw body exactly as authored and pass its HMAC-SHA256 signature in `x-anchor-signature`; set the provider in `x-webhook-provider`.
+
+```bash
+WEBHOOK_SECRET="your-configured-webhook-secret"
+BODY='{"id":"evt_123456","provider":"flutterwave","event":"deposit.completed","amount":"25"}'
+
+SIGNATURE=$(printf '%s' "${BODY}" | openssl dgst -sha256 -hmac "${WEBHOOK_SECRET}" -hex | awk '{print $NF}')
+
+curl -s \
+  -X POST http://localhost:3000/anchor/webhooks/events \
+  -H 'content-type: application/json' \
+  -H "x-webhook-provider: flutterwave" \
+  -H "x-anchor-signature: ${SIGNATURE}" \
+  -d "${BODY}"
+```
+
 ## Docs
 
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Roadmap](./ROADMAP.md)
+- [Releasing & Publishing](./docs/releasing.md)
 
 The root package also exports public TypeScript transaction helpers, including `Transaction`, `TransactionKind`, and `TransactionStatus`.
 

@@ -61,7 +61,7 @@ export interface DatabaseAdapter {
     expiresAt: string;
   }): Promise<void>;
   getAuthChallengeByChallenge(challenge: string): Promise<AuthChallengeRecord | null>;
-  markAuthChallengeConsumed(id: string): Promise<void>;
+  markAuthChallengeConsumed(id: string): Promise<boolean>;
 
   insertInteractiveTransaction(input: {
     id: string;
@@ -140,7 +140,7 @@ export interface WebhookProcessor {
     eventId: string;
     provider: string;
     payload: Record<string, unknown>;
-    rawBody: string;
+    rawBody: string | Buffer | Uint8Array;
     signature?: string;
-  }): Promise<{ duplicate: boolean; eventId: string }>;
+  }): Promise<{ duplicate: boolean; eventId: string; provider: string }>;
 }
