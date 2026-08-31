@@ -112,6 +112,51 @@ Webhook signature verification signs the exact request body bytes, so Anchor-Kit
 
 When mounting Anchor-Kit behind Express, configure `express.json()` with a `verify` hook before `anchor.getExpressRouter()` and store `req.rawBody`, as shown in the Quick Start. Verify the webhook signature before parsing, transforming, or rebuilding the body for any custom middleware.
 
+### Webhook event contract
+
+The mounted webhook endpoint accepts JSON only:
+
+- `POST /webhooks/events`
+- Required `Content-Type: application/json`
+- Request body is a JSON object, for example `{ "id": "evt_123", "provider": "stellar", "amount": "10" }`
+- Optional `x-webhook-provider` header overrides the provider value from the JSON body
+- When `security.verifyWebhookSignatures` is enabled (the default), the request must include `x-anchor-signature` and the value must match the HMAC-SHA256 of the raw request body using `security.webhookSecret`
+- If the provider does not sign payloads, set `verifyWebhookSignatures: false` in the config to accept unsigned JSON requests
+
+Example success response:
+
+```json
+{
+  "received": true,
+  "duplicate": false,
+  "event_id": "evt_123",
+  "received_at": "2026-01-01T00:00:00.000Z",
+  "provider": "stellar"
+}
+```
+
+Example duplicate response:
+
+```json
+{
+  "received": true,
+  "duplicate": true,
+  "event_id": "evt_123",
+  "received_at": "2026-01-01T00:00:00.000Z",
+  "provider": "stellar"
+}
+```
+
+Example failure response when verification or processing fails:
+
+```json
+{
+  "error": "webhook_error",
+  "message": "Webhook processing failed",
+  "event_id": "evt_123"
+}
+```
+
 ## Background Job Lifecycle
 
 Plugin registration and initialization timing are documented in
@@ -181,6 +226,15 @@ curl -s \
   -X POST http://localhost:3000/anchor/auth/token \
   -H 'content-type: application/json' \
   -d "{\"account\":\"${ACCOUNT}\",\"challenge\":\"${SIGNED_CHALLENGE_XDR}\"}"
+```
+
+If the challenge consumption step fails while persisting the token exchange state, the route responds with a generic `500` error instead of issuing a token. The stable response is:
+
+```json
+{
+  "error": "internal_server_error",
+  "message": "Internal server error"
+}
 ```
 
 ### Interactive deposit and transaction lookup

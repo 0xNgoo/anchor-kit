@@ -12,6 +12,16 @@ function deferred<T = void>() {
 }
 
 describe('InMemoryQueueAdapter', () => {
+  it('rejects invalid constructor concurrency values', () => {
+    for (const value of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => new InMemoryQueueAdapter({ concurrency: value as number })).toThrow(
+        /positive safe integer/i,
+      );
+    }
+
+    expect(() => new InMemoryQueueAdapter({ concurrency: 1 })).not.toThrow();
+  });
+
   it('should honor concurrency limits when processing jobs', async () => {
     const concurrency = 2;
     const queue = new InMemoryQueueAdapter({ concurrency });
