@@ -45,8 +45,22 @@ describe('StellarUtils', () => {
       const txId = 'this_is_a_very_long_transaction_id_that_exceeds_28_bytes';
       const memo = StellarUtils.generateMemo(txId, 'text');
       expect(memo.type).toBe('text');
-      expect(memo.value.length).toBeLessThanOrEqual(28);
+      expect(Buffer.byteLength(memo.value, 'utf8')).toBeLessThanOrEqual(28);
       expect(memo.value).toBe(txId.substring(0, 28));
+    });
+
+    it('should truncate text memos at a UTF-8 byte boundary', () => {
+      const memo = StellarUtils.generateMemo('😀'.repeat(10), 'text');
+
+      expect(memo.value).toBe('😀'.repeat(7));
+      expect(Buffer.byteLength(memo.value, 'utf8')).toBe(28);
+    });
+
+    it('should preserve combining characters without exceeding the byte limit', () => {
+      const memo = StellarUtils.generateMemo('e\u0301'.repeat(10), 'text');
+
+      expect(Buffer.byteLength(memo.value, 'utf8')).toBeLessThanOrEqual(28);
+      expect(memo.value).not.toMatch(/\uD800|\uDC00/);
     });
   });
 

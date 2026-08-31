@@ -63,11 +63,9 @@ export const StellarUtils = {
         type: 'hash',
       };
     }
-    // Text memo is strictly limited to 28 bytes.
-    // If using a UUID string, we must truncate, but 28 chars of a UUID v4
-    // still provides sufficient uniqueness (> 10^30 combinations).
+    // Text memos are limited to 28 UTF-8 bytes, not JavaScript UTF-16 code units.
     return {
-      value: transactionId.substring(0, 28),
+      value: truncateUtf8(transactionId, 28),
       type: 'text',
     };
   },
@@ -192,4 +190,18 @@ export const StellarUtils = {
 
 function isValidPaymentAccountAddress(address: string): boolean {
   return StrKey.isValidEd25519PublicKey(address) || StrKey.isValidMed25519PublicKey(address);
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  let result = '';
+  let byteLength = 0;
+
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character, 'utf8');
+    if (byteLength + characterBytes > maxBytes) break;
+    result += character;
+    byteLength += characterBytes;
+  }
+
+  return result;
 }
