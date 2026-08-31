@@ -106,27 +106,17 @@ export class AnchorInstance {
           webhookProcessor: this.webhookProcessor,
         }).getMiddleware();
 
+        this.initialized = true;
+
         for (const plugin of this.plugins.values()) {
           if (plugin.init) {
             await plugin.init(this);
           }
         }
-
-        this.initialized = true;
       } catch (error) {
-        this.initialized = false;
-        this.backgroundJobsRunning = false;
-        this.watchers = [];
-        this.expressRouter = null;
-        this.webhookProcessor = null;
-        this.queue = null;
-
-        if (this.database) {
-          await this.database.disconnect().catch(() => undefined);
-          this.database = null;
-        }
-
-        throw error;
+        const originalError = error instanceof Error ? error : new Error(String(error));
+        await this.rollbackInitialization();
+        throw originalError;
       } finally {
         this.initPromise = null;
       }
@@ -228,6 +218,24 @@ export class AnchorInstance {
     return this.requireDatabase().countProcessedWatcherTasks();
   }
 
+  private async rollbackInitialization(): Promise<void> {
+    if (this.backgroundJobsRunning || this.initialized) {
+      await this.stopBackgroundJobs();
+    }
+
+    if (this.database) {
+      await this.database.disconnect().catch(() => undefined);
+    }
+
+    this.initialized = false;
+    this.backgroundJobsRunning = false;
+    this.database = null;
+    this.queue = null;
+    this.webhookProcessor = null;
+    this.watchers = [];
+    this.expressRouter = null;
+  }
+
   private ensureInitialized(): void {
     if (!this.initialized) {
       throw new ConfigError('Anchor is not initialized. Call init() first.');
@@ -285,6 +293,8 @@ export class AnchorInstance {
       await database.cleanupOldRecords(cutoffIso);
       return;
     }
+
+    throw new Error(`Unknown queue job type: ${String(job.type)}`);
   }
 }
 
