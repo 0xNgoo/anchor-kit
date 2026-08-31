@@ -8,6 +8,7 @@ import type {
   WebhookEventRecord,
 } from '@/runtime/interfaces.ts';
 import type { FrameworkConfig } from '@/types/config.ts';
+import { isTransactionStatus, type TransactionStatus } from '@/types/transaction-status.ts';
 import { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -344,7 +345,7 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     kind: 'deposit';
     assetCode: string;
     amount: string;
-    status: string;
+    status: TransactionStatus;
   }): Promise<InteractiveTransactionRecord> {
     const createdAt = nowIso();
     const updatedAt = createdAt;
@@ -433,7 +434,7 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     return response.rows.map((row) => this.mapTransactionRow(row));
   }
 
-  public async updateTransactionStatus(id: string, status: string): Promise<boolean> {
+  public async updateTransactionStatus(id: string, status: TransactionStatus): Promise<boolean> {
     const updatedAt = nowIso();
     if (this.sqlite) {
       const result = this.sqlite
@@ -751,13 +752,18 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
   }
 
   private mapTransactionRow(row: Record<string, unknown>): InteractiveTransactionRecord {
+    const status = String(row.status);
+    if (!isTransactionStatus(status)) {
+      throw new ConfigError(`Unsupported interactive transaction status: ${status}`);
+    }
+
     return {
       id: String(row.id),
       account: String(row.account),
       kind: 'deposit',
       assetCode: String(row.asset_code),
       amount: String(row.amount),
-      status: String(row.status),
+      status,
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
     };

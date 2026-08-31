@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { version } from '../package.json';
+import type { DatabaseAdapter } from '@/runtime/interfaces.ts';
 
 interface TestResponse {
   status: number;
@@ -199,13 +200,15 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body).toEqual({ error: 'not_found', message: 'Endpoint not found' });
   });
 
-  it('1b) wrong HTTP method on supported path returns 404', async () => {
+  it('1b) wrong HTTP method on supported path returns 405 with Allow header', async () => {
     const response = await invoke({
       method: 'POST',
       path: '/health',
     });
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(405);
+    expect(response.body.error).toBe('method_not_allowed');
+    expect(response.headers['allow']).toBe('GET');
   });
   it('2) /info returns configured assets and package version', async () => {
     const response = await invoke({ path: '/info' });
@@ -455,6 +458,17 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.message).toBe('Query param account is required');
   });
 
+  it('3a) /auth/challenge trims padded account identifiers', async () => {
+    const paddedAccount = `  ${clientKeypair.publicKey()}  `;
+    const response = await invoke({
+      path: `/auth/challenge?account=${encodeURIComponent(paddedAccount)}`,
+      headers: { 'x-forwarded-for': '10.0.0.9' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.challenge).toBeTypeOf('string');
+  });
+
   it('3) challenge -> token happy path', async () => {
     const account = clientKeypair.publicKey();
     const challengeResponse = await invoke({
@@ -582,12 +596,13 @@ describe('MVP Express-mounted integration', () => {
     expect(challengeResponse.body.error).toBe('invalid_request');
   });
 
-  it('3a) auth token response echoes the validated account', async () => {
+  it('3b) auth token trims padded account identifiers consistently', async () => {
     const account = clientKeypair.publicKey();
     const challengeResponse = await invoke({
       path: `/auth/challenge?account=${account}`,
-      headers: { 'x-forwarded-for': '10.0.0.11' },
+      headers: { 'x-forwarded-for': '10.0.0.7' },
     });
+
     expect(challengeResponse.status).toBe(200);
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
@@ -597,14 +612,49 @@ describe('MVP Express-mounted integration', () => {
     const tokenResponse = await invoke({
       method: 'POST',
       path: '/auth/token',
-      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.11' },
-      body: { account, challenge: challengeTx.toXDR() },
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.7' },
+      body: { account: `  ${account}  `, challenge: challengeTx.toXDR() },
     });
 
     expect(tokenResponse.status).toBe(200);
     expect(tokenResponse.body.account).toBe(account);
     expect(tokenResponse.body.token_type).toBe('Bearer');
     expect(tokenResponse.body.expires_in).toBe(3600);
+    expect(tokenResponse.body.token).toBeTypeOf('string');
+  });
+
+  it('10f) bearer token signed with RS256 is rejected', async () => {
+    const { generateKeyPairSync } = await import('node:crypto');
+    const jwt = (await import('jsonwebtoken')).default;
+    const { privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    const badToken = jwt.sign(
+      {
+        sub: clientKeypair.publicKey(),
+        scope: 'anchor_api',
+        typ: 'access_token',
+      },
+      privateKey,
+      { algorithm: 'RS256', expiresIn: 3600 },
+    );
+
+    const response = await invoke({
+      method: 'POST',
+      path: '/transactions/deposit/interactive',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${badToken}`,
+      },
+      body: { asset_code: 'USDC', amount: '10' },
+    });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('unauthorized');
+    expect(response.body.message).toBe('Missing or invalid bearer token');
   });
 
   it('3b) auth token with custom TTL returns correct expires_in', async () => {
@@ -2254,7 +2304,6 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge transaction is invalid');
   });
-
   it('10d) challenge with a different transaction source is rejected', async () => {
     const account = clientKeypair.publicKey();
     const wrongServerKeypair = Keypair.random();
@@ -2286,7 +2335,6 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge source account mismatch');
   });
-
   it('10cb) challenge without anchor signature is rejected', async () => {
     const account = clientKeypair.publicKey();
     const challengeResponse = await invoke({
@@ -2296,20 +2344,65 @@ describe('MVP Express-mounted integration', () => {
     expect(challengeResponse.status).toBe(200);
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
-    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
-    challengeTx.signatures.splice(0, challengeTx.signatures.length);
-    challengeTx.sign(clientKeypair);
 
-    const tokenResponse = await invoke({
+    const missingAnchorSignatureChallenge = new Transaction(challengeXdr, networkPassphrase);
+    missingAnchorSignatureChallenge.signatures.splice(
+      0,
+      missingAnchorSignatureChallenge.signatures.length,
+    );
+    missingAnchorSignatureChallenge.sign(clientKeypair);
+
+    const missingAnchorSignatureResponse = await invoke({
       method: 'POST',
       path: '/auth/token',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.13' },
-      body: { account, challenge: challengeTx.toXDR() },
+      body: { account, challenge: missingAnchorSignatureChallenge.toXDR() },
     });
 
-    expect(tokenResponse.status).toBe(401);
-    expect(tokenResponse.body.error).toBe('invalid_challenge');
-    expect(tokenResponse.body.message).toBe('Challenge is missing anchor signature');
+    expect(missingAnchorSignatureResponse.status).toBe(401);
+    expect(missingAnchorSignatureResponse.body.error).toBe('invalid_challenge');
+    expect(missingAnchorSignatureResponse.body.message).toBe(
+      'Challenge is missing anchor signature',
+    );
+  });
+
+  it('10e) persistence failure during auth token exchange returns a stable 500', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.13' },
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+
+    const databaseDescriptor = Object.getOwnPropertyDescriptor(anchor, 'database');
+    if (!databaseDescriptor || !(databaseDescriptor.value as DatabaseAdapter | null)) {
+      throw new Error('Expected initialized database adapter');
+    }
+    const database = databaseDescriptor.value as DatabaseAdapter;
+    const originalMark = database.markAuthChallengeConsumed.bind(database);
+    database.markAuthChallengeConsumed = async () => {
+      throw new Error('database unavailable');
+    };
+
+    try {
+      const tokenResponse = await invoke({
+        method: 'POST',
+        path: '/auth/token',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.13' },
+        body: { account, challenge: challengeTx.toXDR() },
+      });
+
+      expect(tokenResponse.status).toBe(500);
+      expect(tokenResponse.body.error).toBe('server_error');
+      expect(tokenResponse.body.message).toBe('Failed to record challenge consumption');
+      expect(tokenResponse.body).not.toHaveProperty('token');
+    } finally {
+      database.markAuthChallengeConsumed = originalMark;
+    }
   });
 
   it('11) reused challenge rejection', async () => {
@@ -2836,6 +2929,7 @@ describe('MVP Express-mounted integration', () => {
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${accessToken}`,
+        'x-forwarded-for': '10.0.0.163',
       },
       body: { asset_code: 'USDC', amount: 'abc' },
     });
