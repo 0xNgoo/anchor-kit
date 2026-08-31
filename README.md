@@ -111,6 +111,9 @@ When mounting Anchor-Kit behind Express, configure `express.json()` with a `veri
 
 ## Background Job Lifecycle
 
+Plugin registration and initialization timing are documented in
+[the plugin lifecycle guide](docs/plugin-lifecycle.md).
+
 Background processing is explicit and host-controlled.
 
 1. Call `await anchor.init()` before mounting routes or starting jobs.
