@@ -131,6 +131,9 @@ const databaseUrl = makeSqliteDbUrlForTests();
 
 ## Endpoints
 
+See [the auth token response contract](docs/auth-token-response.md) for expiry
+fields, bearer semantics, and cache behavior.
+
 Mounted under your chosen base path (for example `/anchor`):
 
 - `GET /health`
