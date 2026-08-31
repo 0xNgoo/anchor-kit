@@ -1,6 +1,6 @@
 import type { DatabaseAdapter, QueueAdapter } from '@/runtime/interfaces.ts';
 import { TransactionWatcher } from '@/runtime/watchers/transaction-watcher.ts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 describe('TransactionWatcher Unit Tests', () => {
   let mockDatabase: DatabaseAdapter;
@@ -245,8 +245,7 @@ describe('TransactionWatcher Unit Tests', () => {
     // Should have called multiple times despite the second call failing
     // Timing can vary across environments; accept at least 4 calls
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalled();
-    const callCount = (mockDatabase.listPendingTransactionsBefore as unknown as vi.Mock).mock
-      .calls.length;
+    const callCount = (mockDatabase.listPendingTransactionsBefore as Mock).mock.calls.length;
     expect(callCount).toBeGreaterThanOrEqual(4);
   });
 

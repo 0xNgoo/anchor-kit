@@ -40,10 +40,14 @@ class BunSqliteDatabase {
   query(sql: string, params?: unknown[]): unknown {
     const stmt = this.db.prepare(sql);
     const wrapper = {
-      all: (...p: unknown[]) => (p && p.length > 0 ? (stmt.all(...p) as Row[]) : (stmt.all() as Row[])),
+      all: (...p: unknown[]) =>
+        p && p.length > 0 ? (stmt.all(...p) as Row[]) : (stmt.all() as Row[]),
       get: (...p: unknown[]) => (p && p.length > 0 ? (stmt.get(...p) as Row) : (stmt.get() as Row)),
       [Symbol.iterator]: function* () {
-        const rows = params && params.length > 0 ? (stmt.all(...(params as unknown[])) as Row[]) : (stmt.all() as Row[]);
+        const rows =
+          params && params.length > 0
+            ? (stmt.all(...(params as unknown[])) as Row[])
+            : (stmt.all() as Row[]);
         for (const r of rows) yield r;
       },
     };
