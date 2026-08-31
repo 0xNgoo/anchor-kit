@@ -131,9 +131,6 @@ const databaseUrl = makeSqliteDbUrlForTests();
 
 ## Endpoints
 
-See [the deposit idempotency contract](docs/idempotency.md) for account
-scoping, replay responses, and request conflicts.
-
 Mounted under your chosen base path (for example `/anchor`):
 
 - `GET /health`
@@ -193,6 +190,9 @@ curl -s \
 ```
 
 Use the same `Idempotency-Key` value when retrying requests to safely prevent duplicate deposits.
+
+See [the deposit idempotency contract](docs/idempotency.md) for account scoping,
+replay responses, and request conflicts.
 
 Look up a transaction by id:
 
