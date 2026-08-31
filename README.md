@@ -197,6 +197,9 @@ curl -s \
 
 Use the same `Idempotency-Key` value when retrying requests to safely prevent duplicate deposits.
 
+See [the deposit idempotency contract](docs/idempotency.md) for account scoping,
+replay responses, and request conflicts.
+
 Look up a transaction by id:
 
 ```bash
