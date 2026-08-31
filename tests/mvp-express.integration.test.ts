@@ -1851,6 +1851,80 @@ describe('MVP Express-mounted integration', () => {
     expect(Number.isNaN(parsed)).toBe(false);
   });
 
+  it('8g) chunked oversized webhook body returns 413 payload_too_large', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: {},
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-webhook-oversize',
+        distributionAccountSecret: 'distribution-test-secret',
+        webhookSecret: 'webhook-test-secret',
+        verifyWebhookSignatures: true,
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: customDbUrl },
+        http: { maxBodyBytes: 1024 },
+      },
+      webhooks: {
+        onEvent: async () => {
+          throw new Error('should not be called for oversized body');
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    try {
+      // Create a payload larger than the configured maxBodyBytes (1024 bytes)
+      const largePayload = {
+        id: 'evt_oversized',
+        type: 'deposit.completed',
+        data: 'x'.repeat(2000),
+      };
+      const payloadText = JSON.stringify(largePayload);
+      const signature = createHmac('sha256', 'webhook-test-secret')
+        .update(payloadText)
+        .digest('hex');
+
+      const response = await customInvoke({
+        method: 'POST',
+        path: '/webhooks/events',
+        headers: {
+          'content-type': 'application/json',
+          'x-webhook-provider': 'generic',
+          'x-anchor-signature': signature,
+        },
+        rawBody: Buffer.from(payloadText),
+      });
+
+      // The body should be rejected at the byte limit before JSON parsing
+      expect(response.status).toBe(413);
+      expect(response.body.error).toBe('payload_too_large');
+      expect(response.body.message).toBe('Request body too large. Max 1024 bytes');
+    } finally {
+      await customAnchor.shutdown();
+      try {
+        unlinkSync(customDbPath);
+      } catch {
+        // ignore cleanup errors in CI
+      }
+    }
+  });
+
   it('8f) failed webhook error response includes event_id', async () => {
     const customDbUrl = makeSqliteDbUrlForTests();
     const customAnchor = createAnchor({
