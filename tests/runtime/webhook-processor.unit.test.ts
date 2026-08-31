@@ -109,8 +109,9 @@ describe('DefaultWebhookProcessor Unit Tests', () => {
       createdAt: new Date().toISOString(),
     };
 
-    const mockDatabase = {
-      insertOrGetWebhookEvent: vi.fn().mockResolvedValueOnce({
+    const insertOrGetWebhookEvent = vi
+      .fn<DatabaseAdapter['insertOrGetWebhookEvent']>()
+      .mockResolvedValueOnce({
         inserted: true,
         record: {
           ...failingRecord,
@@ -119,7 +120,9 @@ describe('DefaultWebhookProcessor Unit Tests', () => {
           processedAt: null,
           payload: { type: 'retry' },
         },
-      }),
+      });
+    const mockDatabase = {
+      insertOrGetWebhookEvent,
       updateWebhookEventStatus: vi.fn().mockResolvedValue(undefined),
     } as unknown as DatabaseAdapter;
 
@@ -147,7 +150,7 @@ describe('DefaultWebhookProcessor Unit Tests', () => {
       status: 'processed',
     });
 
-    mockDatabase.insertOrGetWebhookEvent.mockResolvedValueOnce({
+    insertOrGetWebhookEvent.mockResolvedValueOnce({
       inserted: false,
       record: {
         ...failingRecord,
