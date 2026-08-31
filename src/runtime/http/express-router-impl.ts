@@ -55,6 +55,16 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(JSON.stringify(body));
 }
 
+function sendMethodNotAllowed(res: ServerResponse, allowedMethods: string[]): void {
+  if (!res.headersSent) {
+    res.setHeader('Allow', allowedMethods.join(', '));
+  }
+  sendJson(res, 405, {
+    error: 'method_not_allowed',
+    message: 'Method not allowed',
+  });
+}
+
 function sendJsonUnauthorized(res: ServerResponse, body: Record<string, unknown>): void {
   if (!res.headersSent) {
     res.statusCode = 401;
@@ -255,10 +265,9 @@ function authenticate(
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(
-      token,
-      context.config.get('security').interactiveJwtSecret,
-    ) as jwt.JwtPayload;
+    const decoded = jwt.verify(token, context.config.get('security').interactiveJwtSecret, {
+      algorithms: ['HS256'],
+    }) as jwt.JwtPayload;
     const account = typeof decoded.sub === 'string' ? decoded.sub : null;
     const scope = typeof decoded.scope === 'string' ? decoded.scope : null;
     const typ = typeof decoded.typ === 'string' ? decoded.typ : null;
@@ -343,7 +352,8 @@ async function handleAuthChallenge(
     return;
   }
 
-  const account = parseUrl(req).searchParams.get('account');
+  // Accept canonical Stellar public keys and treat surrounding whitespace as non-semantic.
+  const account = parseUrl(req).searchParams.get('account')?.trim() ?? '';
   if (!account) {
     sendJson(res, 400, {
       error: 'invalid_request',
@@ -416,7 +426,7 @@ async function handleAuthToken(
     return;
   }
 
-  const account = typeof parsedBody.body.account === 'string' ? parsedBody.body.account : '';
+  const account = typeof parsedBody.body.account === 'string' ? parsedBody.body.account.trim() : '';
   const signedChallenge =
     typeof parsedBody.body.challenge === 'string' ? parsedBody.body.challenge : '';
   if (!account || !signedChallenge) {
@@ -765,6 +775,23 @@ async function handleTransaction(
   sendJson(res, 200, responseData);
 }
 
+const MAX_PROVIDER_IDENTIFIER_LENGTH = 64;
+
+function normalizeProviderIdentifier(value: unknown): string | null {
+  const normalized = firstNonEmptyString(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length > MAX_PROVIDER_IDENTIFIER_LENGTH) {
+    throw new ValidationError(
+      `Webhook provider identifier must be ${MAX_PROVIDER_IDENTIFIER_LENGTH} characters or fewer`,
+    );
+  }
+
+  return normalized;
+}
+
 function hasPathSeparator(value: string): boolean {
   return value.includes('/') || value.includes('\\');
 }
@@ -784,15 +811,31 @@ async function handleWebhook(
   }
 
   const { rawBody, body: payload } = parsedBody;
+  let provider: string;
+
+  try {
+    const providerHeader = req.headers['x-webhook-provider'];
+    const providerBody = payload.provider;
+    provider =
+      normalizeProviderIdentifier(providerHeader) ??
+      normalizeProviderIdentifier(providerBody) ??
+      'generic';
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: error.message,
+      });
+      return;
+    }
+    throw error;
+  }
+
   const eventIdField = payload.id;
   const eventId =
     typeof eventIdField === 'string' && eventIdField.trim().length > 0
       ? eventIdField
       : randomUUID();
-  const providerHeader = req.headers['x-webhook-provider'];
-  const providerBody = payload.provider;
-  const provider =
-    firstNonEmptyString(providerHeader) ?? firstNonEmptyString(providerBody) ?? 'generic';
   const signatureHeader = req.headers['x-anchor-signature'];
   const signature = firstNonEmptyString(signatureHeader);
 
@@ -819,6 +862,24 @@ async function handleWebhook(
       event_id: eventId,
     });
   }
+}
+
+const TRANSACTION_PATH_RE = /^\/transactions\/([^/]+)$/;
+
+const KNOWN_ROUTES: Record<string, string[]> = {
+  '/health': ['GET'],
+  '/info': ['GET'],
+  '/auth/challenge': ['GET'],
+  '/auth/token': ['POST'],
+  '/transactions/deposit/interactive': ['POST'],
+  '/webhooks/events': ['POST'],
+};
+
+function getAllowedMethods(path: string): string[] | null {
+  const exactMatch = KNOWN_ROUTES[path];
+  if (exactMatch) return exactMatch;
+  if (TRANSACTION_PATH_RE.test(path)) return ['GET'];
+  return null;
 }
 
 export async function handleExpressRouterRequest(
@@ -854,7 +915,7 @@ export async function handleExpressRouterRequest(
     return;
   }
 
-  const transactionMatch = /^\/transactions\/([^/]+)$/.exec(path);
+  const transactionMatch = TRANSACTION_PATH_RE.exec(path);
   if (method === 'GET' && transactionMatch) {
     const transactionIdRaw = transactionMatch[1];
     let transactionId: string;
@@ -882,6 +943,12 @@ export async function handleExpressRouterRequest(
 
   if (method === 'POST' && path === '/webhooks/events') {
     await handleWebhook(context, req, res);
+    return;
+  }
+
+  const allowedMethods = getAllowedMethods(path);
+  if (allowedMethods) {
+    sendMethodNotAllowed(res, allowedMethods);
     return;
   }
 
