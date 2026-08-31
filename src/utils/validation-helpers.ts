@@ -1,4 +1,5 @@
 import type { AnchorKitConfig, Asset, NetworkConfig, SecurityConfig } from '@/types/config.ts';
+import { StrKey } from '@stellar/stellar-sdk';
 import DOMPurify from 'isomorphic-dompurify';
 import type { ServerConfig } from '../types/config.ts';
 
@@ -15,6 +16,12 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isFinitePositiveNumber(value: unknown): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function isSafePositiveInteger(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && Number.isSafeInteger(value) && value > 0
+  );
 }
 
 function isValidUrlString(url: string): boolean {
@@ -271,8 +278,9 @@ export const ValidationUtils = {
 
   isValidStellarAddress(address: string): boolean {
     if (!address || typeof address !== 'string') return false;
-    if (!/^G[A-Z2-7]{55}$/.test(address)) return false;
-    return true;
+    // The shape regex alone lets 56-character values with an invalid StrKey
+    // checksum through, so verify the checksum via the Stellar SDK as well.
+    return StrKey.isValidEd25519PublicKey(address);
   },
 
   isValidDatabaseUrl(urlString: string): boolean {
@@ -336,19 +344,15 @@ export const SecurityConfigSchema = {
       throw new Error('Missing required secret: security.distributionAccountSecret');
     if (
       config.challengeExpirationSeconds !== undefined &&
-      (typeof config.challengeExpirationSeconds !== 'number' ||
-        !Number.isFinite(config.challengeExpirationSeconds) ||
-        config.challengeExpirationSeconds <= 0)
+      !isSafePositiveInteger(config.challengeExpirationSeconds)
     ) {
-      throw new Error('security.challengeExpirationSeconds must be > 0');
+      throw new Error('security.challengeExpirationSeconds must be a safe positive integer');
     }
     if (
       config.authTokenLifetimeSeconds !== undefined &&
-      (typeof config.authTokenLifetimeSeconds !== 'number' ||
-        !Number.isFinite(config.authTokenLifetimeSeconds) ||
-        config.authTokenLifetimeSeconds <= 0)
+      !isSafePositiveInteger(config.authTokenLifetimeSeconds)
     ) {
-      throw new Error('security.authTokenLifetimeSeconds must be > 0');
+      throw new Error('security.authTokenLifetimeSeconds must be a safe positive integer');
     }
   },
 };

@@ -272,6 +272,19 @@ describe('AnchorConfig', () => {
       expect(() => config.validate()).not.toThrow();
     });
 
+    it('should accept valid challenge lifetime', () => {
+      const configWithChallengeTtl: AnchorKitConfig = {
+        ...validBaseConfig,
+        security: {
+          ...validBaseConfig.security,
+          challengeExpirationSeconds: 300,
+        },
+      };
+      const config = new AnchorConfig(configWithChallengeTtl);
+      expect(() => config.validate()).not.toThrow();
+      expect(config.get('security').challengeExpirationSeconds).toBe(300);
+    });
+
     it('should accept valid auth token lifetime', () => {
       const configWithTtl: AnchorKitConfig = {
         ...validBaseConfig,
@@ -290,30 +303,30 @@ describe('AnchorConfig', () => {
       expect(config.get('security').authTokenLifetimeSeconds).toBeUndefined();
     });
 
-    it('should reject invalid auth token lifetime (zero)', () => {
+    it.each([
+      ['challengeExpirationSeconds', 0],
+      ['challengeExpirationSeconds', -100],
+      ['challengeExpirationSeconds', 1.5],
+      ['challengeExpirationSeconds', Number.MAX_SAFE_INTEGER + 1],
+      ['challengeExpirationSeconds', Number.NaN],
+      ['challengeExpirationSeconds', Number.POSITIVE_INFINITY],
+      ['authTokenLifetimeSeconds', 0],
+      ['authTokenLifetimeSeconds', -100],
+      ['authTokenLifetimeSeconds', 1.5],
+      ['authTokenLifetimeSeconds', Number.MAX_SAFE_INTEGER + 1],
+      ['authTokenLifetimeSeconds', Number.NaN],
+      ['authTokenLifetimeSeconds', Number.POSITIVE_INFINITY],
+    ])('should reject invalid %s lifetime value %p', (key, value) => {
       const invalidConfig: AnchorKitConfig = {
         ...validBaseConfig,
         security: {
           ...validBaseConfig.security,
-          authTokenLifetimeSeconds: 0,
+          [key]: value,
         },
       };
       const config = new AnchorConfig(invalidConfig);
       expect(() => config.validate()).toThrow(ConfigError);
-      expect(() => config.validate()).toThrow(/authTokenLifetimeSeconds must be > 0/);
-    });
-
-    it('should reject invalid auth token lifetime (negative)', () => {
-      const invalidConfig: AnchorKitConfig = {
-        ...validBaseConfig,
-        security: {
-          ...validBaseConfig.security,
-          authTokenLifetimeSeconds: -100,
-        },
-      };
-      const config = new AnchorConfig(invalidConfig);
-      expect(() => config.validate()).toThrow(ConfigError);
-      expect(() => config.validate()).toThrow(/authTokenLifetimeSeconds must be > 0/);
+      expect(() => config.validate()).toThrow(/must be a safe positive integer/);
     });
 
     describe('operational supportEmail validation', () => {
