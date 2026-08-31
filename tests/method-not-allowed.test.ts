@@ -108,7 +108,7 @@ describe('HTTP Method Not Allowed (405) with Allow header', () => {
       framework: {
         database: {
           provider: 'sqlite',
-          url: makeSqliteDbUrlForTests(dbPath),
+          url: makeSqliteDbUrlForTests(),
         },
         queue: {
           backend: 'memory',
