@@ -45,8 +45,22 @@ describe('StellarUtils', () => {
       const txId = 'this_is_a_very_long_transaction_id_that_exceeds_28_bytes';
       const memo = StellarUtils.generateMemo(txId, 'text');
       expect(memo.type).toBe('text');
-      expect(memo.value.length).toBeLessThanOrEqual(28);
+      expect(Buffer.byteLength(memo.value, 'utf8')).toBeLessThanOrEqual(28);
       expect(memo.value).toBe(txId.substring(0, 28));
+    });
+
+    it('should truncate text memos at a UTF-8 byte boundary', () => {
+      const memo = StellarUtils.generateMemo('😀'.repeat(10), 'text');
+
+      expect(memo.value).toBe('😀'.repeat(7));
+      expect(Buffer.byteLength(memo.value, 'utf8')).toBe(28);
+    });
+
+    it('should preserve combining characters without exceeding the byte limit', () => {
+      const memo = StellarUtils.generateMemo('e\u0301'.repeat(10), 'text');
+
+      expect(Buffer.byteLength(memo.value, 'utf8')).toBeLessThanOrEqual(28);
+      expect(memo.value).not.toMatch(/\uD800|\uDC00/);
     });
   });
 
@@ -120,6 +134,19 @@ describe('StellarUtils', () => {
       ).resolves.toBeTypeOf('string');
     });
 
+    it.each(['xlm', 'Xlm', ' XLM '])('should treat %s as the native asset', async (assetCode) => {
+      const xdr = await StellarUtils.buildPaymentXdr({
+        source: validAccountId,
+        destination: validAccountId,
+        amount: '1.5',
+        assetCode,
+        network: 'testnet',
+      });
+
+      const operation = asPaymentOperation(StellarUtils.parseXdrTransaction(xdr).operations[0]);
+      expect(operation.asset?.isNative()).toBe(true);
+    });
+
     it('should preserve an id memo', async () => {
       const params = {
         source: validAccountId,
@@ -175,6 +202,23 @@ describe('StellarUtils', () => {
       const parsedHex = Buffer.from(tx.memo.value as Buffer).toString('hex');
       expect(parsedHex).toBe(returnValue);
     });
+
+    it.each(['hash', 'return'] as const)(
+      'should reject malformed %s memo payloads before building',
+      async (type) => {
+        await expect(
+          StellarUtils.buildPaymentXdr({
+            source: validAccountId,
+            destination: validAccountId,
+            amount: '5',
+            assetCode: 'USDC',
+            issuer: validAccountId,
+            memo: { value: 'not-a-32-byte-hex-value', type },
+            network: 'testnet',
+          }),
+        ).rejects.toThrow(type + ' memo must be exactly 32 bytes');
+      },
+    );
 
     it('should fail early for an invalid source public key', async () => {
       await expect(
@@ -276,6 +320,18 @@ describe('StellarUtils', () => {
       expect(tx.networkPassphrase).toBe(Networks.PUBLIC);
       expect(tx.source).toBe(params.source);
       expect(tx.operations.length).toBe(1);
+    });
+
+    it('should reject unsupported network values instead of falling back to testnet', async () => {
+      await expect(
+        StellarUtils.buildPaymentXdr({
+          source: validAccountId,
+          destination: validAccountId,
+          amount: '1',
+          assetCode: 'XLM',
+          network: 'unknown-network',
+        }),
+      ).rejects.toThrow('Unsupported network: unknown-network');
     });
   });
 });
