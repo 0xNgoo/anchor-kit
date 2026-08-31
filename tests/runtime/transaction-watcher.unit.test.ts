@@ -1,6 +1,6 @@
 import type { DatabaseAdapter, QueueAdapter } from '@/runtime/interfaces.ts';
 import { TransactionWatcher } from '@/runtime/watchers/transaction-watcher.ts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 describe('TransactionWatcher Unit Tests', () => {
   let mockDatabase: DatabaseAdapter;
@@ -244,7 +244,9 @@ describe('TransactionWatcher Unit Tests', () => {
 
     // Should have called multiple times despite the second call failing
     // Timing can vary between environments; assert we polled multiple times.
-    expect(mockDatabase.listPendingTransactionsBefore.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(
+      (mockDatabase.listPendingTransactionsBefore as Mock).mock.calls.length,
+    ).toBeGreaterThanOrEqual(3);
   });
 
   it('enqueues a cleanup_records job with the configured retention days', async () => {

@@ -63,7 +63,12 @@ export const DecimalUtils = {
    * @returns Quotient as string.
    */
   divide(a: string, b: string, precision: number = 7): string {
-    if (typeof precision !== 'number' || !Number.isFinite(precision) || !Number.isSafeInteger(precision) || precision < 0) {
+    if (
+      typeof precision !== 'number' ||
+      !Number.isFinite(precision) ||
+      !Number.isSafeInteger(precision) ||
+      precision < 0
+    ) {
       throw new ValidationError('precision must be a non-negative safe integer');
     }
 
@@ -79,7 +84,11 @@ export const DecimalUtils = {
    * @returns Total amount including fee as string.
    */
   applyFee(amount: string, feePercentage: number): string {
-    if (typeof feePercentage !== 'number' || !Number.isFinite(feePercentage) || Number.isNaN(feePercentage)) {
+    if (
+      typeof feePercentage !== 'number' ||
+      !Number.isFinite(feePercentage) ||
+      Number.isNaN(feePercentage)
+    ) {
       throw new ValidationError('feePercentage must be a finite number');
     }
 

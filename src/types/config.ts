@@ -639,13 +639,13 @@ export interface AnchorKitConfig {
 /**
  * Deep readonly utility type to reflect runtime deep-freeze behavior.
  */
-export type DeepReadonly<T> = T extends Function
+export type DeepReadonly<T> = T extends (...args: never[]) => unknown
   ? T
   : T extends Array<infer U>
-  ? ReadonlyArray<DeepReadonly<U>>
-  : T extends object
-  ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
-  : T;
+    ? ReadonlyArray<DeepReadonly<U>>
+    : T extends object
+      ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+      : T;
 
 /**
  * Snapshot type returned by `AnchorConfig.getConfig()` — deeply readonly.

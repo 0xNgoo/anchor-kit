@@ -9,7 +9,7 @@ import { mergeAnchorConfigWithDefaults } from './config-defaults.ts';
  * Central configuration manager for the Anchor-Kit SDK.
  */
 export class AnchorConfig {
-  private config: AnchorKitConfigSnapshot;
+  private config: AnchorKitConfig;
 
   constructor(config: Partial<AnchorKitConfig>) {
     const merged = mergeAnchorConfigWithDefaults(config || {});
