@@ -14,7 +14,7 @@ describe('TransactionWatcher Unit Tests', () => {
       migrate: vi.fn().mockResolvedValue(undefined),
       insertAuthChallenge: vi.fn().mockResolvedValue(undefined),
       getAuthChallengeByChallenge: vi.fn().mockResolvedValue(null),
-      markAuthChallengeConsumed: vi.fn().mockResolvedValue(undefined),
+      markAuthChallengeConsumed: vi.fn().mockResolvedValue(true),
       insertInteractiveTransaction: vi.fn().mockResolvedValue({
         id: 'test-tx-id',
         account: 'test-account',
@@ -215,6 +215,35 @@ describe('TransactionWatcher Unit Tests', () => {
 
     // Database should only be called once because the second tick should have returned early
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues polling after a scheduled tick rejects', async () => {
+    let calls = 0;
+    mockDatabase.listPendingTransactionsBefore = vi.fn().mockImplementation(async () => {
+      calls += 1;
+      if (calls === 2) {
+        throw new Error('db failure');
+      }
+
+      return [];
+    });
+
+    // Use a very short poll interval for testing
+    const shortIntervalWatcher = new TransactionWatcher(mockDatabase, mockQueue, {
+      pollIntervalMs: 10,
+      transactionTimeoutMs: 300000,
+      retentionDays: 30,
+    });
+
+    await shortIntervalWatcher.start();
+
+    // Wait for multiple polling cycles to occur
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    await shortIntervalWatcher.stop();
+
+    // Should have called multiple times despite the second call failing
+    expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalledTimes(5);
   });
 
   it('enqueues a cleanup_records job with the configured retention days', async () => {

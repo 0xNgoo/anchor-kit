@@ -15,6 +15,7 @@ import jwt from 'jsonwebtoken';
 import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { version } from '../../../package.json';
+import { extractClientIdentifier } from './client-identifier.ts';
 
 const SEP10_NONCE_OP = 'anchor_auth';
 
@@ -33,6 +34,19 @@ interface AuthenticatedRequestData {
   account: string;
 }
 
+type RawBodyValue = string | Buffer | Uint8Array;
+type IncomingRequestWithRawBody = IncomingMessage & { rawBody?: RawBodyValue; body?: unknown };
+
+function firstNonEmptyString(value: unknown): string | undefined {
+  const values = Array.isArray(value) ? value : [value];
+  for (const candidate of values) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+  return undefined;
+}
+
 function sendJson(res: ServerResponse, status: number, body: Record<string, unknown>): void {
   if (!res.headersSent) {
     res.statusCode = status;
@@ -41,24 +55,38 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(JSON.stringify(body));
 }
 
+function sendJsonUnauthorized(res: ServerResponse, body: Record<string, unknown>): void {
+  if (!res.headersSent) {
+    res.statusCode = 401;
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('WWW-Authenticate', 'Bearer');
+  }
+  res.end(JSON.stringify(body));
+}
+
 function parseUrl(req: IncomingMessage): URL {
   return new URL(req.url ?? '/', 'http://localhost');
 }
 
-function getBodyByteLength(value: string): number {
-  return Buffer.byteLength(value, 'utf8');
+function getBodyByteLength(value: RawBodyValue): number {
+  return typeof value === 'string' ? Buffer.byteLength(value, 'utf8') : value.byteLength;
 }
 
-async function readRawBody(req: IncomingMessage, maxBodyBytes: number): Promise<string> {
-  const reqWithRaw = req as IncomingMessage & { rawBody?: string };
-  if (typeof reqWithRaw.rawBody === 'string') {
-    if (getBodyByteLength(reqWithRaw.rawBody) > maxBodyBytes) {
+function toUtf8String(value: RawBodyValue): string {
+  return typeof value === 'string' ? value : Buffer.from(value).toString('utf8');
+}
+
+async function readRawBody(req: IncomingMessage, maxBodyBytes: number): Promise<RawBodyValue> {
+  const reqWithRaw = req as IncomingRequestWithRawBody;
+  if (reqWithRaw.rawBody !== undefined) {
+    const rawBody = reqWithRaw.rawBody;
+    if (getBodyByteLength(rawBody) > maxBodyBytes) {
       throw new PayloadTooLargeError(`Request body too large. Max ${maxBodyBytes} bytes`);
     }
-    return reqWithRaw.rawBody;
+    return rawBody;
   }
 
-  const bodyFromFramework = (req as IncomingMessage & { body?: unknown }).body;
+  const bodyFromFramework = (req as IncomingRequestWithRawBody).body;
   if (bodyFromFramework !== undefined) {
     const serialized =
       typeof bodyFromFramework === 'string' ? bodyFromFramework : JSON.stringify(bodyFromFramework);
@@ -79,15 +107,16 @@ async function readRawBody(req: IncomingMessage, maxBodyBytes: number): Promise<
     chunks.push(chunkBuffer);
   }
 
-  return Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks);
 }
 
-function jsonParseObject(rawBody: string): Record<string, unknown> {
-  if (!rawBody) return {};
+function jsonParseObject(rawBody: RawBodyValue): Record<string, unknown> {
+  const utf8Text = toUtf8String(rawBody);
+  if (!utf8Text) return {};
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(rawBody);
+    parsed = JSON.parse(utf8Text);
   } catch {
     throw new ValidationError('Request body must be valid JSON');
   }
@@ -103,8 +132,18 @@ async function parsePostJsonBody(
   req: IncomingMessage,
   res: ServerResponse,
   maxBodyBytes: number,
-): Promise<{ rawBody: string; body: Record<string, unknown> } | null> {
-  let rawBody: string;
+): Promise<{ rawBody: RawBodyValue; body: Record<string, unknown> } | null> {
+  const contentType = firstNonEmptyString(req.headers['content-type']);
+  const mediaType = contentType?.split(';', 1)[0]?.trim().toLowerCase();
+  if (mediaType !== 'application/json') {
+    sendJson(res, 400, {
+      error: 'invalid_request',
+      message: 'Content-Type must be application/json',
+    });
+    return null;
+  }
+
+  let rawBody: RawBodyValue;
   try {
     rawBody = await readRawBody(req, maxBodyBytes);
   } catch (error) {
@@ -132,16 +171,19 @@ async function parsePostJsonBody(
   }
 }
 
-function sha256(input: string): string {
+function sha256(input: string | Buffer | Uint8Array): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
 function readBearerToken(req: IncomingMessage): string | null {
   const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
+  if (typeof authHeader !== 'string' || authHeader.length === 0) return null;
 
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme?.toLowerCase() !== 'bearer' || !token) {
+  const match = authHeader.match(/^(\S+)\s+(\S+)$/);
+  if (!match) return null;
+
+  const [, scheme, token] = match;
+  if (scheme.toLowerCase() !== 'bearer' || token.length === 0) {
     return null;
   }
 
@@ -153,18 +195,19 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
-function endpointPath(req: IncomingMessage): string {
-  return parseUrl(req).pathname;
+function isPlainDecimalString(value: unknown): value is string {
+  return typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value);
 }
 
-function extractClientIdentifier(req: IncomingMessage, trustForwardedFor: boolean): string {
-  const socketIp = req.socket?.remoteAddress;
-  if (trustForwardedFor) {
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const leftMost = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : null;
-    return leftMost || socketIp || 'unknown';
-  }
-  return socketIp || 'unknown';
+function buildInteractiveUrl(interactiveDomain: string, transactionId: string): string {
+  const normalizedDomain = interactiveDomain.endsWith('/')
+    ? interactiveDomain.slice(0, -1)
+    : interactiveDomain;
+  return `${normalizedDomain}/deposit/${transactionId}`;
+}
+
+function endpointPath(req: IncomingMessage): string {
+  return parseUrl(req).pathname;
 }
 
 function hasValidSignature(transaction: Transaction, publicKey: string): boolean {
@@ -212,15 +255,18 @@ function authenticate(
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(
-      token,
-      context.config.get('security').interactiveJwtSecret,
-      { algorithms: ['HS256'] },
-    ) as jwt.JwtPayload;
+    const decoded = jwt.verify(token, context.config.get('security').interactiveJwtSecret, {
+      algorithms: ['HS256'],
+    }) as jwt.JwtPayload;
     const account = typeof decoded.sub === 'string' ? decoded.sub : null;
     const scope = typeof decoded.scope === 'string' ? decoded.scope : null;
     const typ = typeof decoded.typ === 'string' ? decoded.typ : null;
-    if (!account || scope !== 'anchor_api' || typ !== 'access_token') {
+    if (
+      !account ||
+      !StrKey.isValidEd25519PublicKey(account) ||
+      scope !== 'anchor_api' ||
+      typ !== 'access_token'
+    ) {
       return null;
     }
 
@@ -237,7 +283,11 @@ function checkRateLimit(
   endpoint: keyof ExpressRouterContext['rateRules'],
 ): boolean {
   const trustForwardedFor = context.config.get('framework')?.rateLimit?.trustForwardedFor ?? false;
-  const clientId = extractClientIdentifier(req, trustForwardedFor);
+  const clientId = extractClientIdentifier(
+    req.socket?.remoteAddress,
+    req.headers['x-forwarded-for'],
+    trustForwardedFor,
+  );
   const key = `${endpoint}:${clientId}`;
   const result = context.rateLimiter.hit(key, context.rateRules[endpoint]);
 
@@ -274,6 +324,10 @@ async function handleInfo(context: ExpressRouterContext, res: ServerResponse): P
 
   if (fullConfig.operational?.supportEmail) {
     responseBody.support_email = fullConfig.operational.supportEmail;
+  }
+
+  if (fullConfig.operational?.website) {
+    responseBody.website = fullConfig.operational.website;
   }
 
   sendJson(res, 200, responseBody);
@@ -344,6 +398,7 @@ async function handleAuthChallenge(
     challenge: challengeXdr,
     network_passphrase: context.networkPassphrase,
     expires_at: expiresAt,
+    expires_in: expirationSeconds,
   });
 }
 
@@ -361,8 +416,7 @@ async function handleAuthToken(
     return;
   }
 
-  const account =
-    typeof parsedBody.body.account === 'string' ? parsedBody.body.account.trim() : '';
+  const account = typeof parsedBody.body.account === 'string' ? parsedBody.body.account.trim() : '';
   const signedChallenge =
     typeof parsedBody.body.challenge === 'string' ? parsedBody.body.challenge : '';
   if (!account || !signedChallenge) {
@@ -441,7 +495,21 @@ async function handleAuthToken(
     return;
   }
 
-  await context.database.markAuthChallengeConsumed(stored.id);
+  let consumed: boolean;
+  try {
+    consumed = await context.database.markAuthChallengeConsumed(stored.id);
+  } catch {
+    sendJson(res, 500, {
+      error: 'server_error',
+      message: 'Failed to record challenge consumption',
+    });
+    return;
+  }
+
+  if (!consumed) {
+    sendJson(res, 401, { error: 'invalid_challenge', message: 'Challenge already used' });
+    return;
+  }
 
   const tokenLifetime = context.config.get('security').authTokenLifetimeSeconds ?? 3600;
   const expiresAt = new Date((Math.floor(Date.now() / 1000) + tokenLifetime) * 1000).toISOString();
@@ -458,6 +526,7 @@ async function handleAuthToken(
   res.setHeader('Cache-Control', 'no-store');
   sendJson(res, 200, {
     token,
+    account,
     expires_in: tokenLifetime,
     expires_at: expiresAt,
     token_type: 'Bearer',
@@ -475,7 +544,10 @@ async function handleDepositInteractive(
 
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJson(res, 401, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, {
+      error: 'unauthorized',
+      message: 'Missing or invalid bearer token',
+    });
     return;
   }
 
@@ -497,7 +569,7 @@ async function handleDepositInteractive(
     typeof parsedBody.body.asset_code === 'string' ? parsedBody.body.asset_code : '';
   const amountRaw = parsedBody.body.amount;
   const amount =
-    typeof amountRaw === 'string' || typeof amountRaw === 'number' ? `${amountRaw}` : '';
+    typeof amountRaw === 'number' || typeof amountRaw === 'string' ? `${amountRaw}` : '';
 
   if (!assetCode || !amount) {
     sendJson(res, 400, {
@@ -513,7 +585,13 @@ async function handleDepositInteractive(
     return;
   }
 
-  const numericAmount = toNumber(amount);
+  const numericAmount =
+    typeof amountRaw === 'number'
+      ? toNumber(amountRaw)
+      : isPlainDecimalString(amountRaw)
+        ? toNumber(amountRaw)
+        : NaN;
+
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
     sendJson(res, 400, {
       error: 'invalid_amount',
@@ -574,7 +652,7 @@ async function handleDepositInteractive(
         asset_code: created.assetCode,
         asset_issuer: selectedAsset.issuer,
         account: created.account,
-        interactive_url: `${serverConfig.interactiveDomain}/deposit/${created.id}`,
+        interactive_url: buildInteractiveUrl(serverConfig.interactiveDomain, created.id),
         created_at: created.createdAt,
       };
 
@@ -622,7 +700,7 @@ async function handleDepositInteractive(
     asset_code: created.assetCode,
     asset_issuer: selectedAsset.issuer,
     account: created.account,
-    interactive_url: `${serverConfig.interactiveDomain}/deposit/${created.id}`,
+    interactive_url: buildInteractiveUrl(serverConfig.interactiveDomain, created.id),
     created_at: created.createdAt,
   });
 }
@@ -635,7 +713,10 @@ async function handleTransaction(
 ): Promise<void> {
   const auth = authenticate(context, req);
   if (!auth) {
-    sendJson(res, 401, { error: 'unauthorized', message: 'Missing or invalid bearer token' });
+    sendJsonUnauthorized(res, {
+      error: 'unauthorized',
+      message: 'Missing or invalid bearer token',
+    });
     return;
   }
 
@@ -671,11 +752,21 @@ async function handleTransaction(
   };
 
   if (serverConfig.interactiveDomain) {
-    responseData.interactive_url = `${serverConfig.interactiveDomain}/deposit/${transaction.id}`;
-    responseData.more_info_url = `${serverConfig.interactiveDomain}/deposit/${transaction.id}`;
+    responseData.interactive_url = buildInteractiveUrl(
+      serverConfig.interactiveDomain,
+      transaction.id,
+    );
+    responseData.more_info_url = buildInteractiveUrl(
+      serverConfig.interactiveDomain,
+      transaction.id,
+    );
   }
 
   sendJson(res, 200, responseData);
+}
+
+function hasPathSeparator(value: string): boolean {
+  return value.includes('/') || value.includes('\\');
 }
 
 async function handleWebhook(
@@ -695,17 +786,15 @@ async function handleWebhook(
   const { rawBody, body: payload } = parsedBody;
   const eventIdField = payload.id;
   const eventId =
-    typeof eventIdField === 'string' && eventIdField.length > 0 ? eventIdField : randomUUID();
+    typeof eventIdField === 'string' && eventIdField.trim().length > 0
+      ? eventIdField
+      : randomUUID();
   const providerHeader = req.headers['x-webhook-provider'];
   const providerBody = payload.provider;
   const provider =
-    typeof providerHeader === 'string' && providerHeader.length > 0
-      ? providerHeader
-      : typeof providerBody === 'string' && providerBody.length > 0
-        ? providerBody
-        : 'generic';
+    firstNonEmptyString(providerHeader) ?? firstNonEmptyString(providerBody) ?? 'generic';
   const signatureHeader = req.headers['x-anchor-signature'];
-  const signature = typeof signatureHeader === 'string' ? signatureHeader : undefined;
+  const signature = firstNonEmptyString(signatureHeader);
 
   try {
     const result = await context.webhookProcessor.process({
@@ -721,7 +810,7 @@ async function handleWebhook(
       duplicate: result.duplicate,
       event_id: result.eventId,
       received_at: new Date().toISOString(),
-      provider,
+      provider: result.provider,
     });
   } catch {
     sendJson(res, 400, {
@@ -767,7 +856,27 @@ export async function handleExpressRouterRequest(
 
   const transactionMatch = /^\/transactions\/([^/]+)$/.exec(path);
   if (method === 'GET' && transactionMatch) {
-    await handleTransaction(context, req, res, decodeURIComponent(transactionMatch[1]));
+    const transactionIdRaw = transactionMatch[1];
+    let transactionId: string;
+    try {
+      transactionId = decodeURIComponent(transactionIdRaw);
+    } catch {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: 'Transaction id contains malformed percent-encoding',
+      });
+      return;
+    }
+
+    if (hasPathSeparator(transactionId)) {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: 'Transaction id must not contain path separators',
+      });
+      return;
+    }
+
+    await handleTransaction(context, req, res, transactionId);
     return;
   }
 
