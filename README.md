@@ -33,6 +33,9 @@ This repository now ships a usable MVP with:
 
 The SDK does not own `listen()` and does not bind network ports.
 
+See [the trusted proxy rate-limit guidance](docs/trusted-proxy-rate-limits.md)
+before enabling trustForwardedFor.
+
 ## Install
 
 ```bash
