@@ -775,6 +775,23 @@ async function handleTransaction(
   sendJson(res, 200, responseData);
 }
 
+const MAX_PROVIDER_IDENTIFIER_LENGTH = 64;
+
+function normalizeProviderIdentifier(value: unknown): string | null {
+  const normalized = firstNonEmptyString(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length > MAX_PROVIDER_IDENTIFIER_LENGTH) {
+    throw new ValidationError(
+      `Webhook provider identifier must be ${MAX_PROVIDER_IDENTIFIER_LENGTH} characters or fewer`,
+    );
+  }
+
+  return normalized;
+}
+
 function hasPathSeparator(value: string): boolean {
   return value.includes('/') || value.includes('\\');
 }
@@ -794,15 +811,31 @@ async function handleWebhook(
   }
 
   const { rawBody, body: payload } = parsedBody;
+  let provider: string;
+
+  try {
+    const providerHeader = req.headers['x-webhook-provider'];
+    const providerBody = payload.provider;
+    provider =
+      normalizeProviderIdentifier(providerHeader) ??
+      normalizeProviderIdentifier(providerBody) ??
+      'generic';
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      sendJson(res, 400, {
+        error: 'invalid_request',
+        message: error.message,
+      });
+      return;
+    }
+    throw error;
+  }
+
   const eventIdField = payload.id;
   const eventId =
     typeof eventIdField === 'string' && eventIdField.trim().length > 0
       ? eventIdField
       : randomUUID();
-  const providerHeader = req.headers['x-webhook-provider'];
-  const providerBody = payload.provider;
-  const provider =
-    firstNonEmptyString(providerHeader) ?? firstNonEmptyString(providerBody) ?? 'generic';
   const signatureHeader = req.headers['x-anchor-signature'];
   const signature = firstNonEmptyString(signatureHeader);
 

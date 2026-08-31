@@ -47,6 +47,11 @@ export class AnchorInstance {
    * Register a plugin with the anchor instance.
    */
   public use(plugin: AnchorPlugin): this {
+    if (this.initialized) {
+      throw new ConfigError(
+        `Plugin "${plugin.id}" cannot be registered after init() has been called. Register plugins before initialization.`,
+      );
+    }
     if (this.plugins.has(plugin.id)) {
       throw new Error(`Plugin with id "${plugin.id}" is already registered.`);
     }

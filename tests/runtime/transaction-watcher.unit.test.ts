@@ -1,4 +1,5 @@
 import type { DatabaseAdapter, QueueAdapter } from '@/runtime/interfaces.ts';
+import type { InteractiveTransactionRecord } from '@/runtime/interfaces.ts';
 import { TransactionWatcher } from '@/runtime/watchers/transaction-watcher.ts';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
@@ -246,6 +247,29 @@ describe('TransactionWatcher Unit Tests', () => {
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalled();
     const callCount = (mockDatabase.listPendingTransactionsBefore as Mock).mock.calls.length;
     expect(callCount).toBeGreaterThanOrEqual(4);
+  });
+
+  it('stop() resolves even when an active tick rejects and clears the timer', async () => {
+    const rejectTick = vi.fn();
+    mockDatabase.listPendingTransactionsBefore = vi.fn<
+      (cutoffIso: string) => Promise<InteractiveTransactionRecord[]>
+    >(
+      () =>
+        new Promise((_, reject) => {
+          rejectTick.mockImplementation(() => reject(new Error('db failure')));
+        }),
+    );
+
+    const startPromise = transactionWatcher.start();
+    await Promise.resolve();
+    const stopPromise = transactionWatcher.stop();
+    rejectTick();
+
+    await expect(startPromise).rejects.toThrow('db failure');
+    await expect(stopPromise).resolves.toBeUndefined();
+    expect(
+      (transactionWatcher as unknown as { timer: ReturnType<typeof setInterval> | null }).timer,
+    ).toBeNull();
   });
 
   it('enqueues a cleanup_records job with the configured retention days', async () => {
