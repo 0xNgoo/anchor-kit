@@ -509,51 +509,102 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
     payload: Record<string, unknown>;
   }): Promise<{ record: WebhookEventRecord; inserted: boolean }> {
     const createdAt = nowIso();
+    const eventId = input.eventId.trim();
+    const provider = input.provider.trim() || 'generic';
 
     if (this.sqlite) {
-      // SQLite: INSERT ... ON CONFLICT DO NOTHING, then SELECT
+      const existing = this.sqlite
+        .prepare('SELECT * FROM webhook_events WHERE event_id = ? LIMIT 1')
+        .get(eventId) as Record<string, unknown> | null;
+
+      if (existing) {
+        const record = this.mapWebhookRow(existing);
+
+        if (record.status === 'processed') {
+          return { record, inserted: false };
+        }
+
+        if (record.status === 'failed') {
+          this.sqlite
+            .prepare(
+              'UPDATE webhook_events SET provider = ?, payload = ?, status = ?, error_message = NULL, processed_at = NULL WHERE id = ?',
+            )
+            .run(provider, JSON.stringify(input.payload), 'pending', record.id);
+
+          const refreshed = this.sqlite
+            .prepare('SELECT * FROM webhook_events WHERE id = ? LIMIT 1')
+            .get(record.id) as Record<string, unknown> | null;
+
+          if (!refreshed) {
+            throw new ConfigError('Failed to retry failed webhook event');
+          }
+
+          return { record: this.mapWebhookRow(refreshed), inserted: true };
+        }
+
+        return { record, inserted: false };
+      }
+
       this.sqlite
         .prepare(
-          'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?) ON CONFLICT(event_id) DO NOTHING',
+          'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)',
         )
-        .run(
-          input.id,
-          input.eventId,
-          input.provider,
-          JSON.stringify(input.payload),
-          'pending',
-          createdAt,
-        );
+        .run(input.id, eventId, provider, JSON.stringify(input.payload), 'pending', createdAt);
 
       const row = this.sqlite
-        .prepare('SELECT * FROM webhook_events WHERE event_id = ? LIMIT 1')
-        .get(input.eventId) as Record<string, unknown>;
+        .prepare('SELECT * FROM webhook_events WHERE id = ? LIMIT 1')
+        .get(input.id) as Record<string, unknown> | null;
 
       if (!row) {
         throw new ConfigError('Failed to insert or retrieve webhook event');
       }
 
-      // Check if this is the record we just inserted (id matches) or an existing one
-      const inserted = row.id === input.id;
-      return { record: this.mapWebhookRow(row), inserted };
+      return { record: this.mapWebhookRow(row), inserted: true };
     }
 
-    // PostgreSQL: INSERT ... ON CONFLICT DO NOTHING, then SELECT
+    const existingPg = await this.requirePostgres().query<Record<string, unknown>>(
+      'SELECT * FROM webhook_events WHERE event_id = $1 LIMIT 1',
+      [eventId],
+    );
+
+    const existingRow = existingPg.rows[0];
+    if (existingRow) {
+      const record = this.mapWebhookRow(existingRow);
+
+      if (record.status === 'processed') {
+        return { record, inserted: false };
+      }
+
+      if (record.status === 'failed') {
+        await this.requirePostgres().query(
+          'UPDATE webhook_events SET provider = $1, payload = $2::jsonb, status = $3, error_message = NULL, processed_at = NULL WHERE id = $4',
+          [provider, JSON.stringify(input.payload), 'pending', record.id],
+        );
+
+        const refreshedPg = await this.requirePostgres().query<Record<string, unknown>>(
+          'SELECT * FROM webhook_events WHERE id = $1 LIMIT 1',
+          [record.id],
+        );
+
+        const refreshedRow = refreshedPg.rows[0];
+        if (!refreshedRow) {
+          throw new ConfigError('Failed to retry failed webhook event');
+        }
+
+        return { record: this.mapWebhookRow(refreshedRow), inserted: true };
+      }
+
+      return { record, inserted: false };
+    }
+
     await this.requirePostgres().query(
-      'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES ($1, $2, $3, $4::jsonb, $5, NULL, NULL, $6) ON CONFLICT(event_id) DO NOTHING',
-      [
-        input.id,
-        input.eventId,
-        input.provider,
-        JSON.stringify(input.payload),
-        'pending',
-        createdAt,
-      ],
+      'INSERT INTO webhook_events (id, event_id, provider, payload, status, error_message, processed_at, created_at) VALUES ($1, $2, $3, $4::jsonb, $5, NULL, NULL, $6)',
+      [input.id, eventId, provider, JSON.stringify(input.payload), 'pending', createdAt],
     );
 
     const response = await this.requirePostgres().query<Record<string, unknown>>(
-      'SELECT * FROM webhook_events WHERE event_id = $1 LIMIT 1',
-      [input.eventId],
+      'SELECT * FROM webhook_events WHERE id = $1 LIMIT 1',
+      [input.id],
     );
 
     const row = response.rows[0];
@@ -561,9 +612,7 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
       throw new ConfigError('Failed to insert or retrieve webhook event');
     }
 
-    // Check if this is the record we just inserted (id matches) or an existing one
-    const inserted = row.id === input.id;
-    return { record: this.mapWebhookRow(row), inserted };
+    return { record: this.mapWebhookRow(row), inserted: true };
   }
 
   public async updateWebhookEventStatus(input: {

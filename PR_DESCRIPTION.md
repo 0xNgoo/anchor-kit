@@ -1,27 +1,33 @@
-# PR Description
+# PR Summary
 
 ## What does this PR do?
 
-Adds regression coverage for webhook signature handling and startup lifecycle behavior.
+Adds runtime support and tests for queue and sqlite behavior:
 
-- Verifies that uppercase and lowercase HMAC signatures are both accepted.
-- Confirms invalid signatures still fail without invoking the webhook callback.
-- Adds pre-init router access coverage to ensure `getExpressRouter()` throws the expected `ConfigError` before initialization.
-- Covers concurrent `startBackgroundJobs()` calls so background startup only begins once.
+- Introduces an in-memory queue adapter with a guard against double-start processing.
+- Adds a sqlite runtime database adapter with auth challenge persistence and transaction filtering.
+- Covers sqlite auth challenge lifecycle and pending transaction cutoff filtering with focused tests.
 
 ## How to test?
 
-1. Run the focused regression tests:
-   - `bun test tests/runtime/webhooks/default-webhook-processor.test.ts tests/core/factory-pre-init.test.ts tests/core/factory-background-startup.test.ts`
-2. Optionally run the full suite:
-   - `bun test`
+Run the full test suite or the new runtime tests:
+
+```bash
+bun test --run
+```
+
+Or:
+
+```bash
+bun test tests/runtime --run
+```
 
 ## Checklist
 
 - [x] My code follows the code style of this project.
 - [x] I have added tests for my changes.
 - [ ] I have updated the documentation accordingly.
-- [ ] I have run `bun run test` and `bun run lint` locally.
+- [x] I have run `bun test --run` locally.
 
 ## Issue Reference
 
