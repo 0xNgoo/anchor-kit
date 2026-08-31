@@ -37,7 +37,7 @@ export class DefaultWebhookProcessor implements WebhookProcessor {
     payload: Record<string, unknown>;
     rawBody: string | Buffer | Uint8Array;
     signature?: string;
-  }): Promise<{ duplicate: boolean; eventId: string }> {
+  }): Promise<{ duplicate: boolean; eventId: string; provider: string }> {
     this.verifySignatureIfEnabled(input);
 
     const insertion = await this.database.insertOrGetWebhookEvent({
@@ -48,9 +48,11 @@ export class DefaultWebhookProcessor implements WebhookProcessor {
     });
 
     if (!insertion.inserted) {
-      if (insertion.record.status === 'processed') {
-        return { duplicate: true, eventId: insertion.record.eventId };
-      }
+      return {
+        duplicate: true,
+        eventId: insertion.record.eventId,
+        provider: insertion.record.provider,
+      };
     }
 
     try {
@@ -81,7 +83,11 @@ export class DefaultWebhookProcessor implements WebhookProcessor {
       throw error;
     }
 
-    return { duplicate: false, eventId: insertion.record.eventId };
+    return {
+      duplicate: false,
+      eventId: insertion.record.eventId,
+      provider: insertion.record.provider,
+    };
   }
 
   private verifySignatureIfEnabled(input: {
