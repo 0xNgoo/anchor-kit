@@ -242,7 +242,6 @@ describe('TransactionWatcher Unit Tests', () => {
 
     await shortIntervalWatcher.stop();
 
-    // Should have called multiple times despite the second call failing
     // Timing can vary across environments; accept at least 4 calls
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalled();
     const callCount = (mockDatabase.listPendingTransactionsBefore as Mock).mock.calls.length;

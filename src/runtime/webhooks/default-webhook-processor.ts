@@ -1,9 +1,9 @@
 import type { DatabaseAdapter, WebhookProcessor } from '@/runtime/interfaces.ts';
-import type { AnchorKitConfig } from '@/types/config.ts';
+import type { AnchorKitConfigSnapshot } from '@/types/config.ts';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 interface DefaultWebhookProcessorOptions {
-  config: AnchorKitConfig;
+  config: AnchorKitConfigSnapshot;
   database: DatabaseAdapter;
 }
 
@@ -23,7 +23,7 @@ function safeEquals(left: string, right: string): boolean {
 }
 
 export class DefaultWebhookProcessor implements WebhookProcessor {
-  private readonly config: AnchorKitConfig;
+  private readonly config: AnchorKitConfigSnapshot;
   private readonly database: DatabaseAdapter;
 
   constructor(options: DefaultWebhookProcessorOptions) {

@@ -2199,7 +2199,6 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge transaction is invalid');
   });
-
   it('10d) challenge with a different transaction source is rejected', async () => {
     const account = clientKeypair.publicKey();
     const wrongServerKeypair = Keypair.random();
@@ -2231,7 +2230,6 @@ describe('MVP Express-mounted integration', () => {
     expect(tokenResponse.body.error).toBe('invalid_challenge');
     expect(tokenResponse.body.message).toBe('Challenge source account mismatch');
   });
-
   it('10cb) challenge without anchor signature is rejected', async () => {
     const account = clientKeypair.publicKey();
     const challengeResponse = await invoke({
