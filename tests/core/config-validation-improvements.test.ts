@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { unlinkSync } from 'node:fs';
 import { Keypair } from '@stellar/stellar-sdk';
 import { AnchorConfig } from '../../src/core/config';
 import { ConfigError } from '../../src/core/errors';
 import { createAnchor, makeSqliteDbUrlForTests } from '../../src/core/factory';
+import type { AnchorPlugin } from '../../src/types/plugin';
 import type { AnchorKitConfig } from '../../src/types/config';
 import { DatabaseUrlSchema } from '../../src/utils/validation-helpers';
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('Config Validation Improvements (#124, #125)', () => {
   const testSep10SigningKey = Keypair.random().secret();
@@ -260,6 +264,38 @@ describe('Config Validation Improvements (#124, #125)', () => {
     }
   });
 
+  it('rejects plugin registration after the instance is initialized', async () => {
+    const dbUrl = makeSqliteDbUrlForTests();
+    const anchor = createAnchor({
+      network: { network: 'testnet' },
+      server: { interactiveDomain: 'https://anchor.example.com' },
+      security: {
+        sep10SigningKey: testSep10SigningKey,
+        interactiveJwtSecret: 'jwt-secret',
+        distributionAccountSecret: 'dist-secret',
+      },
+      assets: {
+        assets: [
+          { code: 'USDC', issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5' },
+        ],
+      },
+      framework: { database: { provider: 'sqlite', url: dbUrl } },
+    });
+
+    await anchor.init();
+    expect(() => anchor.use({ id: 'late-plugin' })).toThrow(/after init|before calling init/i);
+    await anchor.shutdown();
+    try {
+      // cleanup sqlite file created for this test
+      const dbPath = dbUrl.slice('file:'.length);
+      if (dbPath) {
+        unlinkSync(dbPath);
+      }
+    } catch {
+      // ignore
+    }
+  });
+
   it('should validate watchers.enabled as an optional boolean', () => {
     for (const value of ['true', 1]) {
       const config = new AnchorConfig({
@@ -413,6 +449,74 @@ describe('Config Validation Improvements (#124, #125)', () => {
       const anchor = createAnchor(defaultConfig);
       await anchor.init();
       await anchor.shutdown();
+    });
+
+    it('should single-flight concurrent initialization and share failures', async () => {
+      const pluginInitCalls: string[] = [];
+      const failingPlugin = {
+        id: 'failing-plugin',
+        async init() {
+          pluginInitCalls.push('init');
+          await wait(25);
+          throw new Error('plugin init failed');
+        },
+      };
+      const anchor = createAnchor({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+        },
+      });
+      anchor.use(failingPlugin as AnchorPlugin);
+
+      await expect(Promise.all([anchor.init(), anchor.init(), anchor.init()])).rejects.toThrow(
+        'plugin init failed',
+      );
+      expect(pluginInitCalls).toHaveLength(1);
+    });
+
+    it('should single-flight concurrent shutdown calls and avoid duplicate cleanup', async () => {
+      const anchor = createAnchor({
+        ...validBaseConfig,
+        framework: {
+          ...validBaseConfig.framework,
+          database: {
+            provider: 'sqlite',
+            url: makeSqliteDbUrlForTests(),
+          },
+        },
+      });
+
+      const stopCalls = { count: 0 };
+      const disconnectCalls = { count: 0 };
+      Object.assign(anchor, {
+        initialized: true,
+        backgroundJobsRunning: true,
+        database: {
+          disconnect: async () => {
+            await wait(20);
+            disconnectCalls.count += 1;
+          },
+        },
+        queue: {
+          stop: async () => {
+            await wait(20);
+            stopCalls.count += 1;
+          },
+        },
+        watchers: [],
+      });
+
+      await Promise.all([anchor.shutdown(), anchor.shutdown(), anchor.shutdown()]);
+      expect(stopCalls.count).toBe(1);
+      expect(disconnectCalls.count).toBe(1);
+
+      await anchor.shutdown();
+      expect(disconnectCalls.count).toBe(1);
     });
   });
 
