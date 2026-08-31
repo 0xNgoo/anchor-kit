@@ -8,6 +8,7 @@ import type {
   WebhookEventRecord,
 } from '@/runtime/interfaces.ts';
 import type { FrameworkConfig } from '@/types/config.ts';
+import { isTransactionStatus, type TransactionStatus } from '@/types/transaction-status.ts';
 import { Database } from 'bun:sqlite';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
