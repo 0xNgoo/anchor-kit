@@ -122,11 +122,19 @@ export const StellarUtils = {
     }
 
     const networkPassphrase =
-      network === 'public'
-        ? Networks.PUBLIC
-        : network === 'futurenet'
-          ? Networks.FUTURENET
-          : Networks.TESTNET;
+      network === undefined || network === 'testnet'
+        ? Networks.TESTNET
+        : network === 'public'
+          ? Networks.PUBLIC
+          : network === 'futurenet'
+            ? Networks.FUTURENET
+            : (() => {
+                throw new Error(
+                  'Unsupported network: ' +
+                    network +
+                    '. Must be one of: public, testnet, futurenet',
+                );
+              })();
 
     if (assetCode !== 'XLM' && (!issuer || !ValidationUtils.isValidStellarAddress(issuer))) {
       throw new Error(`A valid issuer is required for non-native asset payments: ${assetCode}`);
