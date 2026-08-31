@@ -201,6 +201,15 @@ function validateFrameworkUrls(
   return true;
 }
 
+function validateOperationalNumbers(operational: AnchorKitConfig['operational']): boolean {
+  const retentionDays = operational?.transactionRetentionDays;
+  if (retentionDays !== undefined && (!Number.isSafeInteger(retentionDays) || retentionDays <= 0)) {
+    throw new Error('operational.transactionRetentionDays must be a positive safe integer');
+  }
+
+  return true;
+}
+
 function validateFrameworkConfig(
   framework: AnchorKitConfig['framework'],
   server: AnchorKitConfig['server'],
@@ -211,6 +220,7 @@ function validateFrameworkConfig(
   validateFrameworkNumbers(framework);
   validateFrameworkRateLimit(framework);
   validateFrameworkUrls(metadata, server, operational);
+  validateOperationalNumbers(operational);
   return true;
 }
 

@@ -1,4 +1,4 @@
-import { ConfigError } from '@/core/errors.ts';
+import { ConfigError, MalformedPersistedDataError } from '@/core/errors.ts';
 import type {
   AuthChallengeRecord,
   DatabaseAdapter,
@@ -43,10 +43,24 @@ function toSqlitePath(url: string): string {
 }
 
 function parseJsonObject(value: string): Record<string, unknown> {
-  const parsed: unknown = JSON.parse(value);
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return {};
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    throw new MalformedPersistedDataError(
+      `Malformed persisted JSON payload: ${error instanceof Error ? error.message : String(error)}`,
+      { value: value.slice(0, 200) },
+    );
   }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new MalformedPersistedDataError(
+      'Persisted JSON payload must decode to a plain object; arrays and primitive values are not allowed.',
+      { value: value.slice(0, 200) },
+    );
+  }
+
   return parsed as Record<string, unknown>;
 }
 
@@ -768,6 +782,8 @@ export class SqlDatabaseAdapter implements DatabaseAdapter {
   }
 
   public async cleanupOldRecords(cutoffIso: string): Promise<void> {
+    // Retention uses a strict cutoff: values exactly equal to the cutoff are retained,
+    // while only entries strictly older than the cutoff are removed.
     if (this.sqlite) {
       this.sqlite.prepare('DELETE FROM auth_challenges WHERE expires_at < ?').run(cutoffIso);
       this.sqlite.prepare('DELETE FROM idempotency_keys WHERE created_at < ?').run(cutoffIso);
