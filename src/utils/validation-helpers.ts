@@ -1,4 +1,5 @@
 import type { AnchorKitConfig, Asset, NetworkConfig, SecurityConfig } from '@/types/config.ts';
+import { StrKey } from '@stellar/stellar-sdk';
 import DOMPurify from 'isomorphic-dompurify';
 import type { ServerConfig } from '../types/config.ts';
 
@@ -15,6 +16,20 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isFinitePositiveNumber(value: unknown): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function isPositiveSafeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isValidIso4217CurrencyCode(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z]{3}$/.test(value);
+}
+
+function isSafePositiveInteger(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && Number.isSafeInteger(value) && value > 0
+  );
 }
 
 function isValidUrlString(url: string): boolean {
@@ -106,9 +121,9 @@ function validateFrameworkNumbers(framework: AnchorKitConfig['framework']): bool
 
   if (
     framework.watchers?.transactionTimeoutMs !== undefined &&
-    !isFinitePositiveNumber(framework.watchers.transactionTimeoutMs)
+    !isPositiveSafeInteger(framework.watchers.transactionTimeoutMs)
   ) {
-    throw new Error('framework.watchers.transactionTimeoutMs must be a finite number > 0');
+    throw new Error('framework.watchers.transactionTimeoutMs must be a positive safe integer');
   }
 
   if (
@@ -141,11 +156,8 @@ function validateFrameworkRateLimit(framework: AnchorKitConfig['framework']): bo
   for (const key of numericKeys) {
     const value = framework.rateLimit[key];
     if (value === undefined) continue;
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      throw new Error(`framework.rateLimit.${key} must be a finite number`);
-    }
-    if (value <= 0) {
-      throw new Error('framework.rateLimit values must be > 0');
+    if (!isPositiveSafeInteger(value)) {
+      throw new Error(`framework.rateLimit.${key} must be a positive safe integer`);
     }
   }
 
@@ -184,6 +196,15 @@ function validateFrameworkUrls(
   return true;
 }
 
+function validateOperationalNumbers(operational: AnchorKitConfig['operational']): boolean {
+  const retentionDays = operational?.transactionRetentionDays;
+  if (retentionDays !== undefined && (!Number.isSafeInteger(retentionDays) || retentionDays <= 0)) {
+    throw new Error('operational.transactionRetentionDays must be a positive safe integer');
+  }
+
+  return true;
+}
+
 function validateFrameworkConfig(
   framework: AnchorKitConfig['framework'],
   server: AnchorKitConfig['server'],
@@ -194,6 +215,7 @@ function validateFrameworkConfig(
   validateFrameworkNumbers(framework);
   validateFrameworkRateLimit(framework);
   validateFrameworkUrls(metadata, server, operational);
+  validateOperationalNumbers(operational);
   return true;
 }
 
@@ -251,8 +273,9 @@ export const ValidationUtils = {
 
   isValidStellarAddress(address: string): boolean {
     if (!address || typeof address !== 'string') return false;
-    if (!/^G[A-Z2-7]{55}$/.test(address)) return false;
-    return true;
+    // The shape regex alone lets 56-character values with an invalid StrKey
+    // checksum through, so verify the checksum via the Stellar SDK as well.
+    return StrKey.isValidEd25519PublicKey(address);
   },
 
   isValidDatabaseUrl(urlString: string): boolean {
@@ -316,19 +339,15 @@ export const SecurityConfigSchema = {
       throw new Error('Missing required secret: security.distributionAccountSecret');
     if (
       config.challengeExpirationSeconds !== undefined &&
-      (typeof config.challengeExpirationSeconds !== 'number' ||
-        !Number.isFinite(config.challengeExpirationSeconds) ||
-        config.challengeExpirationSeconds <= 0)
+      !isSafePositiveInteger(config.challengeExpirationSeconds)
     ) {
-      throw new Error('security.challengeExpirationSeconds must be > 0');
+      throw new Error('security.challengeExpirationSeconds must be a safe positive integer');
     }
     if (
       config.authTokenLifetimeSeconds !== undefined &&
-      (typeof config.authTokenLifetimeSeconds !== 'number' ||
-        !Number.isFinite(config.authTokenLifetimeSeconds) ||
-        config.authTokenLifetimeSeconds <= 0)
+      !isSafePositiveInteger(config.authTokenLifetimeSeconds)
     ) {
-      throw new Error('security.authTokenLifetimeSeconds must be > 0');
+      throw new Error('security.authTokenLifetimeSeconds must be a safe positive integer');
     }
   },
 };
@@ -394,6 +413,11 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
     throw new Error('At least one asset must be configured in assets.assets');
   }
 
+  if (assets.defaultCurrency !== undefined && !isValidIso4217CurrencyCode(assets.defaultCurrency)) {
+    throw new Error('assets.defaultCurrency must be a three-letter uppercase ISO 4217 code');
+  }
+
+  const seenCodes = new Set<string>();
   for (let i = 0; i < assets.assets.length; i++) {
     const asset = assets.assets[i];
     if (!AssetSchema.isValid(asset)) {
