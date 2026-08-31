@@ -1,5 +1,6 @@
 import { makeSqliteDbUrlForTests } from '@/core/factory.ts';
 import { createAnchor, type AnchorInstance } from '@/index.ts';
+import type { DatabaseAdapter } from '@/runtime/interfaces.ts';
 import { Account, Keypair, Operation, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 import { createHmac } from 'node:crypto';
 import { unlinkSync } from 'node:fs';
@@ -7,7 +8,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { version } from '../package.json';
-import type { DatabaseAdapter } from '@/runtime/interfaces.ts';
 
 interface TestResponse {
   status: number;
@@ -514,6 +514,37 @@ describe('MVP Express-mounted integration', () => {
     expect(Number.isNaN(expiresAtTime)).toBe(false);
     const expectedExpiry = Date.now() + 3600 * 1000;
     expect(Math.abs(expiresAtTime - expectedExpiry)).toBeLessThan(5000);
+  });
+
+  it('3d) successful token response includes Cache-Control no-store (#449)', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.1' },
+    });
+    expect(challengeResponse.status).toBe(200);
+
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+    const signedChallengeXdr = challengeTx.toXDR();
+
+    const tokenResponse = await invoke({
+      method: 'POST',
+      path: '/auth/token',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.1' },
+      body: { account, challenge: signedChallengeXdr },
+    });
+
+    expect(tokenResponse.status).toBe(200);
+    expect(tokenResponse.headers['cache-control']).toBe('no-store');
+    // Verify token JSON fields remain unchanged
+    expect(tokenResponse.body.token).toBeTypeOf('string');
+    expect(tokenResponse.body.token_type).toBe('Bearer');
+    expect(tokenResponse.body.account).toBe(account);
+    expect(tokenResponse.body.expires_in).toBeTypeOf('number');
+    expect(tokenResponse.body.expires_at).toBeTypeOf('string');
   });
 
   it('3a) rate limit response body includes retry_after_seconds matching header', async () => {
