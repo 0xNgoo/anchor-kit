@@ -75,7 +75,7 @@ export interface DatabaseAdapter {
   }): Promise<InteractiveTransactionRecord>;
   getInteractiveTransactionById(id: string): Promise<InteractiveTransactionRecord | null>;
   listPendingTransactionsBefore(cutoffIso: string): Promise<InteractiveTransactionRecord[]>;
-  updateTransactionStatus(id: string, status: TransactionStatus): Promise<void>;
+  updateTransactionStatus(id: string, status: TransactionStatus): Promise<boolean>;
 
   getIdempotencyRecord(scope: string, idempotencyKey: string): Promise<IdempotencyRecord | null>;
   insertOrGetIdempotencyRecord(input: {
