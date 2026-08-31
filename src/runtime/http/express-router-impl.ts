@@ -768,12 +768,8 @@ async function handleTransaction(
 const MAX_PROVIDER_IDENTIFIER_LENGTH = 64;
 
 function normalizeProviderIdentifier(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const normalized = value.trim();
-  if (normalized.length === 0) {
+  const normalized = firstNonEmptyString(value);
+  if (!normalized) {
     return null;
   }
 

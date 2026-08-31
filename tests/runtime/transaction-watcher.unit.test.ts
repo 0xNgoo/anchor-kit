@@ -258,10 +258,12 @@ describe('TransactionWatcher Unit Tests', () => {
         }),
     );
 
-    await transactionWatcher.start();
+    const startPromise = transactionWatcher.start();
+    await Promise.resolve();
     const stopPromise = transactionWatcher.stop();
     rejectTick();
 
+    await expect(startPromise).rejects.toThrow('db failure');
     await expect(stopPromise).resolves.toBeUndefined();
     expect(
       (transactionWatcher as unknown as { timer: ReturnType<typeof setInterval> | null }).timer,
