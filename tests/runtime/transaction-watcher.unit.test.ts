@@ -14,7 +14,7 @@ describe('TransactionWatcher Unit Tests', () => {
       migrate: vi.fn().mockResolvedValue(undefined),
       insertAuthChallenge: vi.fn().mockResolvedValue(undefined),
       getAuthChallengeByChallenge: vi.fn().mockResolvedValue(null),
-      markAuthChallengeConsumed: vi.fn().mockResolvedValue(undefined),
+      markAuthChallengeConsumed: vi.fn().mockResolvedValue(true),
       insertInteractiveTransaction: vi.fn().mockResolvedValue({
         id: 'test-tx-id',
         account: 'test-account',
