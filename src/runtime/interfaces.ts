@@ -61,7 +61,7 @@ export interface DatabaseAdapter {
     expiresAt: string;
   }): Promise<void>;
   getAuthChallengeByChallenge(challenge: string): Promise<AuthChallengeRecord | null>;
-  markAuthChallengeConsumed(id: string): Promise<void>;
+  markAuthChallengeConsumed(id: string): Promise<boolean>;
 
   insertInteractiveTransaction(input: {
     id: string;

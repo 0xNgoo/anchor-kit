@@ -495,7 +495,21 @@ async function handleAuthToken(
     return;
   }
 
-  await context.database.markAuthChallengeConsumed(stored.id);
+  let consumed: boolean;
+  try {
+    consumed = await context.database.markAuthChallengeConsumed(stored.id);
+  } catch {
+    sendJson(res, 500, {
+      error: 'server_error',
+      message: 'Failed to record challenge consumption',
+    });
+    return;
+  }
+
+  if (!consumed) {
+    sendJson(res, 401, { error: 'invalid_challenge', message: 'Challenge already used' });
+    return;
+  }
 
   const tokenLifetime = context.config.get('security').authTokenLifetimeSeconds ?? 3600;
   const expiresAt = new Date((Math.floor(Date.now() / 1000) + tokenLifetime) * 1000).toISOString();
