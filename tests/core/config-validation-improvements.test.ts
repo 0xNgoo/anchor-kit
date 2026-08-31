@@ -151,7 +151,9 @@ describe('Config Validation Improvements (#124, #125)', () => {
         },
       });
       expect(() => config.validate()).toThrow(ConfigError);
-      expect(() => config.validate()).toThrow(/transactionTimeoutMs must be a positive safe integer/);
+      expect(() => config.validate()).toThrow(
+        /transactionTimeoutMs must be a positive safe integer/,
+      );
     }
 
     for (const value of [1, 300000]) {
@@ -176,7 +178,9 @@ describe('Config Validation Improvements (#124, #125)', () => {
         },
       });
       expect(() => config.validate()).toThrow(ConfigError);
-      expect(() => config.validate()).toThrow(/defaultCurrency must be a three-letter uppercase ISO 4217 code/);
+      expect(() => config.validate()).toThrow(
+        /defaultCurrency must be a three-letter uppercase ISO 4217 code/,
+      );
     }
 
     const config = new AnchorConfig({

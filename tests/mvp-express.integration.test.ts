@@ -199,13 +199,15 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body).toEqual({ error: 'not_found', message: 'Endpoint not found' });
   });
 
-  it('1b) wrong HTTP method on supported path returns 404', async () => {
+  it('1b) wrong HTTP method on supported path returns 405 with Allow header', async () => {
     const response = await invoke({
       method: 'POST',
       path: '/health',
     });
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(405);
+    expect(response.body.error).toBe('method_not_allowed');
+    expect(response.headers['allow']).toBe('GET');
   });
   it('2) /info returns configured assets and package version', async () => {
     const response = await invoke({ path: '/info' });
@@ -1759,6 +1761,55 @@ describe('MVP Express-mounted integration', () => {
     expect((response.body.event_id as string).length).toBeGreaterThan(0);
   });
 
+  it('8i) duplicate webhook with conflicting provider returns persisted provider', async () => {
+    const initialCallbackCount = webhookCallbackCount;
+    const payload = {
+      id: `evt_conflicting_provider_${Date.now()}`,
+      type: 'deposit.completed',
+      transaction_id: transactionId,
+    };
+
+    const signature = createHmac('sha256', 'webhook-test-secret')
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    // First request with provider 'provider-a'
+    const firstResponse = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'provider-a',
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(firstResponse.status).toBe(200);
+    expect(firstResponse.body.duplicate).toBe(false);
+    expect(firstResponse.body.event_id).toBe(payload.id);
+    expect(firstResponse.body.provider).toBe('provider-a');
+    expect(webhookCallbackCount).toBe(initialCallbackCount + 1);
+
+    // Second request with same event ID but different provider 'provider-b'
+    const duplicateResponse = await invoke({
+      method: 'POST',
+      path: '/webhooks/events',
+      headers: {
+        'content-type': 'application/json',
+        'x-webhook-provider': 'provider-b', // Different provider
+        'x-anchor-signature': signature,
+      },
+      body: payload,
+    });
+
+    expect(duplicateResponse.status).toBe(200);
+    expect(duplicateResponse.body.duplicate).toBe(true);
+    expect(duplicateResponse.body.event_id).toBe(payload.id);
+    expect(duplicateResponse.body.provider).toBe('provider-a'); // Should return the persisted provider, not the request provider
+    expect(webhookCallbackCount).toBe(initialCallbackCount + 1); // Callback should not be invoked again
+  });
+
   it('8i) oversized Buffer-backed rawBody returns 413 payload_too_large', async () => {
     const payloadText = JSON.stringify({ account: 'G'.repeat(2048), challenge: 'x' });
 
@@ -1800,6 +1851,80 @@ describe('MVP Express-mounted integration', () => {
     expect(typeof response.body.received_at).toBe('string');
     const parsed = Date.parse(response.body.received_at as string);
     expect(Number.isNaN(parsed)).toBe(false);
+  });
+
+  it('8g) chunked oversized webhook body returns 413 payload_too_large', async () => {
+    const customDbUrl = makeSqliteDbUrlForTests();
+    const customDbPath = customDbUrl.startsWith('file:')
+      ? customDbUrl.slice('file:'.length)
+      : customDbUrl;
+    const customAnchor = createAnchor({
+      network: { network: 'testnet' },
+      server: {},
+      security: {
+        sep10SigningKey: sep10ServerKeypair.secret(),
+        interactiveJwtSecret: 'jwt-test-secret-webhook-oversize',
+        distributionAccountSecret: 'distribution-test-secret',
+        webhookSecret: 'webhook-test-secret',
+        verifyWebhookSignatures: true,
+      },
+      assets: {
+        assets: [
+          {
+            code: 'USDC',
+            issuer: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+          },
+        ],
+      },
+      framework: {
+        database: { provider: 'sqlite', url: customDbUrl },
+        http: { maxBodyBytes: 1024 },
+      },
+      webhooks: {
+        onEvent: async () => {
+          throw new Error('should not be called for oversized body');
+        },
+      },
+    });
+
+    await customAnchor.init();
+    const customInvoke = createMountedInvoker(customAnchor);
+
+    try {
+      // Create a payload larger than the configured maxBodyBytes (1024 bytes)
+      const largePayload = {
+        id: 'evt_oversized',
+        type: 'deposit.completed',
+        data: 'x'.repeat(2000),
+      };
+      const payloadText = JSON.stringify(largePayload);
+      const signature = createHmac('sha256', 'webhook-test-secret')
+        .update(payloadText)
+        .digest('hex');
+
+      const response = await customInvoke({
+        method: 'POST',
+        path: '/webhooks/events',
+        headers: {
+          'content-type': 'application/json',
+          'x-webhook-provider': 'generic',
+          'x-anchor-signature': signature,
+        },
+        rawBody: Buffer.from(payloadText),
+      });
+
+      // The body should be rejected at the byte limit before JSON parsing
+      expect(response.status).toBe(413);
+      expect(response.body.error).toBe('payload_too_large');
+      expect(response.body.message).toBe('Request body too large. Max 1024 bytes');
+    } finally {
+      await customAnchor.shutdown();
+      try {
+        unlinkSync(customDbPath);
+      } catch {
+        // ignore cleanup errors in CI
+      }
+    }
   });
 
   it('8f) failed webhook error response includes event_id', async () => {
@@ -2387,6 +2512,42 @@ describe('MVP Express-mounted integration', () => {
     expect(response.body.message).toBe('Request body must be valid JSON');
   });
 
+  it('15f) JSON POST routes reject missing or unrelated content types', async () => {
+    const requests: TestRequestOptions[] = [
+      {
+        method: 'POST',
+        path: '/auth/token',
+        headers: { 'content-type': 'text/plain', 'x-forwarded-for': '10.0.0.151' },
+        rawBody: '{}',
+      },
+      {
+        method: 'POST',
+        path: '/transactions/deposit/interactive',
+        headers: {
+          'content-type': 'text/plain',
+          authorization: 'Bearer ' + accessToken,
+          'x-forwarded-for': '10.0.0.152',
+        },
+        body: { asset_code: 'USDC', amount: '10' },
+      },
+      {
+        method: 'POST',
+        path: '/webhooks/events',
+        headers: { 'content-type': 'text/plain', 'x-forwarded-for': '10.0.0.153' },
+        body: { id: 'content-type-check' },
+      },
+    ];
+
+    for (const request of requests) {
+      const response = await invoke(request);
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        error: 'invalid_request',
+        message: 'Content-Type must be application/json',
+      });
+    }
+  });
+
   it('15g) oversize body on POST /auth/token returns 413', async () => {
     const customDbUrl = makeSqliteDbUrlForTests();
     const customDbPath = customDbUrl.startsWith('file:')
@@ -2547,6 +2708,35 @@ describe('MVP Express-mounted integration', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_request');
+  });
+
+  it('17c) encoded path separators on GET /transactions/:id return 400 before lookup', async () => {
+    const database = (
+      anchor as unknown as {
+        database: {
+          getInteractiveTransactionById: (id: string) => Promise<unknown>;
+        };
+      }
+    ).database;
+    const lookupSpy = vi.spyOn(database, 'getInteractiveTransactionById');
+
+    try {
+      for (const path of ['/transactions/%2F', '/transactions/%5C']) {
+        const response = await invoke({
+          method: 'GET',
+          path,
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('invalid_request');
+        expect(response.body.message).toBe('Transaction id must not contain path separators');
+      }
+
+      expect(lookupSpy).not.toHaveBeenCalled();
+    } finally {
+      lookupSpy.mockRestore();
+    }
   });
 
   // ── Non-positive deposit amounts ─────────────────────────────────────────

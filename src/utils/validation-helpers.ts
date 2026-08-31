@@ -1,4 +1,5 @@
 import type { AnchorKitConfig, Asset, NetworkConfig, SecurityConfig } from '@/types/config.ts';
+import { StrKey } from '@stellar/stellar-sdk';
 import DOMPurify from 'isomorphic-dompurify';
 import type { ServerConfig } from '../types/config.ts';
 
@@ -266,8 +267,9 @@ export const ValidationUtils = {
 
   isValidStellarAddress(address: string): boolean {
     if (!address || typeof address !== 'string') return false;
-    if (!/^G[A-Z2-7]{55}$/.test(address)) return false;
-    return true;
+    // The shape regex alone lets 56-character values with an invalid StrKey
+    // checksum through, so verify the checksum via the Stellar SDK as well.
+    return StrKey.isValidEd25519PublicKey(address);
   },
 
   isValidDatabaseUrl(urlString: string): boolean {
@@ -409,10 +411,7 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
     throw new Error('At least one asset must be configured in assets.assets');
   }
 
-  if (
-    assets.defaultCurrency !== undefined &&
-    !isValidIso4217CurrencyCode(assets.defaultCurrency)
-  ) {
+  if (assets.defaultCurrency !== undefined && !isValidIso4217CurrencyCode(assets.defaultCurrency)) {
     throw new Error('assets.defaultCurrency must be a three-letter uppercase ISO 4217 code');
   }
 

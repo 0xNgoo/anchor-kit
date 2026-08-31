@@ -1,6 +1,6 @@
 import type { DatabaseAdapter, QueueAdapter } from '@/runtime/interfaces.ts';
 import { TransactionWatcher } from '@/runtime/watchers/transaction-watcher.ts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 describe('TransactionWatcher Unit Tests', () => {
   let mockDatabase: DatabaseAdapter;
@@ -14,7 +14,7 @@ describe('TransactionWatcher Unit Tests', () => {
       migrate: vi.fn().mockResolvedValue(undefined),
       insertAuthChallenge: vi.fn().mockResolvedValue(undefined),
       getAuthChallengeByChallenge: vi.fn().mockResolvedValue(null),
-      markAuthChallengeConsumed: vi.fn().mockResolvedValue(undefined),
+      markAuthChallengeConsumed: vi.fn().mockResolvedValue(true),
       insertInteractiveTransaction: vi.fn().mockResolvedValue({
         id: 'test-tx-id',
         account: 'test-account',
@@ -242,10 +242,11 @@ describe('TransactionWatcher Unit Tests', () => {
 
     await shortIntervalWatcher.stop();
 
-    // The watcher should continue polling after a failed tick, even if the exact
-    // number of calls varies slightly with scheduler timing.
+    // Should have called multiple times despite the second call failing
+    // Timing can vary across environments; accept at least 4 calls
     expect(mockDatabase.listPendingTransactionsBefore).toHaveBeenCalled();
-    expect(mockDatabase.listPendingTransactionsBefore.mock.calls.length).toBeGreaterThan(1);
+    const callCount = (mockDatabase.listPendingTransactionsBefore as Mock).mock.calls.length;
+    expect(callCount).toBeGreaterThanOrEqual(4);
   });
 
   it('enqueues a cleanup_records job with the configured retention days', async () => {
