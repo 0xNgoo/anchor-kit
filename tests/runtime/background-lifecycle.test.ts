@@ -1,4 +1,5 @@
 import { createAnchor, makeSqliteDbUrlForTests } from '@/core/factory.ts';
+import type { AnchorPlugin } from '@/types/plugin.ts';
 import { Keypair } from '@stellar/stellar-sdk';
 import { unlinkSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -86,7 +87,7 @@ describe('AnchorInstance background lifecycle', () => {
       },
     });
 
-    anchor.use(plugin as any);
+    anchor.use(plugin as AnchorPlugin);
     await expect(anchor.init()).rejects.toThrow(pluginFailure);
     await expect(anchor.init()).resolves.toBeUndefined();
     await anchor.shutdown();

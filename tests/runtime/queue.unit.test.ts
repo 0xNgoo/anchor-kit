@@ -449,8 +449,13 @@ describe('InMemoryQueueAdapter', () => {
     });
 
     await anchor.init();
+    const processQueueJob = (
+      Object.getPrototypeOf(anchor) as {
+        processQueueJob: (job: { type: string; payload: Record<string, unknown> }) => Promise<void>;
+      }
+    ).processQueueJob.bind(anchor);
     await expect(
-      (anchor as any).processQueueJob({
+      processQueueJob({
         type: 'unknown_job',
         payload: { jobId: 42 },
       }),
