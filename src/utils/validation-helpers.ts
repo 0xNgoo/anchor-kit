@@ -224,6 +224,9 @@ function validateAsset(asset: unknown): asset is Asset {
   const a = asset as Record<string, unknown>;
 
   if (!isNonEmptyString(a.code)) return false;
+  // Asset code must be alphanumeric and max 12 characters
+  if (!/^[A-Z0-9]+$/.test(a.code)) return false;
+  if (a.code.length > 12) return false;
   if (!isString(a.issuer) || !ValidationUtils.isValidStellarAddress(a.issuer)) return false;
 
   if (a.name !== undefined && !isString(a.name)) return false;
@@ -427,6 +430,11 @@ function validateAnchorKitConfig(config: AnchorKitConfig): boolean {
         `Invalid asset at index ${i}${codeStr}: asset.code must be a non-empty string and asset.issuer must be a valid Stellar public key.`,
       );
     }
+    const assetCode = asset.code;
+    if (seenCodes.has(assetCode)) {
+      throw new Error(`Duplicate asset code detected: ${assetCode}`);
+    }
+    seenCodes.add(assetCode);
   }
 
   validateFrameworkConfig(framework, server, metadata, operational);
