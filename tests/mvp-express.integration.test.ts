@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { version } from '../package.json';
+import type { DatabaseAdapter } from '@/runtime/interfaces.ts';
 
 interface TestResponse {
   status: number;
@@ -2240,20 +2241,65 @@ describe('MVP Express-mounted integration', () => {
     expect(challengeResponse.status).toBe(200);
     const challengeXdr = String(challengeResponse.body.challenge ?? '');
     const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
-    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
-    challengeTx.signatures.splice(0, challengeTx.signatures.length);
-    challengeTx.sign(clientKeypair);
 
-    const tokenResponse = await invoke({
+    const missingAnchorSignatureChallenge = new Transaction(challengeXdr, networkPassphrase);
+    missingAnchorSignatureChallenge.signatures.splice(
+      0,
+      missingAnchorSignatureChallenge.signatures.length,
+    );
+    missingAnchorSignatureChallenge.sign(clientKeypair);
+
+    const missingAnchorSignatureResponse = await invoke({
       method: 'POST',
       path: '/auth/token',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.13' },
-      body: { account, challenge: challengeTx.toXDR() },
+      body: { account, challenge: missingAnchorSignatureChallenge.toXDR() },
     });
 
-    expect(tokenResponse.status).toBe(401);
-    expect(tokenResponse.body.error).toBe('invalid_challenge');
-    expect(tokenResponse.body.message).toBe('Challenge is missing anchor signature');
+    expect(missingAnchorSignatureResponse.status).toBe(401);
+    expect(missingAnchorSignatureResponse.body.error).toBe('invalid_challenge');
+    expect(missingAnchorSignatureResponse.body.message).toBe(
+      'Challenge is missing anchor signature',
+    );
+  });
+
+  it('10e) persistence failure during auth token exchange returns a stable 500', async () => {
+    const account = clientKeypair.publicKey();
+    const challengeResponse = await invoke({
+      path: `/auth/challenge?account=${account}`,
+      headers: { 'x-forwarded-for': '10.0.0.13' },
+    });
+    expect(challengeResponse.status).toBe(200);
+    const challengeXdr = String(challengeResponse.body.challenge ?? '');
+    const networkPassphrase = String(challengeResponse.body.network_passphrase ?? '');
+    const challengeTx = new Transaction(challengeXdr, networkPassphrase);
+    challengeTx.sign(clientKeypair);
+
+    const databaseDescriptor = Object.getOwnPropertyDescriptor(anchor, 'database');
+    if (!databaseDescriptor || !(databaseDescriptor.value as DatabaseAdapter | null)) {
+      throw new Error('Expected initialized database adapter');
+    }
+    const database = databaseDescriptor.value as DatabaseAdapter;
+    const originalMark = database.markAuthChallengeConsumed.bind(database);
+    database.markAuthChallengeConsumed = async () => {
+      throw new Error('database unavailable');
+    };
+
+    try {
+      const tokenResponse = await invoke({
+        method: 'POST',
+        path: '/auth/token',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.0.0.13' },
+        body: { account, challenge: challengeTx.toXDR() },
+      });
+
+      expect(tokenResponse.status).toBe(500);
+      expect(tokenResponse.body.error).toBe('server_error');
+      expect(tokenResponse.body.message).toBe('Failed to record challenge consumption');
+      expect(tokenResponse.body).not.toHaveProperty('token');
+    } finally {
+      database.markAuthChallengeConsumed = originalMark;
+    }
   });
 
   it('11) reused challenge rejection', async () => {
