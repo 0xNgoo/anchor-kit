@@ -205,7 +205,8 @@ export interface AssetsConfig {
   assets: Asset[];
 
   /**
-   * Default fiat currency code (ISO 4217)
+   * Default fiat currency code (ISO 4217).
+   * Only standard three-letter uppercase fiat codes are accepted; custom or non-fiat values are not allowed.
    * @optional
    */
   defaultCurrency?: string;
