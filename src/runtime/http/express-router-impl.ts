@@ -132,6 +132,16 @@ async function parsePostJsonBody(
   res: ServerResponse,
   maxBodyBytes: number,
 ): Promise<{ rawBody: RawBodyValue; body: Record<string, unknown> } | null> {
+  const contentType = firstNonEmptyString(req.headers['content-type']);
+  const mediaType = contentType?.split(';', 1)[0]?.trim().toLowerCase();
+  if (mediaType !== 'application/json') {
+    sendJson(res, 400, {
+      error: 'invalid_request',
+      message: 'Content-Type must be application/json',
+    });
+    return null;
+  }
+
   let rawBody: RawBodyValue;
   try {
     rawBody = await readRawBody(req, maxBodyBytes);
@@ -787,7 +797,7 @@ async function handleWebhook(
       duplicate: result.duplicate,
       event_id: result.eventId,
       received_at: new Date().toISOString(),
-      provider,
+      provider: result.provider,
     });
   } catch {
     sendJson(res, 400, {
